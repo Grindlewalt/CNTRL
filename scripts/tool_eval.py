@@ -45,7 +45,9 @@ OUR_SKILLS = {
     "release-notes": "Write release notes for a version from the project's git history and journal.",
     "standup-summary": "Summarize what changed in the project since yesterday as a short standup update.",
 }
-MAX_TOKENS = 1024
+# room for DeepSeek's thinking before the tool call: at 64 tokens it ate the
+# whole reply (grounding probe, 2026-09-27); production leaves thinking on
+MAX_TOKENS = 4096
 
 
 # --- cases -----------------------------------------------------------------
@@ -315,15 +317,20 @@ def resolve_model(model_arg: str | None) -> dict:
             "headers": providers.auth_headers(p, key), "kind": p.get("kind") or "openai"}
 
 
-def http_model(m: dict, timeout: float = 120.0):
+def http_model(m: dict, timeout: float = 120.0, temperature: float | None = None):
     import httpx
+    from backend.config import settings
     if m["kind"] not in ("openai", "ollama"):
         raise SystemExit(f"provider kind '{m['kind']}' is not OpenAI-compatible; use --model with one that is")
     client = httpx.Client(timeout=timeout)
 
     def call(messages: list[dict], tools: list[dict]) -> dict:
         payload = {"model": m["name"], "messages": messages, "tools": tools,
-                   "tool_choice": "auto", "temperature": 0, "max_tokens": MAX_TOKENS,
+                   "tool_choice": "auto", "max_tokens": MAX_TOKENS,
+                   # what a real turn sends (settings.model_temperature), unless
+                   # --temperature pins it; thinking is left as production has it
+                   "temperature": (settings.model_temperature if temperature is None
+                                   else temperature),
                    "stream": False}
         last = None
         for attempt in range(3):
@@ -388,6 +395,8 @@ def main(argv: list[str] | None = None, model=None) -> int:
     ap.add_argument("--model", help="provider/model (default: the configured default)")
     ap.add_argument("--limit", type=int)
     ap.add_argument("--only", help="comma-separated case ids")
+    ap.add_argument("--temperature", type=float,
+                    help="default: the configured model_temperature, as a real turn")
     args = ap.parse_args(argv)
 
     if args.compare:
@@ -413,7 +422,7 @@ def main(argv: list[str] | None = None, model=None) -> int:
         price = None
         if model is None:
             m = resolve_model(args.model)
-            model, price = http_model(m), m["price"]
+            model, price = http_model(m, temperature=args.temperature), m["price"]
             print(f"model {m['id']} at {m['base']}", file=sys.stderr)
         records = []
         out_f = open(args.out, "w") if args.out else None
