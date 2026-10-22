@@ -1,8 +1,7 @@
 """Installed skills reach the model as ONE merged `skills` tool (fewer-tools step 2)."""
-import pytest
 
 from backend.agent import budget as budget_mod
-from backend.agent.tools import imported, registry, toolsections
+from backend.agent.tools import imported, registry
 from backend.agent.tools.toolsections import View
 from backend.vm import broker
 
