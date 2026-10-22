@@ -236,7 +236,7 @@ def _requirements_met(entry: dict) -> bool:
 
 
 def _sectioned(spec: dict, e: dict) -> dict:
-    """Stamp the entry's `section:` / `core:` / `action:` frontmatter onto its
+    """Stamp the entry's `section:` / `core:` / `action:` / `example:` frontmatter onto its
     spec (toolsections.py reads them; the loop strips them before the wire).
     A skill without a section of its own sits in "skills"."""
     sec = e.get("section")
@@ -247,6 +247,8 @@ def _sectioned(spec: dict, e: dict) -> dict:
         spec["core"] = True
     if e.get("action"):
         spec["action"] = str(e["action"])
+    if e.get("example"):            # one sample call, shown in a merged tool's listing
+        spec["example"] = str(e["example"])
     return spec
 
 

@@ -45,6 +45,7 @@ FLAT_MAX = 14            # a granted set this small is shown as granted: no sect
 META = "tools"           # the meta-tool's name
 SUB = "do"               # a merged tool's name for a member's own `action` argument
 MERGED_NOTES_MAX = 300   # per-action Notes kept in a merged tool's description
+EXAMPLE_MAX = 160        # one action's sample call (`example:` in its TOOL.md)
 
 # The order here is the order sections are listed in. `about` is the one-line
 # listing; `merged` describes the merged tool when the section has one;
@@ -151,7 +152,10 @@ SECTIONS: dict[str, dict] = {
         "triggers": r"\b(cntrl|jav3|jarvis|harness|your (own )?(docs|manual|architecture|tools)|"
                     r"how do you work)\b"},
     "skills": {"about": "installed skills (calling one loads its instructions), and "
-                        "asking the operator to install another"},
+                        "asking the operator to install another",
+               "merged": "Installed skills: each action is one skill, and calling it loads "
+                         "that skill's instructions for you to follow. request_install asks "
+                         "the operator to install a published skill."},
     "other": {"about": "tools with no section"},
 }
 
@@ -388,6 +392,12 @@ class View:
                 line += f" {_clip(notes, notes_max)}"
             if own and len(own.get("description") or "") > 70:   # more than a restatement
                 line += f" do: {_clip(own['description'], MERGED_NOTES_MAX)}"
+            # a flat schema cannot say which fields an action needs; one sample
+            # call per action can (Anthropic measured examples at 72% -> 90% on
+            # complex parameters). `example:` in the member's TOOL.md, ours only
+            ex = self.by_name[real].get("example")
+            if ex:
+                line += f" e.g. {_clip(str(ex), EXAMPLE_MAX)}"
             lines.append(line)
         if SUB in props:
             props[SUB] = {"type": "string", **{k: v for k, v in props[SUB].items()
