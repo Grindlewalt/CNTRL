@@ -55,7 +55,7 @@ def test_the_model_sees_at_most_35_names_with_every_section_loaded(monkeypatch):
     assert len(names) <= 35, names
     assert len(names) == len(set(names))
     # the families that used to be several tools each are one now
-    for one in ("web", "media", "project", "agents", "plans", "projector", "system",
+    for one in ("web", "media", "project", "agents", "plans", "system",
                 "browser", "desk", "git", "services", "memory"):
         assert one in names, one
     for gone in ("music_play", "music_control", "spawn_agent", "send_message", "plan_fix",
@@ -83,7 +83,8 @@ def test_a_core_flag_is_uniform_within_a_merged_tool():
         meta = _front(md)
         if meta.get("action"):
             by_section.setdefault(meta["section"], []).append(meta)
-    assert {"web", "media", "project", "agents", "plans", "projector", "system"} <= set(by_section)
+    assert {"web", "media", "project", "agents", "plans", "system"} <= set(by_section)
+    assert "projector" not in by_section and "schedules" not in by_section
     for sec, metas in by_section.items():
         acts = [str(m["action"]) for m in metas]
         assert len(acts) == len(set(acts)), (sec, acts)          # one label per tool
@@ -117,10 +118,10 @@ def test_a_tool_with_its_own_action_argument_gets_do(monkeypatch):
     v = View(_specs(monkeypatch, PLAN), _hist("hi"))
     assert v.resolve("media", {"action": "control", SUB: "pause"})[:2] == (
         "music_control", {"action": "pause"})
-    assert v.resolve("projector", {"action": "universe", SUB: "focus", "target": "mars"})[:2] == (
+    assert v.resolve("media", {"action": "projector_universe", SUB: "focus", "target": "mars"})[:2] == (
         "projector_universe", {"action": "focus", "target": "mars"})
     # its own action is optional there: leaving `do` out leaves it out
-    assert v.resolve("projector", {"action": "output", "calibrate": True})[:2] == (
+    assert v.resolve("media", {"action": "projector_output", "calibrate": True})[:2] == (
         "projector_output", {"calibrate": True})
     assert v.resolve("plans", {"action": "fix", SUB: "accept", "item": "i1",
                                "summary": "ran it"})[:2] == (
@@ -130,7 +131,7 @@ def test_a_tool_with_its_own_action_argument_gets_do(monkeypatch):
     # the merged schema names it, with every value, and lists it per action
     media = next(s for s in v.wire() if toolsections.spec_name(s) == "media")
     props = media["function"]["parameters"]["properties"]
-    assert props[SUB]["enum"] == ["pause", "resume", "next", "prev", "volume", "stop"]
+    assert props[SUB]["enum"][:6] == ["pause", "resume", "next", "prev", "volume", "stop"]
     assert "control(do=pause|resume|next|prev|volume|stop" in media["function"]["description"]
     assert "action" in props and "control" in props["action"]["enum"]
 
@@ -235,7 +236,8 @@ def test_the_grant_fence_holds_for_the_new_merged_tools(monkeypatch):
                         and e.get("requires_local") is not True)
     v = View(registry.openai_tool_specs(registry.load_registry()),
              _hist("put the universe on the projector surface"))
-    assert "projector" not in v.sections() and "plans" not in v.sections()
+    assert "plans" not in v.sections()
+    assert "projector_show" not in v.groups.get("media", {})
     assert v.meta_call({"section": "projector"}).startswith("error: no section 'projector'")
     _, _, _, err = v.resolve("projector_show", {"surface": "1"})
     assert err.startswith("error: there is no tool named 'projector_show'")

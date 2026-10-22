@@ -109,21 +109,21 @@ SECTIONS: dict[str, dict] = {
         "triggers": r"\b(services?|daemons?|systemd|logs?|keep (it )?running|long[- ]running|"
                     r"server|bot|worker)\b"},
     "agents": {
-        "about": "run or define agents, agent teams, plan runs, message a running agent",
+        "about": "run or define agents, agent teams, plan runs, message a running agent, "
+                 "propose recurring headless runs (schedules)",
         "merged": "Other agents: run a saved one, spawn a disposable one, deploy a team, "
-                  "define a new agent, turn a big ask into a plan, or message a running agent.",
+                  "define a new agent, turn a big ask into a plan, message a running agent, "
+                  "or propose a recurring schedule (action schedule; it starts paused until "
+                  "the operator approves).",
         "triggers": r"\b(agents?|subagents?|team|delegate|spawn|orchestrate|in parallel|"
-                    r"checklist)\b",
+                    r"checklist|schedules?|scheduled|every (day|morning|evening|night|hour|week|"
+                    r"weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
+                    r"\d+ ?(m|min|mins|minutes|h|hours))|daily|weekly|hourly|cron|remind)\b",
         "lead": ["spawn", "spawn_temp", "send"]},
     "plans": {"about": "the running plan: status, repairs, an item's report",
               "merged": "The running plan, the team's checklist: follow it, repair a failed "
                         "or blocked item, report your own item's outcome.",
               "autoload": True, "with": ["agents"], "lead": ["status"]},
-    "schedules": {
-        "about": "propose recurring headless runs",
-        "triggers": r"\b(schedules?|scheduled|every (day|morning|evening|night|hour|week|"
-                    r"weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
-                    r"\d+ ?(m|min|mins|minutes|h|hours))|daily|weekly|hourly|cron|remind)\b"},
     "memory": {
         "about": "your durable memory notes",
         "merged": "Your durable memory notes (they survive every restart and VM wipe): "
@@ -131,19 +131,16 @@ SECTIONS: dict[str, dict] = {
         "triggers": r"\b(remember|memory|memories|forget)\b"},
     "media": {
         "about": "the operator's music (play, pause, volume, download), the clap songs, "
-                 "videos and web pages on their screen",
+                 "videos and web pages on their screen, the projection mapper",
         "merged": "The operator's music and screen: search, play, pause and download songs "
                   "from their library, edit the double-clap list, put a video or web page on "
-                  "their screen.",
+                  "their screen. The projection mapper (surfaces, scenes, output window, universe "
+                  "simulation) has projector_* actions that appear only while the projector "
+                  "is configured.",
         "triggers": r"\b(music|songs?|play|playing|playlist|album|artist|tracks?|volume|"
-                    r"pause|skip|movie|video|clap|youtube)\b",
+                    r"pause|skip|movie|video|clap|youtube|projector|projection|universe|"
+                    r"surfaces?)\b",
         "lead": ["play", "search", "control", "status"]},
-    "projector": {
-        "about": "the projection mapper: surfaces, scenes, output window, universe",
-        "merged": "The projection mapper: put something on a surface, see what is showing, "
-                  "run the output window, drive the universe simulation.",
-        "triggers": r"\b(projector|projection|universe|surfaces?)\b",
-        "lead": ["show", "status"]},
     "local": {"about": "files and shell on the operator's own computer (a /local chat)",
               "autoload": True},
     "system": {

@@ -143,8 +143,6 @@ def test_unknown_name_is_refused_with_the_right_section(monkeypatch):
     v = View(_all_specs(monkeypatch), _hist("hi"))
     _, _, _, err = v.resolve("browser_clik", {})
     assert err.startswith("error:") and "Did you mean 'browser_click', in section 'browser'" in err
-    _, _, _, err = v.resolve("schedules", {})          # a section, not a tool
-    assert 'tools(section="schedules")' in err
 
 
 def test_loading_never_reveals_what_was_not_granted(monkeypatch):
@@ -311,14 +309,14 @@ async def test_preload_sections_from_this_conversations_calls(tmp_env, monkeypat
     db = await get_db()
     try:
         cid = (await db.execute("INSERT INTO conversations (summary) VALUES ('t')")).lastrowid
-        for tool, args in (("music_play", {"query": "x"}), (META, {"section": "projector"}),
+        for tool, args in (("music_play", {"query": "x"}), (META, {"section": "agents"}),
                            ("read_file", {"path": "a"}), ("todo_update", {"action": "list"}),
                            ("ask_user", {"questions": []})):
             await db.execute("INSERT INTO tool_calls (conversation_id, tool, args, result) "
                              "VALUES (?, ?, ?, 'ok')", (cid, tool, json.dumps(args)))
         await db.commit()
         secs = await chat._preload_sections(db, cid, specs, None)
-        assert {"media", "projector"} <= secs and "git" not in secs
+        assert {"media", "agents"} <= secs and "git" not in secs
         # core tools were shown anyway: using them never pulls their section in
         assert not {"files", "project", "system"} & secs
         monkeypatch.setattr(gitea, "enabled", lambda: True)
