@@ -5,7 +5,6 @@ when_to_use: When a piece of work is ready for the operator to review and merge.
 enabled: true
 section: git
 action: push
-example: 'git(action="push", title="Fix the login redirect", description="Sends users back to the page they came from.")'
 requires_project: true
 parameters:
   type: object

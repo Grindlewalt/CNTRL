@@ -5,7 +5,6 @@ when_to_use: Only when something genuinely has to persist between turns (a dev s
 enabled: true
 section: services
 action: request
-example: 'services(action="request", name="bot", command="python bot.py", files=["bot.py"], reason="The operator wants it running")'
 requires_project: true
 parameters:
   type: object

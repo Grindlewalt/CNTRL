@@ -5,7 +5,6 @@ when_to_use: When the operator asks you to work on a different project, or a tas
 enabled: true
 section: project
 action: load
-example: 'project(action="load", slug="my-site")'
 parameters:
   type: object
   properties:

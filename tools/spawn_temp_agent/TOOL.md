@@ -5,7 +5,6 @@ when_to_use: A one-off subtask no saved agent covers — offloading a build or i
 enabled: true
 section: agents
 action: spawn_temp
-example: 'agents(action="spawn_temp", task="Write tests for parser.py", prompt="You write pytest tests.")'
 parameters:
   type: object
   properties:

@@ -6,7 +6,6 @@ enabled: true
 section: memory
 core: true
 action: read
-example: 'memory(action="read", name="prefs")'
 read_only: true
 parameters:
   type: object

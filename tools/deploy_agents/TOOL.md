@@ -5,7 +5,6 @@ when_to_use: A multi-part task that splits into several independent subtasks (ga
 enabled: true
 section: agents
 action: deploy
-example: 'agents(action="deploy", brief="Compare the three vendors'' pricing pages and report")'
 requires_project: true
 parameters:
   type: object

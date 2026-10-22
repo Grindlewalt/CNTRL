@@ -6,7 +6,6 @@ enabled: true
 section: web
 core: true
 action: read
-example: 'web(action="read", url="https://a.com/doc")'
 read_only: true
 parameters:
   type: object

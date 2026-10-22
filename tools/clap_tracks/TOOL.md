@@ -5,7 +5,6 @@ when_to_use: When the operator wants a song added to or dropped from the clap / 
 enabled: true
 section: media
 action: clap
-example: 'media(action="clap", add="Dreams")'
 parameters:
   type: object
   properties:

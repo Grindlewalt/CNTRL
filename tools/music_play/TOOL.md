@@ -5,7 +5,6 @@ when_to_use: Whenever they ask for music by name. Just pass what they said in `q
 enabled: true
 section: media
 action: play
-example: 'media(action="play", query="Daft Punk")'
 parameters:
   type: object
   properties:

@@ -5,7 +5,6 @@ when_to_use: To move a slider, a window, a file onto a folder, or select text by
 enabled: true
 section: desk
 action: drag
-example: 'desk(action="drag", x=200, y=300, to_x=500, to_y=300)'
 requires_desk: true
 parameters:
   type: object

@@ -5,7 +5,6 @@ when_to_use: To review exactly what would go into a commit before calling git_co
 enabled: true
 section: git
 action: diff
-example: 'git(action="diff", path="src/auth.py")'
 read_only: true
 requires_project: true
 parameters:

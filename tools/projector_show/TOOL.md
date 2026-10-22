@@ -5,7 +5,6 @@ when_to_use: Any time the operator asks for something to go on the wall or ceili
 enabled: true
 section: media
 action: projector_show
-example: 'media(action="projector_show", surface="ceiling", show="starfield")'
 requires_settings: [mcp_projector_url, mcp_projector_token]
 parameters:
   type: object

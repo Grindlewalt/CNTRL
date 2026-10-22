@@ -5,7 +5,6 @@ when_to_use: The operator asks for something recurring ("read the news every mor
 enabled: true
 section: agents
 action: schedule
-example: 'agents(action="schedule", do="create", name="Morning news", task="Read the top headlines and summarize them", daily_at="08:00")'
 parameters:
   type: object
   properties:

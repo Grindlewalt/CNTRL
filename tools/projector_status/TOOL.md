@@ -5,7 +5,6 @@ when_to_use: When the operator asks what's on the wall, or when something did no
 enabled: true
 section: media
 action: projector_status
-example: 'media(action="projector_status")'
 requires_settings: [mcp_projector_url, mcp_projector_token]
 read_only: true
 parameters:

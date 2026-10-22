@@ -79,6 +79,10 @@ names one request carries, the `tools` meta-tool included (= `len(View.wire())`)
 
 ## Step 5: one example per merged action (agent C)
 
+**Measured and removed (2026-10-22):** examples bought nothing on DeepSeek V4.1
+Flash and cost ~4.5% more prompt tokens (docs/tool-eval-2026-10-22.md). The
+rendering stays; no TOOL.md carries an example; the test checks any added.
+
 - Every TOOL.md with an `action:` gets `example:`: one realistic call in the
   MERGED form, at most 160 characters, e.g.
   `example: browser(action="click", element="[3:12]")`.

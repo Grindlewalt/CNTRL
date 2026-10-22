@@ -5,7 +5,6 @@ when_to_use: To return to the previous page after following a link, instead of r
 enabled: true
 section: browser
 action: back
-example: 'browser(action="back", tab=1)'
 requires_browser: true
 parameters:
   type: object

@@ -5,7 +5,6 @@ when_to_use: Before any click/type/key on that computer (input is refused withou
 enabled: true
 section: desk
 action: screenshot
-example: 'desk(action="screenshot")'
 requires_desk: true
 parameters:
   type: object

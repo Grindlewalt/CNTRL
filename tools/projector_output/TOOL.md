@@ -5,7 +5,6 @@ when_to_use: When the operator wants the projection started or stopped, or wants
 enabled: true
 section: media
 action: projector_output
-example: 'media(action="projector_output", do="open")'
 requires_settings: [mcp_projector_url, mcp_projector_token]
 parameters:
   type: object

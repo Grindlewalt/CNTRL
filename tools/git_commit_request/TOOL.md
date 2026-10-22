@@ -5,7 +5,6 @@ when_to_use: When a coherent unit of approved work should be recorded in history
 enabled: true
 section: git
 action: commit
-example: 'git(action="commit", message="Fix the login redirect", paths=["src/auth.py"])'
 requires_project: true
 parameters:
   type: object

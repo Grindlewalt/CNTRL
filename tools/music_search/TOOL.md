@@ -5,7 +5,6 @@ when_to_use: When they name music to put on and you need its id, or when they as
 enabled: true
 section: media
 action: search
-example: 'media(action="search", query="jazz", limit=5)'
 read_only: true
 parameters:
   type: object

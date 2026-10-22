@@ -5,7 +5,6 @@ when_to_use: When the operator asks you to set up, open, show or clean up panels
 enabled: true
 section: project
 action: panel
-example: 'project(action="panel", do="add", panel="journal")'
 parameters:
   type: object
   properties:

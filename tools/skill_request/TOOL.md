@@ -5,7 +5,6 @@ when_to_use: Only for an existing published skill you have found, named as an ht
 enabled: true
 section: skills
 action: request_install
-example: 'skills(action="request_install", source="clawhub:pdf-tools", reason="need to fill PDF forms")'
 parameters:
   type: object
   properties:

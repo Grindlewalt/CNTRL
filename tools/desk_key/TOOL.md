@@ -5,7 +5,6 @@ when_to_use: To submit, navigate or use a keyboard shortcut.
 enabled: true
 section: desk
 action: key
-example: 'desk(action="key", combo="cmd+s")'
 requires_desk: true
 parameters:
   type: object

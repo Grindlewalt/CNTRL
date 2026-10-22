@@ -5,7 +5,6 @@ when_to_use: After clicking into a field in the latest desk_screenshot.
 enabled: true
 section: desk
 action: type
-example: 'desk(action="type", text="hello world")'
 requires_desk: true
 parameters:
   type: object

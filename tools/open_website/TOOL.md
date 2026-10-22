@@ -5,7 +5,6 @@ when_to_use: When the operator asks to "pull up", "open" or "show" a website, da
 enabled: true
 section: media
 action: website
-example: 'media(action="website", url="https://news.ycombinator.com")'
 parameters:
   type: object
   properties:

@@ -5,7 +5,6 @@ when_to_use: To debug an approved service that is failing or misbehaving.
 enabled: true
 section: services
 action: logs
-example: 'services(action="logs", name="bot", lines=50)'
 read_only: true
 requires_project: true
 parameters:

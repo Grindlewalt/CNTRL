@@ -5,7 +5,6 @@ when_to_use: When the operator asks you to run/summon a named agent (e.g. "have 
 enabled: true
 section: agents
 action: spawn
-example: 'agents(action="spawn", agent="recon", task="Map the auth module and list its entry points")'
 parameters:
   type: object
   properties:

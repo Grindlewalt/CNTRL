@@ -5,7 +5,6 @@ when_to_use: After meaningful progress, decisions, or discovered issues — keep
 enabled: true
 section: project
 action: journal
-example: 'project(action="journal", entry="Switched the parser to streaming; tests pass.")'
 requires_project: true
 parameters:
   type: object

@@ -5,7 +5,6 @@ when_to_use: To go somewhere else in a tab you opened.
 enabled: true
 section: browser
 action: navigate
-example: 'browser(action="navigate", tab=1, url="https://example.com/pricing")'
 requires_browser: true
 parameters:
   type: object

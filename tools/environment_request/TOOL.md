@@ -5,7 +5,6 @@ when_to_use: Use use="desktop" (with reason) when a tool says it needs the deskt
 enabled: true
 section: project
 action: environment
-example: 'project(action="environment", name="video-tools", packages=["apt ffmpeg", "pip moviepy"], reason="Every run renders clips")'
 requires_settings: [vm_boxes_enabled]
 parameters:
   type: object

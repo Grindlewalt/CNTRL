@@ -5,7 +5,6 @@ when_to_use: When a tool rejects arguments that match its schema, a documented b
 enabled: true
 section: system
 action: report_fault
-example: 'system(action="report_fault", what_i_tried="write_file notes/a.md", what_went_wrong="Refused with no reason given")'
 read_only: true
 parameters:
   type: object

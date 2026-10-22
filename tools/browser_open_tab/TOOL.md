@@ -5,7 +5,6 @@ when_to_use: To look at or use a site as the operator is logged in to it, when w
 enabled: true
 section: browser
 action: open_tab
-example: 'browser(action="open_tab", url="https://github.com/notifications")'
 requires_browser: true
 parameters:
   type: object

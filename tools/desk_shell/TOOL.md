@@ -5,7 +5,6 @@ when_to_use: When a command is the direct way to do it on that computer (list fi
 enabled: true
 section: desk
 action: shell
-example: 'desk(action="shell", cmd="ls -la ~/Downloads")'
 requires_desk: shell
 parameters:
   type: object

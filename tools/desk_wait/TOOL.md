@@ -5,7 +5,6 @@ when_to_use: After an action that starts something slow (a page load, an app lau
 enabled: true
 section: desk
 action: wait
-example: 'desk(action="wait", mode="stable")'
 requires_desk: true
 parameters:
   type: object

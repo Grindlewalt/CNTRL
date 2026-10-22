@@ -5,7 +5,6 @@ when_to_use: Before requesting a commit, or to see what canonical files have cha
 enabled: true
 section: git
 action: status
-example: 'git(action="status")'
 read_only: true
 requires_project: true
 parameters:

@@ -5,7 +5,6 @@ when_to_use: To press a button, focus a field or select something you can see in
 enabled: true
 section: desk
 action: click
-example: 'desk(action="click", element="12")'
 requires_desk: true
 parameters:
   type: object
