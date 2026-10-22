@@ -184,6 +184,7 @@ def run_case(case: dict, specs: list[dict], model) -> dict:
     expect = case["expect"]
     rec = {"id": case["id"], "expect": expect["tool"], "correct": False,
            "first_try": False, "hops": 0, "steps": 0, "calls": [],
+           "args_ok": None, "refused": 0,
            "first_call": None, "chosen": None, "wire_tools": 0, "prompt_tokens": 0,
            "completion_tokens": 0, "latency_s": 0.0, "error": None}
     t0 = time.time()
@@ -210,6 +211,7 @@ def run_case(case: dict, specs: list[dict], model) -> dict:
                 else:
                     real, args, note, err = view.resolve(call["name"], call["args"])
                     label = real if not err else f"{call['name']} (refused)"
+                    rec["refused"] += 1 if err else 0
                     rec["steps"] += 1
                     rec["calls"].append(label)
                     if rec["chosen"] is None:
@@ -218,6 +220,7 @@ def run_case(case: dict, specs: list[dict], model) -> dict:
                     if ok and expect.get("action") is not None:
                         ok = args.get("action") == expect["action"]
                     if ok:
+                        rec["args_ok"] = _args_ok(view, real, args)
                         rec["correct"] = True
                         rec["first_try"] = rec["steps"] == 1
                         done = True
@@ -231,6 +234,17 @@ def run_case(case: dict, specs: list[dict], model) -> dict:
         rec["error"] = f"{type(e).__name__}: {e}"[:300]
     rec["latency_s"] = round(time.time() - t0, 3)
     return rec
+
+
+def _args_ok(view, real: str, args: dict) -> bool:
+    """The arguments the expected tool got, against its own schema: every
+    required parameter there, nothing it does not take. What per-action
+    examples are meant to improve (the tool choice is scored apart)."""
+    params = ((view.by_name[real].get("function") or {}).get("parameters") or {})
+    props = set((params.get("properties") or {}))
+    args = args if isinstance(args, dict) else {}
+    return (set(params.get("required") or []) <= set(args)
+            and (not props or set(args) <= props))
 
 
 def _add_usage(rec: dict, reply: dict) -> None:
@@ -260,6 +274,8 @@ def summarize(records: list[dict], price: dict | None = None) -> dict:
         "first_try": sum(1 for r in records if r.get("first_try")) / n,
         "accuracy_no_hop": sum(1 for r in ok if r["hops"] == 0) / n,
         "mean_steps_ok": (sum(r.get("steps", 1) for r in ok) / len(ok)) if ok else 0.0,
+        "args_ok": (sum(1 for r in ok if r.get("args_ok")) / len(ok)) if ok else 0.0,
+        "refused": sum(r.get("refused", 0) for r in records),
         "mean_hops": sum(r["hops"] for r in records) / n,
         "mean_wire_tools": sum(r["wire_tools"] for r in records) / n,
         "mean_prompt_tokens": pt / n,
@@ -280,6 +296,8 @@ def format_summary(s: dict, title: str = "") -> str:
         f"  accuracy             {s['accuracy']:.1%}  (expected tool within {MAX_CALLS} calls)",
         f"  first try            {s['first_try']:.1%}  (the first real call)",
         f"  calls when correct   {s['mean_steps_ok']:.2f}",
+        f"  args right           {s.get('args_ok', 0):.1%}  (of the correct calls)",
+        f"  refused calls        {s.get('refused', 0)}",
         f"  accuracy, no hop     {s['accuracy_no_hop']:.1%}",
         f"  mean hops            {s['mean_hops']:.2f}",
         f"  mean tools on wire   {s['mean_wire_tools']:.1f}",

@@ -237,3 +237,13 @@ def test_first_try_counts_only_a_direct_hit(cases, toolset):
     s = te.summarize([r, te.run_case(cases["read-file"], toolset.specs(),
                                      Fake([("list_files", {})], [("read_file", {})]))])
     assert s["accuracy"] == 1.0 and s["first_try"] == 0.5 and s["mean_steps_ok"] == 1.5
+
+
+def test_args_are_checked_against_the_expected_tools_schema(cases, toolset):
+    good = te.run_case(cases["read-file"], toolset.specs(),
+                       Fake([("read_file", {"path": "backend/main.py"})]))
+    bad = te.run_case(cases["read-file"], toolset.specs(),
+                      Fake([("read_file", {"file": "backend/main.py"})]))
+    assert good["args_ok"] is True and bad["correct"] and bad["args_ok"] is False
+    s = te.summarize([good, bad])
+    assert s["args_ok"] == 0.5 and s["refused"] == 0
