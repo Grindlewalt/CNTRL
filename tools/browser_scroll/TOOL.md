@@ -5,6 +5,7 @@ when_to_use: To reach content further down (or up) before reading or taking a sc
 enabled: true
 section: browser
 action: scroll
+example: 'browser(action="scroll", tab=1, pages=2)'
 requires_browser: true
 parameters:
   type: object

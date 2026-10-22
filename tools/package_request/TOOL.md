@@ -5,6 +5,7 @@ when_to_use: Only when a tool is needed on EVERY run and a per-run `pip install`
 enabled: true
 section: project
 action: packages
+example: 'project(action="packages", manager="pip", package="pandas", install_command="pip install pandas", reason="Every run loads CSVs")'
 requires_settings: [vm_boxes_enabled]
 parameters:
   type: object

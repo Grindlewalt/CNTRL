@@ -5,6 +5,7 @@ when_to_use: To see a file you wrote (brief.html, a game), pass path=; do not st
 enabled: true
 section: project
 action: screenshot
+example: 'project(action="screenshot", mode="url", url="http://localhost:8000")'
 requires_settings: [vm_boxes_enabled]
 parameters:
   type: object

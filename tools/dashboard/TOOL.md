@@ -5,6 +5,7 @@ when_to_use: When the operator asks for a dashboard, chart, visualization, or an
 enabled: true
 section: project
 action: dashboard
+example: 'project(action="dashboard", path="dashboards/sales.html", html="<h1>Sales</h1>")'
 requires_project: true
 parameters:
   type: object

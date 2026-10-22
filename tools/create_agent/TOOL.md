@@ -5,6 +5,7 @@ when_to_use: The operator asks for a new kind of agent ("make a news agent"), wa
 enabled: true
 section: agents
 action: create
+example: 'agents(action="create", name="news", description="Daily news reader", prompt="You read the headlines and summarize them.")'
 parameters:
   type: object
   properties:

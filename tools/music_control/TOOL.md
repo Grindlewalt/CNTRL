@@ -5,6 +5,7 @@ when_to_use: When they say pause, resume, skip, go back, louder/quieter or stop 
 enabled: true
 section: media
 action: control
+example: 'media(action="control", do="pause")'
 parameters:
   type: object
   properties:

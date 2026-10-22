@@ -5,6 +5,7 @@ when_to_use: To reveal a tooltip or hover menu seen in the latest desk_screensho
 enabled: true
 section: desk
 action: move
+example: 'desk(action="move", element="8")'
 requires_desk: true
 parameters:
   type: object

@@ -5,6 +5,7 @@ when_to_use: When the operator asks about or wants to change what the space simu
 enabled: true
 section: media
 action: projector_universe
+example: 'media(action="projector_universe", do="focus", target="mars")'
 requires_settings: [mcp_projector_url, mcp_projector_token]
 parameters:
   type: object

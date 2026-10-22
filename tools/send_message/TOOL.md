@@ -5,6 +5,7 @@ when_to_use: When another running agent needs to know something you just learned
 enabled: true
 section: agents
 action: send
+example: 'agents(action="send", to="recon", message="The API moved to /v2; use that.")'
 parameters:
   type: object
   properties:

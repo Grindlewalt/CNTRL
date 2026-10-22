@@ -5,6 +5,7 @@ when_to_use: To submit with Enter, close a popup with Escape, move between field
 enabled: true
 section: browser
 action: key
+example: 'browser(action="key", tab=1, combo="Enter")'
 requires_browser: true
 parameters:
   type: object

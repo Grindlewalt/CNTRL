@@ -5,6 +5,7 @@ when_to_use: Only for a video that lives in the active project's files, or a dir
 enabled: true
 section: media
 action: video
+example: 'media(action="video", source="clips/demo.mp4", title="Demo")'
 parameters:
   type: object
   properties:

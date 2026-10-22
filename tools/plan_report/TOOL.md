@@ -5,6 +5,7 @@ enabled: false
 internal: true
 section: plans
 action: report
+example: 'plans(action="report", status="done", summary="Wrote the parser to src/parse.py; 12 tests pass.")'
 parameters:
   type: object
   properties:

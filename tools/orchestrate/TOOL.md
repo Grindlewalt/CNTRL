@@ -5,6 +5,7 @@ when_to_use: When the operator hands over a large multi-part task (a spec, "buil
 enabled: true
 section: agents
 action: orchestrate
+example: 'agents(action="orchestrate", dump="Build a todo app with a Flask API, a React UI and tests.")'
 requires_project: true
 parameters:
   type: object

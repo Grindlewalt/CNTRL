@@ -5,6 +5,7 @@ when_to_use: When they ask what's playing. You rarely need it before music_play,
 enabled: true
 section: media
 action: status
+example: 'media(action="status")'
 read_only: true
 parameters:
   type: object

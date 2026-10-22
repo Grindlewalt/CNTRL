@@ -5,6 +5,7 @@ when_to_use: When a menu or tooltip appears only on hover. Read the page again a
 enabled: true
 section: browser
 action: hover
+example: 'browser(action="hover", tab=1, element="f0:7")'
 requires_browser: true
 parameters:
   type: object

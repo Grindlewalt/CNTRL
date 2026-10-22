@@ -5,6 +5,7 @@ when_to_use: When they ask you to add, save, download or "get" a song into their
 enabled: true
 section: media
 action: download
+example: 'media(action="download", url="https://music.youtube.com/watch?v=abc123")'
 parameters:
   type: object
   properties:

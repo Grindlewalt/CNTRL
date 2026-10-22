@@ -6,6 +6,7 @@ enabled: true
 section: web
 core: true
 action: search
+example: 'web(action="search", query="rust async")'
 read_only: true
 parameters:
   type: object

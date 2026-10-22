@@ -6,6 +6,7 @@ enabled: true
 section: web
 core: true
 action: research
+example: 'web(action="research", topic="EV battery makers")'
 requires_project: true
 parameters:
   type: object

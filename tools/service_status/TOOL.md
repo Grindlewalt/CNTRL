@@ -5,6 +5,7 @@ when_to_use: After filing a service_request, or to check whether an approved ser
 enabled: true
 section: services
 action: status
+example: 'services(action="status", name="bot")'
 read_only: true
 requires_project: true
 parameters:

@@ -5,6 +5,7 @@ when_to_use: When browser_read_page lists a select line with its options and you
 enabled: true
 section: browser
 action: select
+example: 'browser(action="select", tab=1, element="f0:9", label="Large")'
 requires_browser: true
 parameters:
   type: object

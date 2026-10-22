@@ -5,6 +5,7 @@ when_to_use: Before browser_click / browser_type / browser_scroll_to_element (th
 enabled: true
 section: browser
 action: read
+example: 'browser(action="read", tab=1)'
 requires_browser: true
 parameters:
   type: object

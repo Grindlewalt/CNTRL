@@ -5,6 +5,7 @@ when_to_use: To bring more of a page or list into view.
 enabled: true
 section: desk
 action: scroll
+example: 'desk(action="scroll", dy=600)'
 requires_desk: true
 parameters:
   type: object

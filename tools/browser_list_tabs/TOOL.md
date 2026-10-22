@@ -5,6 +5,7 @@ when_to_use: To find a tab number again.
 enabled: true
 section: browser
 action: list_tabs
+example: 'browser(action="list_tabs")'
 requires_browser: true
 parameters:
   type: object

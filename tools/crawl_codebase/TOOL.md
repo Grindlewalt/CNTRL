@@ -5,6 +5,7 @@ when_to_use: After a repo has been uploaded into the project (usually under code
 enabled: true
 section: project
 action: crawl
+example: 'project(action="crawl", subdir="code/myapp")'
 requires_project: true
 parameters:
   type: object

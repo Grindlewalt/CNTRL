@@ -5,6 +5,7 @@ when_to_use: To start a task on that computer faster than clicking to it.
 enabled: true
 section: desk
 action: open
+example: 'desk(action="open", app="Calculator")'
 requires_desk: true
 parameters:
   type: object

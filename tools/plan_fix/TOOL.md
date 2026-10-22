@@ -6,6 +6,7 @@ enabled: false
 internal: true
 section: plans
 action: fix
+example: 'plans(action="fix", do="retry", item="i3", guidance="Use the v2 endpoint")'
 requires_project: true
 parameters:
   type: object

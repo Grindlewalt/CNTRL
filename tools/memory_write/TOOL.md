@@ -6,6 +6,7 @@ enabled: true
 section: memory
 core: true
 action: write
+example: 'memory(action="write", name="editor", content="Uses tabs.")'
 parameters:
   type: object
   properties:

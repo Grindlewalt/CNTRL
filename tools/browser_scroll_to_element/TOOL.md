@@ -5,6 +5,7 @@ when_to_use: When an element is off-screen (its line said off-screen) and you wa
 enabled: true
 section: browser
 action: scroll_to
+example: 'browser(action="scroll_to", tab=1, element="f0:40")'
 requires_browser: true
 parameters:
   type: object

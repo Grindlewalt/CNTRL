@@ -5,6 +5,7 @@ when_to_use: Before explaining how you work, debugging your own behavior (a refu
 enabled: true
 section: system
 action: docs
+example: 'system(action="docs", section="egress")'
 parameters:
   type: object
   properties:

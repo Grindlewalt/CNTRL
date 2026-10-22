@@ -5,6 +5,7 @@ when_to_use: "Only for an audio file that lives in the active project's files, o
 enabled: false
 section: media
 action: audio
+example: 'media(action="audio", source="audio/theme.mp3", title="Theme")'
 parameters:
   type: object
   properties:

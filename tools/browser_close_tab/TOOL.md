@@ -5,6 +5,7 @@ when_to_use: When done with a tab.
 enabled: true
 section: browser
 action: close_tab
+example: 'browser(action="close_tab", tab=2)'
 requires_browser: true
 parameters:
   type: object

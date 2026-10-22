@@ -5,6 +5,7 @@ when_to_use: To fill a search box or form field you saw in the latest browser_re
 enabled: true
 section: browser
 action: type
+example: 'browser(action="type", tab=1, element="f0:3", text="red bicycle", submit=True)'
 requires_browser: true
 parameters:
   type: object

@@ -6,6 +6,7 @@ enabled: false
 internal: true
 section: plans
 action: status
+example: 'plans(action="status", wait_seconds=60)'
 requires_project: true
 parameters:
   type: object

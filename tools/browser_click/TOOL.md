@@ -5,6 +5,7 @@ when_to_use: To follow a link or press a button you saw in the latest browser_re
 enabled: true
 section: browser
 action: click
+example: 'browser(action="click", tab=1, element="f0:12")'
 requires_browser: true
 parameters:
   type: object

@@ -6,6 +6,7 @@ enabled: true
 section: web
 core: true
 action: summarize
+example: 'web(action="summarize", urls=["https://a.com"])'
 read_only: true
 parameters:
   type: object

@@ -5,6 +5,7 @@ when_to_use: When the operator gives you a GitHub repo URL to hook up, or asks t
 enabled: true
 section: git
 action: remote
+example: 'git(action="remote", url="https://github.com/me/myapp")'
 requires_project: true
 parameters:
   type: object

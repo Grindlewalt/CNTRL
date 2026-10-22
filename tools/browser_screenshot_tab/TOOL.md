@@ -5,6 +5,7 @@ when_to_use: When the layout or an image matters; browser_read_page is cheaper f
 enabled: true
 section: browser
 action: screenshot
+example: 'browser(action="screenshot", tab=1)'
 requires_browser: true
 parameters:
   type: object
