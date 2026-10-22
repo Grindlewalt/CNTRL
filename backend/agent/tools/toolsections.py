@@ -42,6 +42,7 @@ import re
 
 CORE_MAX = 11            # tools in the prompt before any section loads, META included
 FLAT_MAX = 14            # a granted set this small is shown as granted: no sections, no folding
+MAX_VISIBLE = 15         # hard ceiling: function names in one request, META included (= len(View.wire()))
 META = "tools"           # the meta-tool's name
 SUB = "do"               # a merged tool's name for a member's own `action` argument
 MERGED_NOTES_MAX = 300   # per-action Notes kept in a merged tool's description
@@ -277,23 +278,79 @@ class View:
         # calls goes to the registry, whose handlers and the broker decide
         self.strict = any("section" in s for s in self.specs)
         self.loaded: set[str] = set()
+        self._order: list[str] = []         # loaded sections, least recently used first
         self.guided: set[str] = set()
         if not self.active:
             return
         text = _latest_user_text(history)
+        # the budget is filled in priority order: autoload, then sections used
+        # earlier in this conversation, then a tool named in the message, then
+        # triggers. One that does not fit is not preloaded; it loads on demand
+        tiers: list[list[str]] = [[], [], [], []]
         for u in deferred:
             sec = self.section_of(u)
             meta = SECTIONS.get(sec) or {}
-            if (meta.get("autoload") or self._marked(u)
-                    or (meta.get("triggers") and text
-                        and re.search(meta["triggers"], text, re.I))
-                    or self._named_in(u, text)):
-                self.loaded.add(sec)
-        # sections that ride along with a loaded one (the plan's team messages)
-        for sec in list(self.loaded):
-            for w in (SECTIONS.get(sec) or {}).get("with") or ():
-                if any(self.section_of(u) == w for u in deferred):
-                    self.loaded.add(w)
+            if meta.get("autoload"):
+                tier = 0
+            elif self._marked(u):
+                tier = 1
+            elif self._named_in(u, text):
+                tier = 2
+            elif meta.get("triggers") and text and re.search(meta["triggers"], text, re.I):
+                tier = 3
+            else:
+                continue
+            if sec not in tiers[tier]:
+                tiers[tier].append(sec)
+        have = {self.section_of(u) for u in deferred}
+        for tier, secs in enumerate(tiers):
+            for sec in secs:
+                group = [sec] + [w for w in (SECTIONS.get(sec) or {}).get("with") or ()
+                                 if w in have and w != sec]
+                fresh = [g for g in group if g not in self.loaded]
+                self.loaded.update(fresh)
+                if tier and self._count() > MAX_VISIBLE:      # autoload always stays
+                    self.loaded.difference_update(fresh)
+                    continue
+                for g in group:
+                    self._touch(g)
+
+    def _touch(self, sec: str) -> None:
+        if sec in self._order:
+            self._order.remove(sec)
+        self._order.append(sec)
+
+    def _count(self) -> int:
+        """len(self.wire()) without building the specs."""
+        n = sum(1 for u in self.units if self.visible(u))
+        return n + (1 if self.active else 0)
+
+    def _protected(self) -> set[str]:
+        """Sections never put away: autoload ones and what rides with them."""
+        out = set()
+        for sec in self.loaded:
+            meta = SECTIONS.get(sec) or {}
+            if meta.get("autoload"):
+                out.add(sec)
+                out.update(meta.get("with") or ())
+        return out
+
+    def _evict(self, keep: str) -> str:
+        """Put away least recently used sections until the list fits. Never
+        `keep` (just loaded), its companions, or a protected section; if
+        nothing else can go, the list stays long. Returns the note."""
+        keep_set = {keep, *((SECTIONS.get(keep) or {}).get("with") or ())}
+        notes = []
+        while self._count() > MAX_VISIBLE:
+            prot = self._protected() | keep_set
+            victim = next((s for s in self._order if s in self.loaded and s not in prot), None)
+            if victim is None:
+                break
+            self.loaded.discard(victim)
+            self._order.remove(victim)
+            notes.append(f"[section '{victim}' was put away to keep your tool list short; "
+                         f"calling one of its tools or tools(section=\"{victim}\") brings it back.]")
+        return "\n".join(notes)
 
     # --- units ----------------------------------------------------------------
 
@@ -433,7 +490,10 @@ class View:
     def _load(self, sec: str) -> str:
         """Load `sec`; returns the playbook to show with it, once per turn."""
         self.loaded.add(sec)
-        return self._guide(sec)
+        self._touch(sec)
+        note = self._evict(sec)
+        guide = self._guide(sec)
+        return "\n".join(x for x in (note, guide) if x)
 
     def _guide(self, sec: str) -> str:
         key = (SECTIONS.get(sec) or {}).get("guide")
@@ -547,6 +607,8 @@ class View:
     def _autoload_note(self, unit: str) -> str:
         sec = self.section_of(unit)
         if self.visible(unit) or not sec:
+            if sec and self.active and sec in self.loaded:
+                self._touch(sec)            # a call keeps its section warm
             return ""
         guide = self._load(sec)
         tools = ", ".join(self._unit_line(u) for u in self.sections().get(sec, []))

@@ -42,6 +42,7 @@ PLAN = ("plan_status", "plan_fix", "plan_report")
 
 
 def _loaded_view(monkeypatch, extra=PLAN):
+    monkeypatch.setattr(toolsections, "MAX_VISIBLE", 99)    # this is about folding, not the ceiling
     v = View(_specs(monkeypatch, extra), _hist("hi"))
     v.meta_call({"section": ",".join(v.sections())})
     return v
@@ -115,6 +116,7 @@ def test_every_action_maps_to_its_real_tool_and_every_old_name_still_works(monke
 
 
 def test_a_tool_with_its_own_action_argument_gets_do(monkeypatch):
+    monkeypatch.setattr(toolsections, "MAX_VISIBLE", 99)
     v = View(_specs(monkeypatch, PLAN), _hist("hi"))
     assert v.resolve("media", {"action": "control", SUB: "pause"})[:2] == (
         "music_control", {"action": "pause"})
