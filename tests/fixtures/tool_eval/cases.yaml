@@ -1,0 +1,63 @@
+# Tool-choice eval cases. expect.tool is the REAL tool name (what the registry
+# calls it), so a case scores the same before and after tools are merged or
+# moved between sections. preload: sections already loaded when the turn starts.
+# chat: local = a /local chat; skills: true = the fixture skills are granted.
+cases:
+  # core file tools
+  - {id: read-file, prompt: "Open backend/main.py and tell me what the startup code does.", expect: {tool: read_file}}
+  - {id: list-files, prompt: "What files are in the tests folder of this project?", expect: {tool: list_files}}
+  - {id: search-code, prompt: "Find every place in the code that calls parse_config.", expect: {tool: search_codebase}}
+  - {id: edit-file, prompt: "In src/app.py change the default port from 8000 to 8080.", expect: {tool: edit_file}}
+  - {id: write-file, prompt: "Create a new file notes/todo.md with a three-item checklist for the release.", expect: {tool: write_file}}
+  - {id: run-code, prompt: "Run the test suite and show me what fails.", expect: {tool: run_code}}
+  - {id: todo, prompt: "Track this work for me: 1) fix the login bug 2) add a retry 3) update the docs. Mark the first one in progress.", expect: {tool: todo_update}}
+  - {id: ask-user, prompt: "Deploy it. (You are not sure which of the two environments, staging or production, I mean, and a wrong guess is costly.)", expect: {tool: ask_user}}
+  # web
+  - {id: web-search, prompt: "Search the web for the latest stable release of PostgreSQL.", expect: {tool: web_search}}
+  - {id: web-read, prompt: "Read https://example.com/docs/changelog and quote the newest entry.", expect: {tool: web_read}}
+  - {id: web-summarize, prompt: "Give me a short summary of this article: https://example.com/blog/ownership-in-rust", expect: {tool: read_and_summarize}}
+  - {id: research, prompt: "Do a deep research pass on how other self-hosted agents sandbox their tools and write up the findings.", expect: {tool: research}}
+  # memory
+  - {id: memory-write, prompt: "Remember that I prefer tabs over spaces in every project.", expect: {tool: memory_write}}
+  - {id: memory-read, prompt: "What did I tell you earlier about my deployment preferences? Check your notes.", expect: {tool: memory_read}}
+  # project
+  - {id: project-load, prompt: "Switch to the billing-api project.", expect: {tool: load_project}}
+  - {id: project-journal, prompt: "Add a journal entry: today we decided to drop the legacy export endpoint.", expect: {tool: journal_update}}
+  - {id: project-crawl, prompt: "Index this codebase so searching it is fast.", expect: {tool: crawl_codebase}}
+  - {id: project-dashboard, prompt: "Build me a dashboard page showing the test results from the last run.", expect: {tool: dashboard}}
+  - {id: project-packages, prompt: "I need the pandas package installed in the sandbox.", expect: {tool: package_request}}
+  - {id: project-screenshot, prompt: "Take a screenshot of the app running in the sandbox so I can see the layout.", expect: {tool: screenshot}}
+  - {id: project-panel, prompt: "Put the test output and the git status side by side in the workspace panels.", expect: {tool: workspace_panel}}
+  # browser, desk
+  - {id: browser-click, prompt: "In the tab I have open, click the Sign in button.", expect: {tool: browser_click}}
+  - {id: browser-navigate, prompt: "Take the browser tab you opened over to https://example.com/pricing.", expect: {tool: browser_navigate}}
+  - {id: desk-screenshot, prompt: "Take a screenshot of my computer's screen and tell me what is open.", expect: {tool: desk_screenshot}}
+  - {id: desk-shell, prompt: "On my connected computer run `df -h` and report the free disk space.", expect: {tool: desk_shell}}
+  # git
+  - {id: git-status, prompt: "What has changed in the repo since the last commit?", expect: {tool: git_status}}
+  - {id: git-commit, prompt: "Commit these changes with the message 'Fix retry backoff'.", expect: {tool: git_commit_request}}
+  # services
+  - {id: services-logs, prompt: "Show me the last logs from the api service, it keeps crashing.", expect: {tool: service_logs}}
+  # agents
+  - {id: agents-spawn, prompt: "Hand the flaky-test investigation to a sub-agent while you keep working on the migration.", expect: {tool: spawn_agent}}
+  - {id: agents-schedule, prompt: "Every weekday at 8am run the dependency audit and send me the result.", expect: {tool: schedule_update}}
+  # media
+  - {id: media-play, prompt: "Play some Miles Davis.", expect: {tool: music_play}}
+  - {id: media-projector, prompt: "Show the sunset scene on the projector.", expect: {tool: projector_show}}
+  # system
+  - {id: system-docs, prompt: "How do you work? Read your own manual about how sections of tools load.", expect: {tool: self_docs}}
+  - {id: system-fault, prompt: "That last tool call failed with a stack trace from your own harness. Report this as a bug in the harness.", expect: {tool: report_harness_fault}}
+  # skills
+  - {id: skill-weather, prompt: "What's the weather going to be in Oslo tomorrow?", skills: true, expect: {tool: weather}}
+  - {id: skill-github, prompt: "List the open pull requests on our GitHub repo and show which have failing checks.", skills: true, expect: {tool: github}}
+  - {id: skill-ours, prompt: "Write the release notes for version 2.3.", skills: true, expect: {tool: release-notes}}
+  - {id: skill-request, prompt: "Install a skill for Jira so you can look up tickets for me.", skills: true, expect: {tool: skill_request}}
+  # local chat
+  - {id: local-read, prompt: "Read ~/notes/ideas.txt on this machine.", chat: local, expect: {tool: local_read_file}}
+  - {id: local-shell, prompt: "Run `git log --oneline -5` here.", chat: local, expect: {tool: local_shell}}
+  # ceiling: four sections already loaded, the tool is in a fifth. The prompts avoid
+  # the section trigger words (toolsections.SECTIONS) so the fifth is not auto-loaded.
+  - {id: ceiling-agents, prompt: "Give the changelog rewrite to a separate helper with its own fresh context, and you carry on with the migration.", preload: [browser, desk, git, services], expect: {tool: spawn_agent}}
+  - {id: ceiling-media, prompt: "Put on some Miles Davis, something mellow.", preload: [browser, desk, git, services], expect: {tool: music_play}}
+  - {id: ceiling-project, prompt: "Add a line to the project's running history that we shipped the retry fix today.", preload: [browser, desk, git, agents], expect: {tool: journal_update}}
+  - {id: ceiling-git, prompt: "Record these changes in version history with the message 'Tidy imports'.", preload: [browser, desk, media, agents], expect: {tool: git_commit_request}}
