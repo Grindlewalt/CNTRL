@@ -55,7 +55,8 @@ EXAMPLE_MAX = 160        # one action's sample call (`example:` in its TOOL.md)
 # only granted to the kind of turn that needs them); `with` names sections
 # that load along with an autoloaded one; `guide` names the navigation
 # playbook block that rides the section when it loads; `lead` puts a merged
-# tool's first-step actions first; `notes_max` overrides MERGED_NOTES_MAX.
+# tool's first-step actions first; `notes_max` overrides MERGED_NOTES_MAX;
+# `list_actions` names a merged tool's actions in the `tools` listing.
 SECTIONS: dict[str, dict] = {
     "files": {"about": "project files and the sandbox: read, write, edit, search, run code"},
     "project": {
@@ -151,6 +152,7 @@ SECTIONS: dict[str, dict] = {
                     r"how do you work)\b"},
     "skills": {"about": "installed skills (calling one loads its instructions), and "
                         "asking the operator to install another",
+               "list_actions": True,
                "merged": "Installed skills: each action is one skill, and calling it loads "
                          "that skill's instructions for you to follow. request_install asks "
                          "the operator to install a published skill."},
@@ -466,8 +468,12 @@ class View:
     def _listing(self) -> str:
         lines = []
         for sec, units in self.sections().items():
-            about = (SECTIONS.get(sec) or {}).get("about", "")
-            lines.append(f"- {sec}: {about} [{', '.join(units)}]")
+            meta = SECTIONS.get(sec) or {}
+            # skills folded into one tool would list as just `skills`; their
+            # names are the only way to know one fits (the eval saw a skill
+            # go unfound once the listing stopped naming it)
+            shown = [self._unit_line(u) if meta.get("list_actions") else u for u in units]
+            lines.append(f"- {sec}: {meta.get('about', '')} [{', '.join(shown)}]")
         return "\n".join(lines)
 
     def _meta_spec(self) -> dict:

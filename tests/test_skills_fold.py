@@ -137,3 +137,16 @@ def test_skills_exclude_still_removes_a_skill(monkeypatch):
     v, _ = _view(entries, monkeypatch)
     enum = _merged(v)["parameters"]["properties"]["action"]["enum"]
     assert "alpha" not in enum and "gamma" in enum
+
+
+def test_the_tools_listing_names_each_folded_skill(monkeypatch):
+    """Folded into one `skills` tool, a skill is still findable: the `tools`
+    meta-tool's listing names every skill (the eval saw `weather` go unfound
+    when it said only `skills`)."""
+    v, _ = _view(_filler() + [_skill("release-notes"), _imp("weather"), _request()],
+                 monkeypatch, granted={"weather"})
+    meta = next(t for t in v.wire() if t["function"]["name"] == "tools")
+    desc = meta["function"]["description"]
+    assert "skills (action: " in desc
+    for name in ("release-notes", "weather", "request_install"):
+        assert name in desc.split("skills (action: ", 1)[1]

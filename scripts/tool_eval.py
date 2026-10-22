@@ -157,10 +157,22 @@ def _msg_calls(reply: dict) -> list[dict]:
             for i, c in enumerate(reply.get("tool_calls") or [])]
 
 
-def _assistant_msg(reply: dict, call: dict) -> dict:
+# A run is a short task, not one call: models look before they act (list_files
+# before an edit, git status before a commit), and that is good behaviour, not a
+# wrong pick. So a case runs up to MAX_CALLS tool calls (tools() loads apart, at
+# most MAX_HOPS), every other tool answering with STUB, and it is correct when
+# the expected tool is called within that budget. first_try keeps the strict
+# score: the first real call is the expected one.
+MAX_CALLS = 4
+MAX_HOPS = 2
+STUB = ("(eval stub) Done: nothing unusual came back. Carry on with the task; "
+        "do what was asked.")
+
+
+def _assistant_msg(reply: dict, calls: list[dict]) -> dict:
     m = {"role": "assistant", "content": reply.get("content") or None,
-         "tool_calls": [{"id": call["id"], "type": "function", "function": {
-             "name": call["name"], "arguments": json.dumps(call["args"])}}]}
+         "tool_calls": [{"id": c["id"], "type": "function", "function": {
+             "name": c["name"], "arguments": json.dumps(c["args"])}} for c in calls]}
     if reply.get("reasoning"):
         m["reasoning_content"] = reply["reasoning"]
     return m
@@ -170,7 +182,8 @@ def run_case(case: dict, specs: list[dict], model) -> dict:
     """model(messages, tools) -> {tool_calls: [{id, name, args}], content,
     reasoning, usage: {prompt_tokens, completion_tokens}}."""
     expect = case["expect"]
-    rec = {"id": case["id"], "expect": expect["tool"], "correct": False, "hops": 0,
+    rec = {"id": case["id"], "expect": expect["tool"], "correct": False,
+           "first_try": False, "hops": 0, "steps": 0, "calls": [],
            "first_call": None, "chosen": None, "wire_tools": 0, "prompt_tokens": 0,
            "completion_tokens": 0, "latency_s": 0.0, "error": None}
     t0 = time.time()
@@ -178,30 +191,42 @@ def run_case(case: dict, specs: list[dict], model) -> dict:
         view = present(case, specs)
         messages = [{"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": case["prompt"]}]
-        wire = view.wire()
-        rec["wire_tools"] = len(wire)
-        reply = model(messages, wire)
-        _add_usage(rec, reply)
-        calls = _msg_calls(reply)
-        rec["first_call"] = _call_label(calls[0]) if calls else None
-        if calls and view.is_meta(calls[0]["name"]):
-            rec["hops"] = 1
-            messages.append(_assistant_msg(reply, calls[0]))
-            messages.append({"role": "tool", "tool_call_id": calls[0]["id"],
-                             "content": view.meta_call(calls[0]["args"])})
+        done = False
+        while not done and rec["steps"] < MAX_CALLS and rec["hops"] <= MAX_HOPS:
             wire = view.wire()
-            rec["wire_tools_after_hop"] = len(wire)
+            rec["wire_tools"] = max(rec["wire_tools"], len(wire))
             reply = model(messages, wire)
             _add_usage(rec, reply)
             calls = _msg_calls(reply)
-        call = next((c for c in calls if not view.is_meta(c["name"])), None)
-        if call is not None:
-            real, args, _note, err = view.resolve(call["name"], call["args"])
-            rec["chosen"] = real if not err else f"{call['name']} (refused)"
-            ok = err is None and real == expect["tool"]
-            if ok and expect.get("action") is not None:
-                ok = args.get("action") == expect["action"]
-            rec["correct"] = bool(ok)
+            if not calls:
+                break                       # answered in words: the task stops here
+            if rec["first_call"] is None:
+                rec["first_call"] = _call_label(calls[0])
+            messages.append(_assistant_msg(reply, calls))
+            for call in calls:
+                if view.is_meta(call["name"]):
+                    rec["hops"] += 1
+                    out = view.meta_call(call["args"])
+                else:
+                    real, args, note, err = view.resolve(call["name"], call["args"])
+                    label = real if not err else f"{call['name']} (refused)"
+                    rec["steps"] += 1
+                    rec["calls"].append(label)
+                    if rec["chosen"] is None:
+                        rec["chosen"] = label
+                    ok = err is None and real == expect["tool"]
+                    if ok and expect.get("action") is not None:
+                        ok = args.get("action") == expect["action"]
+                    if ok:
+                        rec["correct"] = True
+                        rec["first_try"] = rec["steps"] == 1
+                        done = True
+                        break
+                    out = err or (STUB + (note or ""))
+                messages.append({"role": "tool", "tool_call_id": call["id"],
+                                 "content": out})
+            if done:
+                break
     except Exception as e:  # noqa: BLE001 - one failed case must not stop a run
         rec["error"] = f"{type(e).__name__}: {e}"[:300]
     rec["latency_s"] = round(time.time() - t0, 3)
@@ -232,7 +257,9 @@ def summarize(records: list[dict], price: dict | None = None) -> dict:
     out = {
         "cases": n,
         "accuracy": len(ok) / n,
+        "first_try": sum(1 for r in records if r.get("first_try")) / n,
         "accuracy_no_hop": sum(1 for r in ok if r["hops"] == 0) / n,
+        "mean_steps_ok": (sum(r.get("steps", 1) for r in ok) / len(ok)) if ok else 0.0,
         "mean_hops": sum(r["hops"] for r in records) / n,
         "mean_wire_tools": sum(r["wire_tools"] for r in records) / n,
         "mean_prompt_tokens": pt / n,
@@ -250,7 +277,9 @@ def format_summary(s: dict, title: str = "") -> str:
     lines = [title] if title else []
     lines += [
         f"  cases                {s['cases']}",
-        f"  accuracy             {s['accuracy']:.1%}",
+        f"  accuracy             {s['accuracy']:.1%}  (expected tool within {MAX_CALLS} calls)",
+        f"  first try            {s['first_try']:.1%}  (the first real call)",
+        f"  calls when correct   {s['mean_steps_ok']:.2f}",
         f"  accuracy, no hop     {s['accuracy_no_hop']:.1%}",
         f"  mean hops            {s['mean_hops']:.2f}",
         f"  mean tools on wire   {s['mean_wire_tools']:.1f}",

@@ -177,7 +177,7 @@ def test_compare_lists_differences(tmp_path, capsys):
 
 def test_main_writes_jsonl_with_repeat(tmp_path, capsys):
     out = tmp_path / "run.jsonl"
-    m = Fake(*[[("read_file", {})]] * 4)
+    m = Fake(*[[("read_file", {})]] * 20)       # list-files never gets there: up to MAX_CALLS each
     assert te.main(["--only", "read-file,list-files", "--repeat", "2", "--out", str(out)],
                    model=m) == 0
     rows = te.read_run(out)
@@ -214,3 +214,26 @@ def test_dry_run_never_writes_the_state_dir(tmp_path):
     assert "skill-weather" in r.stdout
     assert _snapshot(state) == before
     assert not (tmp_path / "home").exists() or not list((tmp_path / "home").rglob("*.db"))
+
+
+def test_a_look_first_then_the_expected_tool_is_correct_but_not_first_try(cases, toolset):
+    m = Fake([("list_files", {})], [("read_file", {"path": "backend/main.py"})])
+    r = te.run_case(cases["read-file"], toolset.specs(), m)
+    assert r["correct"] and not r["first_try"] and r["steps"] == 2
+    assert r["calls"] == ["list_files", "read_file"] and r["chosen"] == "list_files"
+    stub = [x for x in m.seen[1]["messages"] if x["role"] == "tool"]
+    assert stub and stub[0]["content"].startswith("(eval stub)")
+
+
+def test_the_call_budget_stops_a_run(cases, toolset):
+    m = Fake(*[[("list_files", {})]] * 10)
+    r = te.run_case(cases["read-file"], toolset.specs(), m)
+    assert not r["correct"] and r["steps"] == te.MAX_CALLS and len(m.seen) == te.MAX_CALLS
+
+
+def test_first_try_counts_only_a_direct_hit(cases, toolset):
+    r = te.run_case(cases["read-file"], toolset.specs(), Fake([("read_file", {})]))
+    assert r["correct"] and r["first_try"] and r["steps"] == 1
+    s = te.summarize([r, te.run_case(cases["read-file"], toolset.specs(),
+                                     Fake([("list_files", {})], [("read_file", {})]))])
+    assert s["accuracy"] == 1.0 and s["first_try"] == 0.5 and s["mean_steps_ok"] == 1.5
