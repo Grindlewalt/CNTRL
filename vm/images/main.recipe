@@ -12,3 +12,7 @@ apt nodejs npm
 apt build-essential pkg-config
 apt jq ripgrep sqlite3
 apt unzip zip xz-utils
+# The headless browser for `headless_browser` and the url mode of `screenshot`:
+# the Debian headless-shell build (no GUI libraries), fonts so text draws, and
+# Pillow for the screenshot downscale. The `desktop` image keeps full chromium.
+apt chromium-headless-shell fonts-dejavu-core python3-pil
