@@ -12,6 +12,7 @@ import json
 import posixpath
 import re
 import shlex
+import time
 from collections import OrderedDict
 from typing import AsyncIterator
 
@@ -484,6 +485,20 @@ def new_stats() -> dict:
             "stop": "final"}
 
 
+def usage_event(usage: dict | None, ms: int, model_name: str | None) -> dict | None:
+    """The `usage` event for one model call: prompt / completion tokens, the cached
+    part of the prompt (null when the provider did not say), the call's wall time
+    and the model. None when the call reported no usage at all."""
+    if not usage:
+        return None
+    cached = usage.get("prompt_cache_hit_tokens")
+    if cached is None:
+        cached = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+    return {"type": "usage", "in": int(usage.get("prompt_tokens") or 0),
+            "out": int(usage.get("completion_tokens") or 0),
+            "cached": cached, "ms": int(ms), "model": model_name or getattr(settings, "model_name", None)}   # the guest has no default name
+
+
 async def run_turn(*args, **kwargs) -> AsyncIterator[dict]:
     """Run one turn (see _run_turn). Yields token / tool / tool_result events,
     then ONE {"type": "turn_stats", ...} (the counters of new_stats() plus the
@@ -580,6 +595,7 @@ async def _run_turn(
             if report:
                 call_tools, report_only = report, True
         final: dict | None = None
+        t_call = time.monotonic()
         try:
             async for event in model.complete(
                 messages, tools=call_tools, conversation_id=conversation_id,
@@ -597,6 +613,9 @@ async def _run_turn(
 
         assert final is not None
         stats["rounds"] += 1
+        uev = usage_event(final.get("usage"), (time.monotonic() - t_call) * 1000, model_name)
+        if uev:
+            yield uev     # the terminal shows ↑ ↓ and tok/s; the web app ignores it
         # the gateway's DSML recovery names the calls it rebuilt dsml_N
         if any(str(tc.get("id", "")).startswith("dsml_")
                for tc in final["tool_calls"] or ()):

@@ -156,6 +156,8 @@ def test_a_live_turn_streams_to_the_end():
     with td.driven(fake=True, size=(100, 30), timeout=15, cli=CLI) as d:
         d.run.run(td.split_steps("type:hello|key:enter|waitfor:Not checked@15|wait:0.3"))
         assert not d.run.failed, d.run.screen_dump("stuck")
+        assert "▸ 4 steps" in d.sess.text()            # folded; ctrl+o opens the rows
+        d.run.run(td.split_steps("key:ctrl+o|wait:0.5"))
         text = d.sess.text()
         assert "Grep \"def retry\"" in text and "Edit src/sync/retry.py" in text
         assert d.fake.posts and d.fake.posts[0]["message"] == "hello"
