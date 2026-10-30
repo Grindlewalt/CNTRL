@@ -381,7 +381,7 @@ async def test_p_is_refused_at_four_panels_with_a_note_and_the_drawer_stays():
         assert await wait_for(lambda: app.drawer is not None and len(app.drawer.rows) > 4)
         before = {n: c.cid for n, c in app.chats.items()}
         await pilot.press("p")
-        assert await wait_for(lambda: "4 panels is the most" in str(
+        assert await wait_for(lambda: "tiles a tab is the most" in str(
             app.drawer.query_one("#dr-msg").render()))
         assert app.drawer is not None and len(app.chats) == 4
         assert {n: c.cid for n, c in app.chats.items()} == before

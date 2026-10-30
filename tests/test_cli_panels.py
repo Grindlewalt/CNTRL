@@ -1,8 +1,8 @@
 """jav3.2 P1: panels in the terminal client. The area above the prompt tiles like tmux (a
 split tree, at most four panels); every panel has a PageHost of its own with a chat at the
 bottom of it, the chat state is per panel (several chats stream at once), one prompt line
-types into the focused panel, and ctrl+x plus an arrow / 1-4 / z / 0 moves, jumps, zooms and
-closes. The first half is the pure layout (no terminal); the second drives the Textual app.
+types into the focused panel, and ctrl+x plus an arrow / z moves and zooms (ctrl+t opens a tile, ctrl+w closes one;
+ctrl+x 0 still closes). The first half is the pure layout (no terminal); the second drives the Textual app.
 The client file is loaded from tests/cli_fake.py."""
 import pytest
 
@@ -222,10 +222,10 @@ async def test_four_panels_is_the_most_and_the_fifth_is_refused_in_one_line():
             await split(pilot, app, "/new-panel", want=want)
         assert sorted(app.chats) == [1, 2, 3, 4]
         app.dispatch("/new-panel")
-        assert await wait_for(lambda: any("4 panels is the most" in n for n in notes(app)))
+        assert await wait_for(lambda: any("tiles a tab is the most" in n for n in notes(app)))
         assert len(app.chats) == 4
         app.dispatch("/vms panel")
-        assert await wait_for(lambda: sum("4 panels is the most" in n for n in notes(app)) == 2)
+        assert await wait_for(lambda: sum("tiles a tab is the most" in n for n in notes(app)) == 2)
         assert len(app.chats) == 4
         # every panel has a rect inside the area and none overlaps another
         area = app.panel_area.size
@@ -233,14 +233,14 @@ async def test_four_panels_is_the_most_and_the_fifth_is_refused_in_one_line():
         assert all(r.right <= area.width and r.bottom <= area.height for r in regs)
         assert sum(r.width * r.height for r in regs) == area.width * area.height
         # a closed panel's number is free again and the next new panel takes it
-        await pilot.press("ctrl+x", "2")
-        await pilot.press("ctrl+x", "0")
+        app.focus_panel(2)
+        await pilot.press("ctrl+w")
         assert await wait_for(lambda: sorted(app.chats) == [1, 3, 4])
         await split(pilot, app, "/new-panel", want=4)
         assert sorted(app.chats) == [1, 2, 3, 4] and app.focus_no == 2
 
 
-async def test_ctrl_x_arrows_move_the_focus_by_geometry_and_digits_jump():
+async def test_ctrl_x_arrows_move_the_focus_by_geometry():
     srv, app = make()
     async with app.run_test(size=(160, 48)) as pilot:
         await pilot.pause(0.3)
@@ -259,12 +259,9 @@ async def test_ctrl_x_arrows_move_the_focus_by_geometry_and_digits_jump():
         assert app.focus_no == 3
         await pilot.press("ctrl+x", "down")                    # nothing below: stays, says so
         assert app.focus_no == 3
-        await pilot.press("ctrl+x", "2")
-        assert app.focus_no == 2
-        await pilot.press("ctrl+x", "4")                       # no panel 4: stays
-        assert app.focus_no == 2
-        await pilot.press("ctrl+x", "1")
-        assert app.focus_no == 1
+        assert app.focus_panel(2) and app.focus_no == 2
+        assert not app.focus_panel(4) and app.focus_no == 2    # no tile 4: stays
+        assert app.focus_panel(1) and app.focus_no == 1
         # the keyboard is where the panel wants it: the prompt, for a chat
         assert app.focused is app.editor
         # the leader letters still work beside the panel keys
@@ -285,7 +282,7 @@ async def test_ctrl_x_z_zooms_the_focused_panel_and_back_and_0_closes_it():
         assert app.zoomed and app.chats[2].panel.region.size == full
         assert not app.chats[1].panel.display
         assert "zoomed" in titles(app)[2]
-        await pilot.press("ctrl+x", "1")                       # zoom follows the focus
+        app.focus_panel(1)                                     # zoom follows the focus
         await pilot.pause(0.1)
         assert app.zoomed and app.chats[1].panel.display and not app.chats[2].panel.display
         await pilot.press("ctrl+x", "z")
@@ -297,10 +294,12 @@ async def test_ctrl_x_z_zooms_the_focused_panel_and_back_and_0_closes_it():
         assert await wait_for(lambda: list(app.chats) == [2])
         assert app.focus_no == 2 and app.chats[2].panel.region.size == app.panel_area.size
         assert not app.panel_area.has_class("-multi")
-        # the last panel cannot be closed
+        # the last tile of the last tab is never just closed: it becomes one new chat
+        last = app.chats[2]
         await pilot.press("ctrl+x", "0")
-        await pilot.pause(0.2)
-        assert list(app.chats) == [2] and app.chats[2].panel.is_attached
+        assert await wait_for(lambda: list(app.chats) == [1] and app.chats[1] is not last)
+        assert len(app.ptabs) == 1 and app.chats[1].panel.is_attached
+        assert not last.panel.is_attached
 
 
 async def test_closing_a_panel_leaves_its_turn_running_on_the_server():
@@ -475,11 +474,13 @@ async def test_new_chat_and_other_commands_act_on_the_focused_panel_only():
 
 
 def test_the_panel_keys_are_free_in_the_leader_table():
-    """ctrl+x + an arrow / 1-4 / z / 0 belong to the panels: no command or page may use them."""
+    """ctrl+x + an arrow / z / 0 (tiles) and t / w / 1-9 / [ ] (tabs) belong to the layout:
+    no command or page may use them."""
     app = jav3.build_tui("http://h:1", "jvd_x")
     taken = {c.leader for _, c in app.unique_commands() if c.leader}
     taken |= {s.leader for s in jav3.PAGE_SPECS if s.leader}
-    assert not taken & {"z", "0", "1", "2", "3", "4", "left", "right", "up", "down"}
+    assert not taken & {"z", "t", "w", "[", "]", "left", "right", "up", "down",
+                      *"0123456789"}
     assert "new-panel" in app.commands and app.commands["new-panel"].busy_ok
 
 
