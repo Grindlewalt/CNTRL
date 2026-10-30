@@ -10955,7 +10955,6 @@ def build_tui(base: str, token: str, **kw):
                 await self._close_seg()
                 name = ev.get("name") or "?"
                 tv = ToolView(name, ev.get("args") or {})
-                tv.expanded = self.tools_expanded
                 # a call without an id (an older guest) must not take the place
                 # of another one's: its result is matched by name, oldest first
                 key = ev.get("id") or f"{name}\0{turn.ntools}"
@@ -11919,9 +11918,8 @@ def build_tui(base: str, token: str, **kw):
             self.tools_expanded = not self.tools_expanded
             for fl in self.chat.page.query(FoldLine):
                 fl.set_open(self.tools_expanded)
-            for tv in self.chat.page.query(ToolView):
-                tv.expanded = self.tools_expanded
-                tv.redraw()
+            # open shows the rows as they always were (one line each, enter on a
+            # picked row opens its output); it no longer forces every output open
 
         def action_scroll_log(self, direction: int) -> None:
             lv = self.log_view
@@ -12006,7 +12004,7 @@ def build_tui(base: str, token: str, **kw):
                                       "<format> [dir]",
                                       "[name] [format] [location]", takes_arg=True,
                                       busy_ok=True),
-                "details": Command(self.c_details, "expand or collapse tool output (ctrl+o)",
+                "details": Command(self.c_details, "open or fold the tool steps (ctrl+o)",
                                    busy_ok=True),
                 "detach": Command(self.c_detach, "drop pending !command output",
                                   busy_ok=True),
@@ -12159,7 +12157,7 @@ def build_tui(base: str, token: str, **kw):
                          ("custom themes", f"{themes_dir()} — /theme import copies a "
                                            ".json there, checked on every start"),
                          ("/screenshot help", "the default format and folder"),
-                         ("ctrl+o · tab", "open / close every tool row · tab picks one: "
+                         ("ctrl+o · tab", "open / fold every run of tool steps · tab picks a row: "
                                           "↑↓ enter, → all of it, esc back (or click it)"),
                          ("ctrl+g", "edit the prompt in $EDITOR"),
                          ("pgup / pgdn", "scroll the transcript"),

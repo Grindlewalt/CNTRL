@@ -220,6 +220,8 @@ async def test_parallel_calls_are_one_line_each_and_keep_their_own_results(cfg):
                        "result": "\n".join("x" * n)})
         assert await _until(pilot, lambda: all(tv.done for tv in app.query("ToolView")))
         await pilot.pause(0.2)
+        await pilot.press("ctrl+o")             # the three calls are folded into one line
+        await pilot.pause(0.2)
         rows = list(app.query("ToolView"))
         heads = [_plain(tv.query_one("#head")) for tv in rows]
         assert [h.split("  ")[-1] for h in heads] == ["1 line", "3 lines", "5 lines"]
@@ -288,6 +290,8 @@ async def test_tab_picks_a_row_and_enter_opens_it(cfg):
         assert await _until(pilot, lambda: not app.busy)
         rows = list(app.query("ToolView"))
         assert not any(tv.expanded for tv in rows)
+        await pilot.press("ctrl+o")                # the steps are folded: open them to pick one
+        await pilot.pause(0.1)
         await pilot.press("tab")
         await pilot.pause(0.1)
         log = app.log_view
@@ -320,6 +324,7 @@ async def test_new_below_hint_while_scrolled_up(cfg):
                       {"type": "tool_result", "id": f"a{i}", "name": "read_file", "ok": True,
                        "result": "x"})
         assert await _until(pilot, lambda: len(app.query("ToolView")) == 30)
+        await pilot.press("ctrl+o")                # open the fold: 30 rows to scroll through
         await pilot.pause(0.2)
         hint = app.query_one("#new-hint")
         assert not hint.display
