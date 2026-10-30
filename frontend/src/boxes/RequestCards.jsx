@@ -273,6 +273,7 @@ export function EnvironmentCard({ e, onDone }) {
   const [resolving, setResolving] = useState(false)
   const ask = useAsk()
   const pending = e.status === 'pending'
+  const use = e.kind === 'use'   // move onto an existing image: nothing built
   async function resolve() {
     setResolving(true)
     try {
@@ -283,14 +284,17 @@ export function EnvironmentCard({ e, onDone }) {
     setResolving(false)
   }
   async function approve() {
-    const ok = await ask.confirm(
-      `Approve environment ${e.name}? The host builds the image from ${e.from_variant} with the `
-      + `pinned packages shown, then ${e.project_slug} boots on it.`, { confirmLabel: 'Approve & build' })
+    const ok = await ask.confirm(use
+      ? `Approve moving ${e.project_slug} onto image ${e.name}? Nothing is built or installed; ${e.plan || ''}`
+      : `Approve environment ${e.name}? The host builds the image from ${e.from_variant} with the `
+      + `pinned packages shown, then ${e.project_slug} boots on it.`,
+      { confirmLabel: use ? 'Approve' : 'Approve & build' })
     if (!ok) return
     setBusy(true)
     try {
-      const r = await approveEnvironment(e.id, { build: true })
-      notify(r?.build_started ? `building ${e.name}` : `approved — the build of ${e.name} did not start (busy?)`)
+      const r = await approveEnvironment(e.id, { build: !use })
+      if (use) notify(`${e.project_slug} moves onto ${e.name} at its next box boot`)
+      else notify(r?.build_started ? `building ${e.name}` : `approved — the build of ${e.name} did not start (busy?)`)
       onDone()
     } catch (err) { notifyError(err) }
     setBusy(false)
@@ -304,15 +308,17 @@ export function EnvironmentCard({ e, onDone }) {
   return (
     <div className="sbx-card bx-svc-req">
       <div className="bx-pkg-top">
-        <Tag tone="pending">environment</Tag>
+        <Tag tone="pending">{use ? 'use image' : 'environment'}</Tag>
         <b className="mono">{e.name}</b>
         {e.project_slug && <Tag>{e.project_slug}</Tag>}
         <Tag>agent</Tag>
         <span className="dim small">{ago(e.created_at)}</span>
       </div>
       <dl className="bx-kv small">
-        <dt>new image</dt><dd><span className="mono">{e.name}</span> (from <span className="mono">{e.from_variant}</span>)</dd>
-        {packagesByManager(e.packages).map(([m, list]) => (
+        {use
+          ? <><dt>move to</dt><dd>{e.summary || <>image <span className="mono">{e.name}</span></>}</dd></>
+          : <><dt>new image</dt><dd><span className="mono">{e.name}</span> (from <span className="mono">{e.from_variant}</span>)</dd></>}
+        {!use && packagesByManager(e.packages).map(([m, list]) => (
           <Fragment key={m}>
             <dt>adds {m}</dt>
             <dd>{list.map((p) => (
@@ -327,8 +333,8 @@ export function EnvironmentCard({ e, onDone }) {
               </div>))}</dd>
           </Fragment>
         ))}
-        <dt>memory floor</dt>
-        <dd>{e.min_mem_mb ? `${e.min_mem_mb} MB` : <span className="dim">as {e.from_variant || 'main'}</span>}</dd>
+        {!use && <><dt>memory floor</dt>
+          <dd>{e.min_mem_mb ? `${e.min_mem_mb} MB` : <span className="dim">as {e.from_variant || 'main'}</span>}</dd></>}
         {e.reason && <><dt>why</dt><dd>{e.reason}</dd></>}
         {e.conversation_id && <><dt>conversation</dt><dd className="mono">{e.conversation_id}</dd></>}
         {pending && e.plan && <><dt>on approve</dt><dd>{e.plan}</dd></>}
@@ -338,7 +344,7 @@ export function EnvironmentCard({ e, onDone }) {
         {e.build && <><dt>build</dt><dd>{e.build.version} · {e.build.status}
           {e.build.error ? <span className="warn"> {e.build.error}</span> : null}</dd></>}
       </dl>
-      {pending && !e.resolved && (
+      {pending && !use && !e.resolved && (
         <div className="bx-unresolved">
           <p className="small"><b>Not resolved yet.</b> Approval needs every package's exact version and
             integrity, which a dry-run in a builder box pins.</p>
@@ -350,7 +356,7 @@ export function EnvironmentCard({ e, onDone }) {
         <div className="row">
           <span className="grow" />
           <Button variant="ghost" danger onClick={reject}>Reject</Button>
-          <Button disabled={!e.resolved || busy} onClick={approve}>Approve &amp; build</Button>
+          <Button disabled={!e.resolved || busy} onClick={approve}>{use ? 'Approve' : 'Approve & build'}</Button>
         </div>
       )}
     </div>

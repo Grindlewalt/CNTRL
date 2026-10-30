@@ -57,7 +57,7 @@ async def approve(env_id: int, body: ApproveBody, user: dict = Depends(require_u
     finally:
         await db.close()
     # true only when THIS call started a build (see packages_api.approve)
-    started = bool(body.build and settings.vm_boxes_enabled
+    started = bool(body.build and row.get("kind") != "use" and settings.vm_boxes_enabled
                    and not images.builder.lock.locked())
     if started:
         _start_build(row["name"])

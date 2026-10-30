@@ -1120,6 +1120,9 @@ async def _migrate_secruns(db: aiosqlite.Connection) -> None:
         ("box_id", "TEXT"), ("boot_id", "TEXT"),
     ))
     await _add_columns(db, "tool_calls", (("call_id", "TEXT"),))
+    # 'use' = move onto an existing image, nothing built (backend/environments.py)
+    await _add_columns(db, "environment_requests",
+                       (("kind", "TEXT NOT NULL DEFAULT 'build'"),))
     await db.execute("CREATE INDEX IF NOT EXISTS idx_security_events_run "
                      "ON security_events(run_root)")
     await db.execute("CREATE INDEX IF NOT EXISTS idx_tool_calls_callid "

@@ -1,7 +1,7 @@
 ---
 name: environment_request
-description: Ask the operator for a whole new sandbox image for this project (a named variant built from an existing one, with several apt/pip/npm packages and optionally more memory). Filed for approval; nothing is built or changed now.
-when_to_use: Only when this project needs SEVERAL packages or a bigger box on EVERY run. For one package use package_request; for a one-off need use `pip install`/`npm install` in run_code (wiped after each turn). Only this project moves to the new image.
+description: Ask the operator to move this project onto an EXISTING image (use="desktop" for a screen and browser), or for a whole new sandbox image (a named variant built from an existing one, with several apt/pip/npm packages and optionally more memory). Filed for approval; nothing is built or changed now.
+when_to_use: Use use="desktop" (with reason) when a tool says it needs the desktop image, such as screenshot; it works even when package requests are off. Otherwise only when this project needs SEVERAL packages or a bigger box on EVERY run. For one package use package_request; for a one-off need use `pip install`/`npm install` in run_code (wiped after each turn). Only this project moves to the new image.
 enabled: true
 section: project
 action: environment
@@ -9,6 +9,9 @@ requires_settings: [vm_boxes_enabled]
 parameters:
   type: object
   properties:
+    use:
+      type: string
+      description: An existing image to move this project onto (e.g. `desktop`); no build, no packages. Give only use and reason.
     name:
       type: string
       description: The new image name (lower-case letters, digits, `-` and `_`, e.g. `sim-gl`).
@@ -37,8 +40,11 @@ parameters:
     reason:
       type: string
       description: What the environment is for and why it must persist.
-  required: [name, packages, reason]
+  required: [reason]
 ---
+With `use`, the operator approves a move onto an image that already exists;
+the project then gets its own box on it (a project on the shared box does not
+run on any other image). Without `use`, name and packages are required.
 The host validates every package and builds its own install commands; URLs,
 VCS references and registry flags are refused. Nothing is built until the
 operator approves; approval creates the image and moves only this project onto
