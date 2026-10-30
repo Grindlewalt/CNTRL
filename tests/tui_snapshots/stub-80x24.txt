@@ -1,7 +1,7 @@
 # stub  80x24 TERM=xterm-256color
 ## text
+ 1 chat ×   +
   New chat
-
 
 
 
@@ -25,8 +25,8 @@
   █
   enter send · ctrl+j newline · / commands · @ file              ctrl+x leader
 ## colours (fg/bg as xterm-256 index, - = default)
-00 0-1=-/233 2-9=246/233+b 10-79=-/233
-01 *=-/233
+00 0-9=233/215+b 10-10=254/233 11-13=231/237+b 14-79=-/233
+01 0-1=-/233 2-9=246/233+b 10-79=-/233
 02 *=-/233
 03 *=-/233
 04 *=-/233

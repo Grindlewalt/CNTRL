@@ -1,7 +1,7 @@
 # chat  160x48 TERM=xterm-256color
 ## text
+ 1 Fix the flaky retry test ×   +
   Fix the flaky retry test  #4  ctrl+b notifications
-
 
 
 
@@ -49,8 +49,8 @@
   █
   enter send · ctrl+j newline · / commands · @ file · ! shell                                                                  ctrl+x leader · ctrl+p commands
 ## colours (fg/bg as xterm-256 index, - = default)
-00 0-1=-/233 2-25=246/233+b 26-51=246/233 52-159=-/233
-01 *=-/233
+00 0-29=233/215+b 30-30=254/233 31-33=231/237+b 34-159=-/233
+01 0-1=-/233 2-25=246/233+b 26-51=246/233 52-159=-/233
 02 *=-/233
 03 *=-/233
 04 *=-/233
