@@ -3146,6 +3146,7 @@ def build_tui(base: str, token: str, **kw):
             if turn is not None and not fl.live:
                 fl.go_live(turn)
             await self.mount(tv)
+            fl.redraw()          # a run from history is never live: nothing else redraws it
 
         def close_fold(self) -> None:
             fl = self.current_fold()

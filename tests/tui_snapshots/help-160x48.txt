@@ -39,8 +39,8 @@
                            custom themes         /tmp/tui-XXXXXXXX/config/jav3/themes — /theme import copies a .json there, checked
                                                  on every start
                            /screenshot help      the default format and folder
-                           ctrl+o · tab          open / close every tool row · tab picks one: ↑↓ enter, → all of it, esc back (or
-                                                 click it)
+                           ctrl+o · tab          open / fold every run of tool steps · tab picks a row: ↑↓ enter, → all of it, esc
+                                                 back (or click it)
                            ctrl+g                edit the prompt in $EDITOR
   █
   █  Ask anything… "Fix the failing test in tests/"
