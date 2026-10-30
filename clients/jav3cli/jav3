@@ -5872,6 +5872,10 @@ def build_tui(base: str, token: str, **kw):
     def _row_envreq(e) -> str:
         r, ts = e["raw"], row_ts(e.get("ts"))
         n = len(_jlist(r.get("packages")))
+        if r.get("kind") == "use":
+            return (f"[$warning b]ENV [/] [$text-muted]{ts}[/] use image "
+                    f"[b]{_esc(r.get('name') or '?')}[/] [$text-muted]· no build · for "
+                    f"{_esc(r.get('project_slug') or 'operator')}[/]")
         return (f"[$warning b]ENV [/] [$text-muted]{ts}[/] image "
                 f"[b]{_esc(r.get('name') or '?')}[/] from {_esc(r.get('from_variant') or '?')} "
                 f"[$text-muted]· {n} package{'s' * (n != 1)} · for "
@@ -6932,6 +6936,15 @@ def build_tui(base: str, token: str, **kw):
             r = e["raw"]
             pk = [p for p in _jlist(r.get("packages")) if isinstance(p, dict)]
             ok = bool(r.get("resolved"))
+            if r.get("kind") == "use":
+                return "\n".join([
+                    "[$primary]y[/] approve   [$primary]n[/] reject", "",
+                    f"[b]{_esc(r.get('summary') or 'move onto image ' + str(r.get('name')))}[/]  "
+                    f"[$text-muted]#{_esc(str(r.get('id')))} · "
+                    f"{_esc(r.get('project_slug') or 'operator')} · "
+                    f"{_esc(full_ts(r.get('created_at')))}[/]",
+                    f"reason: {_esc(r.get('reason') or '')}",
+                    f"[b]{_esc(r.get('plan') or '')}[/]"])
             lines = [
                 "[$primary]y[/] approve and build   [$primary]n[/] reject", "",
                 f"[b]environment request #{_esc(str(r.get('id')))}: image "
@@ -8125,6 +8138,15 @@ def build_tui(base: str, token: str, **kw):
                 self._fail(f"environment {name} is not resolved yet: every package needs a "
                            "version before it can be approved (the server resolves them; "
                            "r reloads)")
+                return
+            if r.get("kind") == "use":
+                if await self._confirm(
+                        f"Approve moving onto image {name}?",
+                        f"{r.get('summary') or ''}. Nothing is built or installed. "
+                        f"{r.get('plan') or ''}"):
+                    await self._send("POST", f"/api/environments/{eid}/approve",
+                                     f"approved moving onto image {name}",
+                                     json={"acknowledge": True, "build": False})
                 return
             pk = ", ".join(f"{p.get('manager')} {p.get('package')} {p.get('resolved_version')}"
                            for p in _jlist(r.get("packages")) if isinstance(p, dict))
