@@ -14,12 +14,12 @@ Pure: copied verbatim into the guest package (guest_pkg._COPY_MODULES).
 # ONLY here — code execution exists nowhere on the host.
 IN_GUEST_TOOLS = ("read_file", "list_files", "search_codebase", "crawl_codebase",
                   "write_file", "edit_file", "dashboard", "todo_update",
-                  "run_code", "screenshot")
+                  "run_code", "screenshot", "headless_browser")
 
 # in-guest tools that exist only with boxes on (the contract: flag off, the
-# guest package is byte-for-byte today's). `screenshot` needs the desktop
-# image variant and reports "needs the desktop image" on any other.
-BOX_ONLY_TOOLS = frozenset({"screenshot"})
+# guest package is byte-for-byte today's). `screenshot` app mode needs the
+# desktop image variant; url mode and `headless_browser` run on `main`.
+BOX_ONLY_TOOLS = frozenset({"screenshot", "headless_browser"})
 
 # in-guest tools the conversation's permission mode may hold for the operator
 # (backend/permissions.py IN_GUEST_GATED): the host decides, over the broker,

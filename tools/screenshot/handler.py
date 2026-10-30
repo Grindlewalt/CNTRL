@@ -17,8 +17,9 @@ proxy while it ran (new entries in /proc/net/tcp, TIME_WAIT included), is
 remote content: the gateway `taint_note` op marks the turn tainted exactly as
 web_read does. If the note cannot be delivered the image is withheld.
 
-On an image without chromium / Xvfb the tool says it needs the `desktop`
-variant and does nothing else.
+Url mode runs on any image that has a chromium (the `main` image carries
+chromium-headless-shell); app mode needs Xvfb, which only the `desktop`
+variant has, and says so on any other.
 """
 import asyncio
 import io
@@ -51,9 +52,11 @@ OOM_GRACE_S = 3.0        # after the first kill chromium may still finish; then 
 CHROMIUM_FLOOR_MB = 400  # measured 2026-10-01 (chromium 154, desktop box): a blank page, all processes
 CONSOLE_MAX_LINES = 8    # page console lines a url-mode result carries, uncaught errors first
 CONSOLE_LOG = "console.log"   # chromium's log file, inside the throwaway profile dir
-NEEDS_DESKTOP = ("error: screenshot needs the `desktop` image variant (chromium, Xvfb, "
-                 "scrot), which this box does not run. Ask the operator to set this "
-                 "project's security profile image to `desktop`.")
+NEEDS_DESKTOP = ("error: app mode needs the `desktop` image. Ask for it with "
+                 "environment_request(use=\"desktop\", reason=...) (the operator approves), "
+                 "or use headless_browser for web pages.")
+NO_BROWSER = ("error: this box has no chromium (the `main` image carries chromium-headless-shell). "
+              "Ask the operator to rebuild the image.")
 
 
 # --- pure helpers (tested on the host) -----------------------------------------
@@ -520,9 +523,10 @@ def _finish(raw_path: str, caption: str, extra: str = "") -> str:
 
 async def _url_mode(url: str, wait_ms: int, width: int, height: int,
                     full_page: bool) -> str:
-    binary = shutil.which("chromium") or shutil.which("chromium-browser")
+    binary = (shutil.which("chromium-headless-shell") or shutil.which("chromium")
+              or shutil.which("chromium-browser"))
     if not binary:
-        return NEEDS_DESKTOP
+        return NO_BROWSER
     try:
         url = check_url(url)
     except ValueError as e:
@@ -537,9 +541,11 @@ async def _url_mode(url: str, wait_ms: int, width: int, height: int,
     import tempfile
     with tempfile.TemporaryDirectory(prefix="jav3-chromium-") as prof:
         log = os.path.join(prof, CONSOLE_LOG)
-        ran = await _exec(chromium_argv(binary, url, raw, width, h, wait_ms, proxy, prof,
-                                        root=os.geteuid() == 0, log_file=log),
-                          timeout=wait_ms / 1000 + URL_EXTRA_S, watch_oom=True)
+        argv = chromium_argv(binary, url, raw, width, h, wait_ms, proxy, prof,
+                             root=os.geteuid() == 0, log_file=log)
+        if "headless-shell" in os.path.basename(binary):
+            argv.remove("--headless=new")       # the shell is always headless and rejects the mode
+        ran = await _exec(argv, timeout=wait_ms / 1000 + URL_EXTRA_S, watch_oom=True)
         console = console_block(page_console(log), remote)
     if not isinstance(ran, Ran):
         ran = Ran(int(ran))

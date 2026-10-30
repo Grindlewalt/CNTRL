@@ -1,7 +1,7 @@
 ---
 name: screenshot
 description: Take a screenshot inside the sandbox box, of a web page (url mode, headless chromium) or of a GUI app you start (app mode, a virtual display), and look at it.
-when_to_use: Checking what a page or app you built actually renders (a local dev server, a generated HTML file served locally, a GUI). Needs the `desktop` image variant.
+when_to_use: Checking what a page or app you built actually renders (a local dev server, a generated HTML file served locally, a GUI). Url mode works on every image; app mode needs the `desktop` image (environment_request(use="desktop")). To click, type or play a page use headless_browser.
 enabled: true
 section: project
 action: screenshot

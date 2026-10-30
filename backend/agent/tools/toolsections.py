@@ -66,6 +66,11 @@ SECTIONS: dict[str, dict] = {
                     r"dashboards?|crawl|index the (code|codebase)|screenshot|journal)\b|"
                     r"\b(install|add) (a |an |the )?(apt |pip |npm )?packages?\b",
         "lead": ["load", "journal"]},
+    "headless": {
+        "about": "a headless browser inside the sandbox box: open a page, click, type, scroll, "
+                 "run JS, get a screenshot back",
+        "triggers": r"\b(headless|render(ed|ing)?|canvas|webgl|localhost|"
+                    r"screenshots? (of )?(the |a |my )?(page|site|game|app))\b"},
     "web": {
         "about": "search the web, read pages",
         "merged": "Search the web and read pages. Pages come back as inert text; the host "

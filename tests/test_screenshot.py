@@ -208,7 +208,7 @@ def test_url_mode_withholds_when_taint_fails(guest, monkeypatch):
 
 def test_needs_desktop_image(guest, monkeypatch):
     monkeypatch.setattr(shot.shutil, "which", lambda n: None)
-    assert asyncio.run(shot.run(mode="url", url="http://localhost")) == shot.NEEDS_DESKTOP
+    assert asyncio.run(shot.run(mode="url", url="http://localhost")) == shot.NO_BROWSER
     assert asyncio.run(shot.run(mode="app", command=["xclock"])) == shot.NEEDS_DESKTOP
 
 
