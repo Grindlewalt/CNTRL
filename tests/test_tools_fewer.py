@@ -71,8 +71,10 @@ def test_the_turn_start_is_ten_tools_and_the_meta_tool(monkeypatch):
         "ask_user", "edit_file", "list_files", "memory", "read_file", "run_code",
         "search_codebase", "todo_update", "web", "write_file"])
     assert _names(shown)[-1] == META and len(shown) == 11
-    # a guard on the size of what rides every call (chars/4 ~ tokens)
-    assert len(json.dumps(shown)) <= 16_000
+    # a guard on the size of what rides every call (chars/4 ~ tokens). 16,000 until
+    # 2026-10-30, when main sat at ~15,990 and the `headless` section (the in-box
+    # browser the operator asked for) added its one listing line, ~100 chars
+    assert len(json.dumps(shown)) <= 16_200
 
 
 def test_a_core_flag_is_uniform_within_a_merged_tool():

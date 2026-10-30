@@ -214,7 +214,8 @@ def test_flag_off_guest_package_has_no_box_only_files(monkeypatch):
     on_ = _pkg_names(True, monkeypatch)
     assert "backend/procwatch.py" not in off
     assert "tools/screenshot/handler.py" not in off
-    assert on_ - off == {"backend/procwatch.py", "tools/screenshot/handler.py"}
+    assert on_ - off == {"backend/procwatch.py", "tools/screenshot/handler.py",
+                         "tools/headless_browser/handler.py", "backend/headless.py"}
     assert "backend/server.py" in off and "tools/run_code/handler.py" in off
 
 

@@ -228,9 +228,10 @@ async def test_four_panels_is_the_most_and_the_fifth_is_refused_in_one_line():
         assert await wait_for(lambda: sum("tiles a tab is the most" in n for n in notes(app)) == 2)
         assert len(app.chats) == 4
         # every panel has a rect inside the area and none overlaps another
-        area = app.panel_area.size
+        area = app.panel_area.region          # on screen: the tab bar may sit above it
         regs = [c.panel.region for c in app.chats.values()]
-        assert all(r.right <= area.width and r.bottom <= area.height for r in regs)
+        assert all(r.x >= area.x and r.y >= area.y and r.right <= area.right
+                   and r.bottom <= area.bottom for r in regs)
         assert sum(r.width * r.height for r in regs) == area.width * area.height
         # a closed panel's number is free again and the next new panel takes it
         app.focus_panel(2)

@@ -754,6 +754,7 @@ EXPANDED_LINES = 40                # an open tool row, inline; → shows the res
 DELEGATION_TOOLS = frozenset({"spawn_agent", "spawn_temp_agent", "deploy_agents", "research"})
 NOTICE_CAP = 50                   # notifications kept in the sidebar
 NO_ROW = "No"                     # the permission ask's plain decline (never sent)
+TABBAR_ALONE_ROWS = 30            # a terminal this tall shows the tab bar with one tab too
 SIDEBAR_MIN_COLS = 100            # narrower than this the sidebar (42 wide) would leave
                                   # the chat 38 columns: it stays hidden until there is room
 NOT_LOGGED_IN = ("not logged in — /login: paste the line from Settings → Add computer "
@@ -10811,6 +10812,7 @@ def build_tui(base: str, token: str, **kw):
         def on_resize(self, event) -> None:
             self.refresh_chrome()
             self.call_after_refresh(self.refresh_chrome)     # once the new size has settled
+            self.refresh_tabbar()                            # a lone tab's bar follows the height
 
         def watch_theme(self, theme: str) -> None:
             global DIFF_TINT
@@ -13562,13 +13564,16 @@ def build_tui(base: str, token: str, **kw):
 
         def refresh_tabbar(self) -> None:
             """Redraw the tab bar, and keep the layout saved. The bar is there with one tab
-            too: its + is how a new tab is found (the operator picked that sketch, 2026-10-30)."""
+            too, its + being how a new tab is found (the operator picked that sketch,
+            2026-10-30), except in a terminal under TABBAR_ALONE_ROWS tall, where a row
+            is worth more: there it comes with the second tab."""
             try:
                 bar = self.query_one("#tabbar", TabBar)
             except Exception:  # noqa: BLE001 — a dialog is on top, or not composed yet
                 return
-            bar.display = True
-            bar.show([self.tab_name(tb) for tb in self.ptabs], self.ptab_i)
+            bar.display = len(self.ptabs) > 1 or self.size.height >= TABBAR_ALONE_ROWS
+            if bar.display:
+                bar.show([self.tab_name(tb) for tb in self.ptabs], self.ptab_i)
             self._save_layout()
 
         def _save_layout(self) -> None:

@@ -133,11 +133,11 @@ async def test_ctrl_w_in_the_prompt_closes_the_tile_instead_of_deleting_a_word()
         assert app.editor.text == "hello brave "
 
 
-async def test_one_tab_has_no_bar_and_ctrl_x_t_makes_a_second_with_a_new_chat():
+async def test_one_tab_shows_its_bar_when_there_is_room_and_ctrl_x_t_makes_a_second():
     srv, app = make()
     async with app.run_test(size=(120, 36)) as pilot:
         await pilot.pause(0.3)
-        assert not app.query_one("#tabbar").display
+        assert app.query_one("#tabbar").display          # 36 rows: the + is on screen
         await tiles(pilot, app, 2)
         await pilot.press("ctrl+x", "t")
         await settle(pilot, app, 2, 1)
@@ -188,7 +188,7 @@ async def test_ctrl_w_on_the_last_tile_closes_the_tab_and_the_last_tab_becomes_a
         await settle(pilot, app, 2)
         await pilot.press("ctrl+w")                            # one tile in tab 2: the tab goes
         await settle(pilot, app, 1)
-        assert not app.query_one("#tabbar").display
+        assert len(app.ptabs) == 1
         first = app.chats[1]
         await pilot.press("ctrl+w")                            # the last tab: a new chat instead
         assert await wait_for(lambda: app.chats[1] is not first)
@@ -271,3 +271,13 @@ async def test_the_layout_is_kept_in_tui_json_and_comes_back_with_its_chats():
         assert app2.ptab_i == 0 and sorted(app2.chats) == [1, 2] and app2.focus_no == 2
         assert app2.chats[1].cid == 4 and app2.chats[2].cid == 5
         assert len(app2.ptabs[1].chats) == 1 and app2.ptabs[1].chats[1].cid is None
+
+
+async def test_a_short_terminal_shows_a_lone_tabs_bar_only_with_a_second_tab():
+    srv, app = make()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause(0.3)
+        assert not app.query_one("#tabbar").display      # 24 rows: every row counts
+        await pilot.press("ctrl+x", "t")
+        await settle(pilot, app, 2)
+        assert app.query_one("#tabbar").display

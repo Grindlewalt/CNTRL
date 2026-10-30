@@ -50,6 +50,8 @@ _COPY_MODULES = {
 # ever called by the host's process poller, which is off with the flag; the
 # run-turn server's `ps` mode then answers ok:false ("not in the package").
 BOX_ONLY_MODULES = frozenset({"procwatch.py"})
+# copied host modules that only box-only tools use: left out with the flag off too
+BOX_ONLY_COPIES = frozenset({"backend/headless.py"})
 
 
 def in_guest_tools() -> tuple[str, ...]:
@@ -74,6 +76,8 @@ def build_package_tar() -> bytes:
                 continue
             tar.add(p, arcname=f"backend/{rel}")
         for arcname, relpath in _COPY_MODULES.items():   # verbatim host modules
+            if arcname in BOX_ONLY_COPIES and not settings.vm_boxes_enabled:
+                continue
             _add_bytes(tar, arcname, (base / relpath).read_bytes())
         for name in in_guest_tools():                # the clean tool handlers
             _add_bytes(tar, f"tools/{name}/handler.py",

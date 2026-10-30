@@ -67,8 +67,7 @@ SECTIONS: dict[str, dict] = {
                     r"\b(install|add) (a |an |the )?(apt |pip |npm )?packages?\b",
         "lead": ["load", "journal"]},
     "headless": {
-        "about": "a headless browser inside the sandbox box: open a page, click, type, scroll, "
-                 "run JS, get a screenshot back",
+        "about": "a browser in the box: open pages, click, type, run JS, screenshots",
         "triggers": r"\b(headless|render(ed|ing)?|canvas|webgl|localhost|"
                     r"screenshots? (of )?(the |a |my )?(page|site|game|app))\b"},
     "web": {

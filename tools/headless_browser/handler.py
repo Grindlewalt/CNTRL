@@ -128,7 +128,7 @@ async def _settle() -> None:
     await asyncio.sleep(0.25)       # let the page react before it is drawn
 
 
-async def run(action: str = "", url: str | None = None, width: int = 1280, height: int = 800,
+async def run(action: str, url: str | None = None, width: int = 1280, height: int = 800,
               wait_ms: int = 1500, element: int | None = None, selector: str | None = None,
               text: str | None = None, x: int | None = None, y: int | None = None,
               key: str | None = None, hold_ms: int = 0, dy: int | None = None,
