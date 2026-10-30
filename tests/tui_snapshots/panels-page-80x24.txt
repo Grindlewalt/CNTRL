@@ -14,7 +14,7 @@
 │  shift+tab   permissions: yolo → au  │║ █ ● shared kvm running · scrub       ║
 │  ctrl+x l    sessions · ctrl+x m mo  │║──────────────────────────────────────║
 │  ctrl+p      command palette         │║  enter history   s stop   r          ║
-│  ctrl+x ←↑↓→  move between panels ·  │║  restart   x nuke                    ║
+│  ctrl+x ←↑↓→  move between tiles ·   │║  restart   x nuke                    ║
 │                                      │║                                      ║
 │                                      │║  shared shared  cid 3  running    ▁  ║
 │                                      │║  since 09-29 11:54                   ║

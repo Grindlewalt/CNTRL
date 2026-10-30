@@ -15,7 +15,7 @@
                                                  panel · esc
                            / (on a page)         type a /page command on the prompt line: /vms images, /security calls; esc goes
                                                  back, /work or ctrl+c to the chat
-                           /security (ctrl+x v)  queue · network · logs · secrets · persistent · profiles · rules · calls: tab → ← ▅▅
+                           /security (ctrl+x v)  queue · network · logs · secrets · persistent · profiles · rules · calls: tab → ←
                                                  or 1-8 switch, esc back. Rules are the always-allow answers; Calls is how the
                                                  model key is used
                            in /security          y approve · n reject (services: 1 2 3 placement, ↑↓ port, space expose) · a
@@ -28,8 +28,13 @@
                            esc esc (idle)        clear the prompt
                            ctrl+c                clear prompt · interrupt · twice to quit
                            ctrl+x then a key     leader: see the table above; b = notifications
-                           panels                /new-panel splits this one (at most 4); /vms panel opens a page in a new one.
-                                                 ctrl+x then ←↑↓→ moves, 1-4 jumps, z zooms, 0 closes
+                           tiles                 ctrl+t splits this tile with a new chat (at most 4 a tab); ctrl+w closes it (the
+                                                 chat stays in sessions). ctrl+x then ←↑↓→ moves, z zooms. /vms panel opens a page
+                                                 in a new tile
+                           tabs                  ctrl+x t new tab · w close · 1-9 jump · [ ] previous / next; click a tab, its × or
+                                                 +. Each tab keeps its own tiles running
+                           ctrl+w                closes the tile, not a word: alt+backspace or ctrl+backspace delete one. /themes
+                                                 and /web have no leader key
                            ctrl+p                command palette
                            ctrl+n                new chat
                            ctrl+b                notifications sidebar (● n = unread)
@@ -37,11 +42,6 @@
                            exit · quit           alone on the prompt: quit
                            /theme create         tab next field · ctrl+s save · esc cancel (the previous theme comes back)
                            custom themes         /tmp/tui-XXXXXXXX/config/jav3/themes — /theme import copies a .json there, checked
-                                                 on every start
-                           /screenshot help      the default format and folder
-                           ctrl+o · tab          open / close every tool row · tab picks one: ↑↓ enter, → all of it, esc back (or
-                                                 click it)
-                           ctrl+g                edit the prompt in $EDITOR
   █
   █  Ask anything… "Fix the failing test in tests/"
   █
@@ -64,7 +64,7 @@
 12 0-24=254/233 25-26=-/235 27-48=254/235+b 49-130=254/235 131-132=23/235+r 133-134=-/235 135-159=254/233
 13 0-24=254/233 25-26=-/235 27-48=254/235+b 49-130=254/235 131-132=23/235+r 133-134=-/235 135-159=254/233
 14 0-24=254/233 25-26=-/235 27-48=254/235+b 49-130=254/235 131-132=23/235+r 133-134=-/235 135-159=254/233
-15 0-24=254/233 25-26=-/235 27-48=254/235+b 49-130=254/235 131-132=23/16+r 133-134=-/235 135-159=254/233
+15 0-24=254/233 25-26=-/235 27-48=254/235+b 49-130=254/235 131-132=254/16 133-134=-/235 135-159=254/233
 16 0-24=254/233 25-26=-/235 27-48=254/235+b 49-130=254/235 131-132=254/16 133-134=-/235 135-159=254/233
 17 0-24=254/233 25-26=-/235 27-48=254/235+b 49-130=254/235 131-132=254/16 133-134=-/235 135-159=254/233
 18 0-24=254/233 25-26=-/235 27-48=254/235+b 49-130=254/235 131-132=254/16 133-134=-/235 135-159=254/233

@@ -14,7 +14,7 @@
 │  shift+tab   permissions: yolo → au  │╔═ 3 chat (new) ═══════════════════════╗
 │  ctrl+x l    sessions · ctrl+x m mo  │║                                      ║
 │  ctrl+p      command palette         │║  operator @ http://127.0.0.1:NNNNN   ║
-│  ctrl+x ←↑↓→  move between panels ·  │║                                      ║
+│  ctrl+x ←↑↓→  move between tiles ·   │║                                      ║
 │                                      │║  /help       commands and keys       ║
 │                                      │║  ← →         agents · sessions, on   ║
 │                                      │║  ctrl+j      new line (enter sends)  ║
