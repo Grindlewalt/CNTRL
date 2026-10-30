@@ -373,3 +373,89 @@ async def test_deciding_settles_only_that_request(db):
     assert await _open(db, "environment_requested") == 1
     await environments.reject(db, two["id"], decided_by="op", by_operator=True)
     assert await _open(db, "environment_requested") == 0
+
+
+# --- kind 'use': move onto an existing image --------------------------------------
+
+async def _use(db, project="a", **kw):
+    args = dict(project=project, conversation_id=5, name="", from_variant="main",
+                packages=[], min_mem_mb=None, reason="screenshot needs the desktop",
+                use="desktop")
+    args.update(kw)
+    return await environments.file_request(db, **args)
+
+
+async def test_use_allowed_with_package_requests_off(db):
+    with pytest.raises(packages.PackageError, match="ask_user.*use="):
+        await _file(db, project="d")          # build still gated
+    env = await _use(db, project="d")
+    assert env["kind"] == "use" and env["name"] == env["from_variant"] == "desktop"
+    assert env["packages"] == [] and env["resolved"] is True
+    assert env["summary"].startswith("Move d onto image `desktop` (its own VM")
+    assert "gets its own box" in env["plan"] and "no build" in env["plan"]
+
+
+async def test_use_refusals(db):
+    for kw, msg in [(dict(name="x"), "use= takes only"),
+                    (dict(packages=["apt ffmpeg"]), "use= takes only"),
+                    (dict(use="nope"), "no image `nope`"),
+                    (dict(use="main"), "already runs on the default image"),
+                    (dict(reason=" "), "reason is required")]:
+        with pytest.raises(packages.PackageError, match=msg):
+            await _use(db, **kw)
+
+
+async def test_use_refused_for_current_image(db):
+    await _use(db, project="a")  # fine
+    await db.execute("UPDATE security_profiles SET separate_box = 1, "
+                     "box_image = 'desktop' WHERE name = 'Default'")
+    await db.commit()
+    with pytest.raises(packages.PackageError, match="already runs on image `desktop`"):
+        await _use(db, project="b")
+
+
+async def test_use_approve_flips_shared_to_own_box(db):
+    from backend.vm import placement
+    env = await _use(db, project="a")
+    out = await environments.approve(db, env["id"], decided_by="op", by_operator=True)
+    assert out["status"] == "approved" and out["build"] is None
+    pa, pb = await _profile_of(db, "a"), await _profile_of(db, "b")
+    assert pa["box_image"] == "desktop" and pa["separate_box"] and not pa["is_default"]
+    assert not pb["separate_box"] and pb["box_image"] == "main"
+    eff = placement.resolve(None, pa, "a")
+    assert eff["mode"] == "own" and eff["image"] == "desktop"
+    ev = await _events(db, "environment_approved")
+    assert "own box" in ev[0]["summary"] and "onto image `desktop`" in ev[0]["summary"]
+    # a second move updates the project's own profile in place
+    env2 = await _use(db, project="a", use="main")
+    await environments.approve(db, env2["id"], decided_by="op", by_operator=True)
+    assert (await _profile_of(db, "a"))["box_image"] == "main"
+
+
+async def test_build_approve_also_flips_shared_to_own(db):
+    env = await _file(db)
+    await _resolve(db, env)
+    await environments.approve(db, env["id"], decided_by="op", by_operator=True)
+    assert (await _profile_of(db, "a"))["separate_box"]
+
+
+async def test_use_reject(db):
+    env = await _use(db)
+    out = await environments.reject(db, env["id"], reason="no", decided_by="op",
+                                    by_operator=True)
+    assert out["status"] == "rejected"
+    assert (await _profile_of(db, "a"))["box_image"] == "main"
+
+
+async def test_use_tool_text(db, monkeypatch):
+    from backend import runtime
+    mod = _tool()
+    monkeypatch.setattr(settings, "vm_boxes_enabled", True)
+    tok = runtime.active_project.set("d")
+    try:
+        out = await mod.run(use="desktop", reason="screenshot needs it")
+    finally:
+        runtime.active_project.reset(tok)
+    assert out.startswith("environment request #1 filed: move this project onto the "
+                          "existing image `desktop` (its own box) — pending.")
+    assert "ask_user" in out

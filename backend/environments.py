@@ -95,12 +95,14 @@ async def _shape(db, r: dict) -> dict:
         pk = [dict(x) for x in await cur.fetchall()]
     now = await profiles.for_slug(db, r["project_slug"])
     out = {k: r[k] for k in ("id", "project_slug", "conversation_id", "name",
-                             "from_variant", "min_mem_mb", "reason", "status",
+                             "from_variant", "min_mem_mb", "reason", "status", "kind",
                              "created_at", "decided_by", "decided_at")}
     out["packages"] = [{k: p[k] for k in ("id", "manager", "package", "version_req",
                                           "resolved_version", "integrity",
                                           "canonical_command", "status")} for p in pk]
-    out["resolved"] = bool(pk) and all(p["resolved_version"] for p in pk)
+    out["resolved"] = (r["kind"] == "use"
+                       or (bool(pk) and all(p["resolved_version"] for p in pk)))
+    out["summary"] = _summary(r)
     out["profile_now"] = {"id": now["id"], "name": now["name"]}
     # what approving WOULD do; once decided, `profile` says what it did
     out["plan"] = await _plan(db, r, now) if r["status"] == "pending" else None
@@ -121,6 +123,17 @@ async def _shape(db, r: dict) -> dict:
     return out
 
 
+def _summary(r: dict) -> str:
+    """One line for the cards: what approving moves the project onto."""
+    if r["kind"] != "use":
+        return (f"Build image `{r['name']}` from `{r['from_variant']}` and move "
+                f"{r['project_slug']} onto it (its own VM)")
+    from .vm import boxes
+    mem = boxes.mem_floor(r["name"])
+    return (f"Move {r['project_slug']} onto image `{r['name']}` (its own VM"
+            + (f", ≥{mem} MB)" if mem else ")"))
+
+
 def _own_profile(cur: dict, slug: str, projects: list[str]) -> bool:
     return (not cur["is_default"] and projects == [slug]
             and cur["name"].startswith(f"{slug} · "))
@@ -135,25 +148,36 @@ async def _projects_on(db, profile_id: int) -> list[str]:
 
 async def _plan(db, r: dict, now: dict) -> str:
     slug, name = r["project_slug"], r["name"]
+    sep = ("" if now["separate_box"] else
+           f"; {slug} gets its own box (it is on the shared one now)")
     if _own_profile(now, slug, await _projects_on(db, now["id"])):
         how = f"{slug} boots on it (its own profile {now['name']} is updated)"
     else:
         how = f"{slug} boots on it (a copy of profile {now['name']})"
-    return (f"builds image `{name}` from `{r['from_variant']}`, then {how}; "
+    if r["kind"] == "use":
+        return f"no build: {how}{sep}; other projects unchanged"
+    return (f"builds image `{name}` from `{r['from_variant']}`, then {how}{sep}; "
             "other projects unchanged")
 
 
 async def file_request(db, *, project: str | None, conversation_id: int | None,
                        name: str, from_variant: str, packages: list,
-                       min_mem_mb: int | None, reason: str) -> dict:
-    """Validate and store a pending environment request. Raises PackageError."""
+                       min_mem_mb: int | None, reason: str,
+                       use: str | None = None) -> dict:
+    """Validate and store a pending environment request. Raises PackageError.
+    `use` = an existing image to move onto (kind 'use': nothing is built or
+    installed, so it is allowed with package requests off)."""
     from .vm import images
     from . import packages as pk
     if not project:
         raise PackageError("an environment request needs an active project")
+    if use:
+        return await _file_use(db, project, conversation_id, use, name,
+                               from_variant, packages, min_mem_mb, reason)
     if await pk.project_allows_requests(db, project) is False:
-        raise PackageError("this project's security profile does not allow "
-                           "package requests")
+        raise PackageError("this project's profile does not allow package requests; "
+                           "ask the operator (ask_user) to turn on Packages for it, "
+                           "or ask for an existing image with use=")
     try:
         name = images.check_variant_name(name)
         from_variant = images.check_variant_name(from_variant or "main")
@@ -218,6 +242,51 @@ async def file_request(db, *, project: str | None, conversation_id: int | None,
     return await get(db, env_id)
 
 
+async def _file_use(db, project, conversation_id, use, name, from_variant,
+                    pkgs, min_mem_mb, reason) -> dict:
+    from .vm import images, placement
+    if name or pkgs or min_mem_mb is not None or from_variant not in (None, "", "main"):
+        raise PackageError("use= takes only use and reason: leave name, from, "
+                           "packages and min_mem_mb out (or drop use= to build a new image)")
+    try:
+        use = images.check_variant_name(use)
+    except images.RecipeError as e:
+        raise PackageError(str(e))
+    if not await images.variant_exists(db, use):
+        raise PackageError(f"no image `{use}` exists; ask for a new one with "
+                           "name, packages and reason instead")
+    reason = (reason or "").strip()
+    if not reason:
+        raise PackageError("reason is required: say why this project needs that image")
+    if len(reason) > REASON_MAX:
+        raise PackageError(f"reason is longer than {REASON_MAX} chars")
+    prof = await profiles.for_slug(db, project)
+    eff = placement.resolve(await placement.get_setting(db, project), prof, project)
+    if eff["mode"] == "own" and eff["image"] == use:
+        raise PackageError(f"this project already runs on image `{use}`; nothing to "
+                           "request")
+    if eff["mode"] == "shared" and use == "main":
+        raise PackageError("this project already runs on the default image `main` "
+                           "(the shared box); nothing to request")
+    async with db.execute("SELECT COUNT(*) FROM environment_requests WHERE "
+                          "project_slug = ? AND status = 'pending'", (project,)) as cur:
+        if (await cur.fetchone())[0] >= MAX_PENDING_PER_PROJECT:
+            raise PackageError(f"this project already has {MAX_PENDING_PER_PROJECT} "
+                               "pending environment requests; wait for the operator")
+    cur = await db.execute(
+        "INSERT INTO environment_requests(project_slug, conversation_id, name, "
+        "from_variant, reason, kind) VALUES (?,?,?,?,?,'use')",
+        (project, conversation_id, use, use, reason))
+    env_id = cur.lastrowid
+    await db.commit()
+    await security.raise_event(
+        db, kind="environment_requested", severity="info", project=project,
+        summary=f"asked to move onto existing image `{use}`",
+        detail={"environment_id": env_id, "name": use, "kind": "use",
+                "reason": reason, "conversation_id": conversation_id})
+    return await get(db, env_id)
+
+
 async def _set_status(db, env_id: int, status: str, decided_by: str, **cols) -> None:
     sets = "".join(f", {k} = ?" for k in cols)
     await db.execute("UPDATE environment_requests SET status = ?, decided_by = ?, "
@@ -243,24 +312,34 @@ async def approve(db, env_id: int, *, decided_by: str, by_operator: bool) -> dic
     async with db.execute("SELECT * FROM package_catalogue WHERE environment_id = ? "
                           "ORDER BY id", (env_id,)) as cur:
         rows = [dict(x) for x in await cur.fetchall()]
-    waiting = [x["package"] for x in rows if not x["resolved_version"]]
-    if waiting or not rows:
-        raise PackageError("not resolved yet: the dry-run must pin every package "
-                           f"before approval ({', '.join(waiting) or 'no packages'})")
+    use = r["kind"] == "use"
     name, slug = r["name"], r["project_slug"]
-    try:
-        await images.create_variant(db, name, r["from_variant"], [],
-                                    min_mem_mb=r["min_mem_mb"])
-    except images.RecipeError as e:
-        raise PackageError(str(e))
-    for x in rows:
-        await packages.approve(db, x["id"], target_variant=name, decided_by=decided_by,
-                               by_operator=by_operator, via_environment=True)
+    if use:
+        if not await images.variant_exists(db, name):
+            raise PackageError(f"image `{name}` no longer exists; reject this request")
+    else:
+        waiting = [x["package"] for x in rows if not x["resolved_version"]]
+        if waiting or not rows:
+            raise PackageError("not resolved yet: the dry-run must pin every package "
+                               f"before approval ({', '.join(waiting) or 'no packages'})")
+        try:
+            await images.create_variant(db, name, r["from_variant"], [],
+                                        min_mem_mb=r["min_mem_mb"])
+        except images.RecipeError as e:
+            raise PackageError(str(e))
+        for x in rows:
+            await packages.approve(db, x["id"], target_variant=name,
+                                   decided_by=decided_by, by_operator=by_operator,
+                                   via_environment=True)
     cur = await profiles.for_slug(db, slug)
     copied_from = None
+    # an image only applies to a project's OWN box (placement.resolve ignores
+    # box_image on the shared one); the memory floor is applied at allocation
+    # (boxes.mem_floor), so box_mem_mb needs no change here
+    flip = not cur["separate_box"]
     if _own_profile(cur, slug, await _projects_on(db, cur["id"])):
         prof = await profiles.update(db, cur["id"], {**{k: cur[k] for k in profiles.FIELDS},
-                                              "box_image": name},
+                                              "box_image": name, "separate_box": 1},
                                      actor=decided_by, by_operator=by_operator)
     else:
         copied_from = cur["id"]
@@ -270,7 +349,7 @@ async def approve(db, env_id: int, *, decided_by: str, by_operator: bool) -> dic
             n += 1
             pname = f"{base} ({n})"
         body = {k: cur[k] for k in profiles.FIELDS}
-        body.update(name=pname, box_image=name)
+        body.update(name=pname, box_image=name, separate_box=1)
         prof = await profiles.create(db, body, actor=decided_by, by_operator=by_operator)
         await profiles.assign(db, slug, prof["id"], actor=decided_by,
                               by_operator=by_operator)
@@ -279,9 +358,11 @@ async def approve(db, env_id: int, *, decided_by: str, by_operator: bool) -> dic
     await security.settle(db, "environment_requested", "environment_id", env_id)
     await security.raise_event(
         db, kind="environment_approved", severity="warn", project=slug,
-        summary=f"approved image `{name}` from `{r['from_variant']}`; {slug} now "
-                f"boots on profile {prof['name']!r}",
-        detail={"environment_id": env_id, "name": name, "profile_id": prof["id"],
+        summary=(f"approved moving {slug} onto image `{name}`" if use else
+                 f"approved image `{name}` from `{r['from_variant']}`")
+                + f"; {slug} now runs in its own box on profile {prof['name']!r}",
+        detail={"environment_id": env_id, "name": name, "kind": r["kind"],
+                "separate_box_set": flip, "profile_id": prof["id"],
                 "profile_copied_from": copied_from,
                 "packages": [f"{x['manager']} {x['package']}" for x in rows]},
         actor=security.OPERATOR if by_operator else None)
