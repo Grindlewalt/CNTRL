@@ -14,7 +14,7 @@
 │                                  │   │║  shift+tab   permissions: yolo → au  ║
 │                                  │   │║  ctrl+x l    sessions · ctrl+x m mo  ║
 │                                  │   │║  ctrl+p      command palette         ║
-│                                  │   │║  ctrl+x ←↑↓→  move between panels ·  ║
+│                                  │   │║  ctrl+x ←↑↓→  move between tiles ·   ║
 │                                  │   │║                                      ║
 │                                  │   │║                                      ║
 │                                  │   │║                                      ║
