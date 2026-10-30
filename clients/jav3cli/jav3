@@ -1294,18 +1294,40 @@ def drawer_width(total: int) -> int:
 DRAWER_PICKABLE = ("root", "kid", "chat", "link")      # the rows a drawer's bar can stand on
 
 
-def agent_drawer_rows(active: AgentTree, finished: AgentTree,
-                      recent: int = DRAWER_RECENT) -> tuple[list[dict], list[dict]]:
-    """(RUNNING roots, RECENT roots): every root with something running or waiting on the
-    operator (the /agents page's Active, then Needs you; a needs-input root is marked
-    by its row), then the `recent` roots that finished last, newest first."""
+def agent_drawer_rows(active: AgentTree, finished: AgentTree, recent: int = DRAWER_RECENT
+                      ) -> tuple[list[dict], list[dict], list[dict]]:
+    """(RUNNING roots, NEEDS YOU roots, RECENT roots): the roots with something running,
+    then the ones where nothing runs but something waits on the operator (newest first
+    in each), then the `recent` roots that finished last. NEEDS YOU is its own section:
+    2026-10-30 a plan item that failed 33 days earlier kept a 74-agent run under RUNNING."""
     when = lambda r: str(r.get("ended_at") or r.get("started_at") or "")  # noqa: E731
-    run = [r for _, rs in agent_sections(active, "active") for r in rs]
-    run.sort(key=lambda r: str(r.get("started_at") or ""), reverse=True)   # not by project
-    run.sort(key=lambda r: active.root_status(r["id"]) != "running")       # needs-you after
+    newest = lambda rs: sorted(rs, key=lambda r: str(r.get("started_at") or ""),  # noqa: E731
+                               reverse=True)                               # not by project
+    (_, run), (_, need) = agent_sections(active, "active")
     done = [r for r in sorted(finished.roots, key=when, reverse=True)
             if r["id"] not in active.by_id][:recent]
-    return run, done
+    return newest(run), newest(need), done
+
+
+DRAWER_KID_STATES = ("running", "needs_you", "failed")    # an open root's rows; the rest fold
+
+
+def drawer_kids(tr: AgentTree, root_id, show_all: bool = False) -> tuple[list, int]:
+    """(rows, folded): an open root's sub-agents as (node, depth). Unless `show_all`, only
+    the ones running, waiting on the operator or failed, with the agents above them so
+    the tree still reads; `folded` counts the finished ones left out."""
+    kids = tr.descendants(root_id)
+    if show_all:
+        return kids, 0
+    keep = set()
+    for k, _ in kids:
+        if node_status(k) in DRAWER_KID_STATES:
+            nid = k["id"]
+            while nid is not None and nid != root_id and nid in tr.by_id and nid not in keep:
+                keep.add(nid)
+                nid = tr.by_id[nid].get("parent_id")
+    rows = [(k, d) for k, d in kids if k["id"] in keep]
+    return rows, len(kids) - len(rows)
 
 
 def session_sections(convs: list[dict], tr: AgentTree, asks=(),
@@ -5244,6 +5266,7 @@ def build_tui(base: str, token: str, **kw):
             self.sel = None                       # the selected row's key
             self.in_kids = False                  # up and down walk the open entry's sub-agents
             self.open_root = None                 # the entry whose sub-agents are unfolded
+            self.all_kids: set = set()            # roots showing their finished sub-agents too
             self.fetched = False                  # a fetch has answered
             self.closing = False
             self._idx = 0                         # where the bar was, for when its row leaves
@@ -5414,23 +5437,28 @@ def build_tui(base: str, token: str, **kw):
 
             if self.kind == "agents":
                 act, fin = feed.trees["active"], feed.trees["finished"]
-                running, recent = agent_drawer_rows(act, fin)
+                running, needs, recent = agent_drawer_rows(act, fin)
                 add("section", None, lambda f, n=len(running): f"RUNNING  {n}")
                 if not running:
                     add("note", None, lambda f, t=self.empty_note(): t)
-                for name, roots in ((None, running), ("RECENT", recent)):
+                for name, roots in ((None, running), ("NEEDS YOU", needs), ("RECENT", recent)):
                     if name:
                         if not roots:
                             continue
-                        add("section", None, lambda f, name=name: name)
+                        add("section", None, lambda f, name=name, n=len(roots):
+                            f"{name}  {n}" if name == "NEEDS YOU" else name)
                     for r in roots:
                         add("root", r["id"], lambda f, nd=r: self.agent_markup(nd, 0, True, f),
                             r, spins=self.tree_of(r["id"]).root_status(r["id"]) == "running")
                         if r["id"] == self.open_root:
                             tr = self.tree_of(r["id"])
-                            for k, d in tr.descendants(r["id"]):
+                            kids, folded = drawer_kids(tr, r["id"], r["id"] in self.all_kids)
+                            for k, d in kids:
                                 add("kid", k["id"], lambda f, nd=k, d=d: self.agent_markup(
                                     nd, d, False, f), k, spins=node_status(k) == "running")
+                            if folded:      # enter on it unfolds them (_go)
+                                add("kid", f"more:{r['id']}", lambda f, n=folded:
+                                    f"  [$text-muted]└ … {n} finished (enter)[/]")
                 n = feed.total_finished
                 if n and n > len(recent):
                     add("link", "finished", lambda f, n=n: f"  all {n} finished  →")
@@ -5566,10 +5594,9 @@ def build_tui(base: str, token: str, **kw):
             if self.sel == "finished":
                 return await self.action_open()
             if not self.in_kids and self.open_root is not None:
-                tr = self.tree_of(self.open_root)
-                kids = tr.descendants(self.open_root)
+                kids = [s[1] for s in self.specs if s[0] == "kid"]    # as drawn: some fold
                 if kids:
-                    self.in_kids, self.sel = True, kids[0][0]["id"]
+                    self.in_kids, self.sel = True, kids[0]
                     await self.draw_rows()
 
         async def action_left(self) -> None:
@@ -5612,6 +5639,9 @@ def build_tui(base: str, token: str, **kw):
             app, spec = self.app, self._selected()
             if spec is None:
                 return
+            if spec[3] is None and str(spec[1]).startswith("more:"):   # "… N finished": unfold
+                self.all_kids.add(self.open_root)
+                return await self.draw_rows()
             if new_panel:
                 why = app.panel_refusal()
                 if why:                                  # the drawer stays: say why under it

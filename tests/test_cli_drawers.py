@@ -162,17 +162,34 @@ def test_a_drawer_is_about_40_columns_and_narrower_where_a_panel_must_stay_visib
     assert jav3.drawer_width(30) == 24 and 80 - jav3.drawer_width(80) >= jav3.PANEL_MIN_COLS
 
 
-def test_agent_rows_are_running_first_with_needs_you_after_then_the_newest_finished():
+def test_agent_rows_are_running_then_needs_you_on_its_own_then_the_newest_finished():
     act = jav3.AgentTree([node(1, "waits", status="needs_you", needs="why",
                                started_at="2026-09-30 05:00:00"),
                           node(2, "old run", started_at="2026-09-30 03:00:00"),
-                          node(3, "new run", started_at="2026-09-30 04:00:00")])
+                          node(3, "new run", started_at="2026-09-30 04:00:00"),
+                          node(4, "stale", status="done", started_at="2026-09-01 01:00:00"),
+                          node(5, "old ask", parent=4, status="needs_you", needs="plan item failed")])
     fin = jav3.AgentTree([node(i, f"done {i}", status="done", started_at=f"2026-09-2{i} 01:00:00",
                                ended_at=f"2026-09-2{i} 02:00:00") for i in range(1, 9)]
                          + [node(3, "was running", status="done")])       # not under both
-    run, done = jav3.agent_drawer_rows(act, fin, recent=3)
-    assert [r["id"] for r in run] == [3, 2, 1]
+    run, need, done = jav3.agent_drawer_rows(act, fin, recent=3)
+    assert [r["id"] for r in run] == [3, 2]
+    # a run where nothing runs but one old item waits on you is not RUNNING (2026-10-30)
+    assert [r["id"] for r in need] == [1, 4]
     assert [r["id"] for r in done] == [8, 7, 6]
+
+
+def test_an_open_root_shows_only_live_failed_or_waiting_agents_and_folds_the_finished():
+    tr = jav3.AgentTree([node(1, "run", status="done"),
+                         node(2, "plan", parent=1, status="done"),
+                         *[node(10 + i, f"item {i}", parent=2, status="done") for i in range(6)],
+                         node(20, "mobs", parent=2, status="needs_you", needs="no report"),
+                         node(21, "crashed", parent=1, status="failed")])
+    kids, folded = jav3.drawer_kids(tr, 1)
+    assert [k["id"] for k, _ in kids] == [2, 20, 21]      # the plan stays: it holds item 20
+    assert folded == 6
+    kids, folded = jav3.drawer_kids(tr, 1, show_all=True)
+    assert len(kids) == 9 and folded == 0
 
 
 def test_session_sections_put_active_and_needs_input_above_the_rest():
