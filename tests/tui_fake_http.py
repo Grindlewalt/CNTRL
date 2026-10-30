@@ -480,6 +480,9 @@ class SeededServer(FakeServer):
             feed.put({"type": "token", "text": "I'll start with the retry test "})
             await asyncio.sleep(pause)
             feed.put({"type": "token", "text": "and the code it calls. "})
+            # one usage event per model call, as the server sends them
+            feed.put({"type": "usage", "in": 18200, "out": 640, "cached": 16000,
+                      "ms": 15600, "model": MODEL})
             if scenario == "slow":
                 feed.put({"type": "tool", "id": "c1", "name": "run_code",
                           "args": {"command": "npm run bench -- --cascades 4"}})
@@ -513,6 +516,8 @@ class SeededServer(FakeServer):
                 await asyncio.sleep(pause)
                 feed.put({"type": "tool_result", "id": f"c{i}", "name": c["name"], "ok": True,
                           "result": c["result"]})
+            feed.put({"type": "usage", "in": 33900, "out": 1260, "cached": None,
+                      "ms": 30400, "model": MODEL})
             for part in REPLY.split(" "):
                 feed.put({"type": "token", "text": part + " "})
             await asyncio.sleep(pause)

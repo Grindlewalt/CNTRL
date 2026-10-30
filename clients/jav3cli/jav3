@@ -1065,6 +1065,48 @@ def tool_title(name: str, args) -> tuple[str, str]:
     return "⚙", f"{name} {rest}".rstrip()
 
 
+# -- folded steps: one line for a run of tool calls -----------------------------------------
+
+def fold_verb(name: str, args) -> str:
+    """One word for a step in a fold's summary: the title's first word (Grep, Read,
+    Edit, ...) lowercased; `run` for a command, the tool's own name for the rest."""
+    icon, title = tool_title(name, args)
+    if icon == "$":
+        return "run"
+    if icon == "⚙":
+        return name
+    return (title.split() or [name])[0].lower()
+
+
+def fold_summary(steps: list[tuple[str, object, bool | None]]) -> str:
+    """`4 steps · grep, read, edit, run` for the finished steps (name, args, ok) of a
+    fold; a failed one shows as `4 steps (1 failed)`. At most 5 verbs, then ..."""
+    verbs: list[str] = []
+    for name, args, _ok in steps:
+        v = fold_verb(name, args)
+        if v not in verbs:
+            verbs.append(v)
+    failed = sum(1 for _n, _a, ok in steps if ok is False)
+    head = _plural(len(steps), "step") + (f" ({failed} failed)" if failed else "")
+    return f"{head} · {', '.join(verbs[:5])}" + (", …" if len(verbs) > 5 else "")
+
+
+def _tok(n: int) -> str:
+    return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
+
+
+def fold_live_text(title: str, step: int, secs: float, tin: int | None = None,
+                   tout: int = 0, toks: float | None = None) -> str:
+    """The text of a running fold, after its spinner: `grep "retry" · step 3 · 12s ·
+    ↑ 18.2k ↓ 640 · 41 tok/s`. No token numbers until the server has sent a usage event."""
+    bits = [title, f"step {step}", _elapsed(secs)]
+    if tin is not None:
+        bits.append(f"↑ {_tok(tin)} ↓ {_tok(tout)}")
+        if toks:
+            bits.append(f"{toks:.0f} tok/s")
+    return " · ".join(bits)
+
+
 def parse_todos(result: str) -> list[tuple[bool, str]]:
     import re
     out = []
@@ -1628,6 +1670,33 @@ class TurnState:
         self.synced: list[dict] = []
         self.skip: set = set()
         self.claim_until = 0.0
+        # tokens, from the server's `usage` events (one per model call). None until
+        # the first: an older server sends none, and the numbers then stay hidden.
+        self.tin: int | None = None       # prompt tokens, summed over the turn's calls
+        self.tout = 0                     # completion tokens
+        self.tms = 0                      # model time, ms
+        self.chars = 0                    # streamed since the last usage event (the ↓ estimate)
+        self.stream_t0: float | None = None
+
+    def usage(self, ev: dict) -> None:
+        self.tin = (self.tin or 0) + int(ev.get("in") or 0)
+        self.tout += int(ev.get("out") or 0)
+        self.tms += int(ev.get("ms") or 0)
+        self.chars, self.stream_t0 = 0, None   # the real count replaces the estimate
+
+    def streamed(self, chunk: str) -> None:
+        self.chars += len(chunk)
+        if self.stream_t0 is None:
+            self.stream_t0 = time.monotonic()
+
+    def tokens(self) -> tuple[int | None, int, float | None]:
+        """(up, down, tok/s): down counts the text streaming now at chars/4 until its
+        usage event arrives; tok/s is down over the model time, this call so far included."""
+        if self.tin is None:
+            return None, 0, None
+        out = self.tout + self.chars // 4
+        secs = self.tms / 1000 + (time.monotonic() - self.stream_t0 if self.stream_t0 else 0)
+        return self.tin, out, (out / secs if secs >= 0.5 else None)
 
     def claim(self, ev: dict) -> bool:
         """True when this live tool event repeats a call the saved transcript already
@@ -2944,6 +3013,74 @@ def build_tui(base: str, token: str, **kw):
                                 True, cap=5000)
             return body or "[$text-muted](no output)[/]"
 
+    class FoldLine(Static):
+        """A run of tool steps between two messages, as one line. While the turn
+        runs it is live (`⠋ Grep "retry" · step 3 · 12s · ↑ 18.2k ↓ 640 · 41 tok/s`);
+        after, a summary (`▸ 4 steps · grep, read, edit   ctrl+o`). Its steps are the
+        ToolViews that follow it: hidden while folded, shown (and this line hidden)
+        when opened by a click or ctrl+o."""
+
+        DEFAULT_CSS = """
+        FoldLine { height: 1; padding-left: 2; text-wrap: nowrap; text-overflow: ellipsis; }
+        """
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.rows: list = []
+            self.opened = False
+            self.live = False           # a turn is still adding steps
+            self.turn = None            # its token counts, while live
+            self._shown = ""
+
+        def on_mount(self) -> None:
+            self.display = not self.opened
+            self.redraw()
+
+        def on_unmount(self) -> None:
+            self.app.__dict__.get("live_folds", set()).discard(self)
+
+        def go_live(self, turn) -> None:
+            self.live, self.turn = True, turn
+            self.app.__dict__.setdefault("live_folds", set()).add(self)
+
+        def close(self) -> None:
+            """A message follows, or the turn ended: no more steps join this run."""
+            self.live = False
+            self.app.__dict__.get("live_folds", set()).discard(self)
+            self.redraw()
+
+        def set_open(self, opened: bool) -> None:
+            self.opened = opened
+            self.display = not opened
+            for tv in self.rows:
+                tv.display = opened
+
+        def on_click(self) -> None:
+            self.set_open(True)
+
+        def spin(self, frame: str) -> None:
+            self.redraw(frame)
+
+        def redraw(self, frame: str = "") -> None:
+            rows = self.rows
+            if self.live:
+                run = next((tv for tv in rows if not tv.done), None)
+                title = tool_title(run.tname, run.args)[1] if run else "thinking"
+                t = self.turn
+                tin, tout, toks = t.tokens() if t is not None else (None, 0, None)
+                step = t.ntools if t is not None else len(rows)
+                secs = time.monotonic() - (rows[0].t0 if rows else time.monotonic())
+                text = (f"[$accent]{frame or '~'}[/] " + _esc(fold_live_text(
+                    title, step, secs, tin, tout, toks)))
+            else:
+                steps = [(tv.tname, tv.args, False if tv.interrupted else tv.ok) for tv in rows]
+                failed = any(ok is False for _n, _a, ok in steps)
+                text = (f"[{'$warning' if failed else '$text-muted'}]▸ {_esc(fold_summary(steps))}[/]"
+                        f"   [$primary]ctrl+o[/]")
+            if text != self._shown:
+                self._shown = text
+                self.update(text, layout=False)
+
     class NewHint(Static):
         """Under the transcript while the operator has scrolled up and more
         arrived below. A click jumps to the bottom."""
@@ -2986,7 +3123,34 @@ def build_tui(base: str, token: str, **kw):
             self.picking = False       # focused (has_focus is not set yet in on_focus)
 
         def rows(self) -> list:
-            return [w for w in self.children if isinstance(w, ToolView)]
+            return [w for w in self.children if isinstance(w, ToolView) and w.display]
+
+        def current_fold(self):
+            """The FoldLine whose run the log ends with, or None: a message after
+            the last step starts a new run."""
+            for w in reversed(self.children):
+                if isinstance(w, ToolView):
+                    continue
+                return w if isinstance(w, FoldLine) else None
+            return None
+
+        async def add_tool(self, tv, opened: bool, turn=None) -> None:
+            """Mount a step into its run, starting the run's FoldLine when needed."""
+            fl = self.current_fold()
+            if fl is None:
+                fl = FoldLine()
+                fl.opened = opened
+                await self.mount(fl)
+            fl.rows.append(tv)
+            tv.display = fl.opened
+            if turn is not None and not fl.live:
+                fl.go_live(turn)
+            await self.mount(tv)
+
+        def close_fold(self) -> None:
+            fl = self.current_fold()
+            if fl is not None and fl.live:
+                fl.close()
 
         def pick(self, tv, scroll: bool = True) -> None:
             if self.picked is not None and self.picked is not tv:
@@ -9946,7 +10110,12 @@ def build_tui(base: str, token: str, **kw):
                 await home.remove()
             if not self._following():
                 self.unseen += 1               # "↓ n new" until they scroll back down
-            await lv.mount(widget)
+            if isinstance(widget, ToolView):
+                await lv.add_tool(widget, self.tools_expanded,
+                                  self.turn if self.busy else None)
+            else:
+                lv.close_fold()                # a message ends the run of steps above it
+                await lv.mount(widget)
 
         def _following(self) -> bool:
             """The transcript keeps to the bottom (Textual's anchor), i.e. the
@@ -10324,6 +10493,8 @@ def build_tui(base: str, token: str, **kw):
                 # every unfinished row, the turn's and a local `!command`'s alike
                 for tv in list(self.__dict__.get("live_tools", ())):
                     tv.spin(SPINNER[self.frame % len(SPINNER)])
+                for fl in list(self.__dict__.get("live_folds", ())):
+                    fl.spin(SPINNER[self.frame % len(SPINNER)])
                 for chat in list(self.chats.values()):
                     t = chat.turn
                     if chat.busy and t is not None and t.cid is not None \
@@ -10765,7 +10936,10 @@ def build_tui(base: str, token: str, **kw):
                     await self.mount_log(turn.md)
                     turn.stream = Markdown.get_stream(turn.md)
                 turn.seg += chunk
+                turn.streamed(chunk)
                 await turn.stream.write(chunk)
+            elif t == "usage":
+                turn.usage(ev)
             elif t == "retry":
                 # the model stream dropped mid-round and is re-asked: the text it
                 # had streamed is void, so the segment goes instead of showing twice
@@ -11099,11 +11273,19 @@ def build_tui(base: str, token: str, **kw):
             for tv in turn.running.values():
                 tv.interrupt(why)
             turn.running.clear()
+            if self.log_view is not None and self.log_view.is_attached:
+                self.log_view.close_fold()
 
         def _footer_markup(self, turn: TurnState) -> str:
             who = self.agent or "Jav3"
             model = (turn.model or self._model_label()).split("/")[-1]
-            bits = [_esc(who), _esc(model)] + turn.stats()
+            stats = turn.stats()
+            tin, tout, toks = turn.tokens()
+            if tin is not None:
+                stats.insert(1, f"↑ {_tok(tin)} ↓ {_tok(tout)}")
+                if toks:
+                    stats.insert(2, f"{toks:.0f} tok/s")
+            bits = [_esc(who), _esc(model)] + stats
             if turn.failed:
                 return f"[$error]▣[/] {' · '.join(bits)} · [$error]failed[/]"
             if turn.interrupted:
@@ -11735,6 +11917,8 @@ def build_tui(base: str, token: str, **kw):
 
         def action_toggle_tools(self) -> None:
             self.tools_expanded = not self.tools_expanded
+            for fl in self.chat.page.query(FoldLine):
+                fl.set_open(self.tools_expanded)
             for tv in self.chat.page.query(ToolView):
                 tv.expanded = self.tools_expanded
                 tv.redraw()
@@ -12072,7 +12256,7 @@ def build_tui(base: str, token: str, **kw):
                 for a in m.get("activity") or []:
                     tv = ToolView(a["name"], a.get("args"), ok=a.get("ok"),
                                   result=a.get("result"), done=True)
-                    await self.log_view.mount(tv)
+                    await self.log_view.add_tool(tv, self.tools_expanded)
                     if a["name"] == "todo_update" and parse_todos(a.get("result") or ""):
                         self.todos = parse_todos(a["result"])
                 if (m.get("content") or "").strip():
@@ -12088,8 +12272,9 @@ def build_tui(base: str, token: str, **kw):
             await self.refresh_info()
             if r.get("running") or running:
                 for a in r.get("pending_activity") or []:
-                    await self.log_view.mount(ToolView(a["name"], a.get("args"), ok=a.get("ok"),
-                                                       result=a.get("result"), done=True))
+                    await self.log_view.add_tool(
+                        ToolView(a["name"], a.get("args"), ok=a.get("ok"),
+                                 result=a.get("result"), done=True), self.tools_expanded)
                 await self.note("a turn is running — attached" + (
                     f" · esc goes back to #{self.child_of}, ctrl+c stops it"
                     if self.child_of else ""), "warn")
