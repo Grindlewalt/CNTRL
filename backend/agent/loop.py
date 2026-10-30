@@ -496,7 +496,7 @@ def usage_event(usage: dict | None, ms: int, model_name: str | None) -> dict | N
         cached = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
     return {"type": "usage", "in": int(usage.get("prompt_tokens") or 0),
             "out": int(usage.get("completion_tokens") or 0),
-            "cached": cached, "ms": int(ms), "model": model_name or settings.model_name}
+            "cached": cached, "ms": int(ms), "model": model_name or getattr(settings, "model_name", None)}   # the guest has no default name
 
 
 async def run_turn(*args, **kwargs) -> AsyncIterator[dict]:
