@@ -13188,7 +13188,7 @@ def build_tui(base: str, token: str, **kw):
             return chat
 
         async def close_panel(self, number: int | None = None) -> bool:
-            """ctrl+x 0: close a panel (the focused one). Its chat keeps running on the server;
+            """ctrl+w (or ctrl+x 0): close a tile (the focused one). Its chat keeps running on the server;
             this client just stops watching it. Never the last one."""
             number = number or self.focus_no
             if number not in self.chats:
