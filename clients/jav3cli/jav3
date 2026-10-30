@@ -2066,6 +2066,148 @@ def panel_split_dir(w: int, h: int) -> str | None:
     return first if fits[first] else other if fits[other] else None
 
 
+# --- tabs: a tile tree each -------------------------------------------------------------------
+#
+# The tabs sit above the tiles. Each tab is its own tile tree (the engine above, at most
+# MAX_PANELS tiles) with its own focus and zoom; the tiles of a tab that is not showing stay
+# alive, so a chat keeps streaming behind it. A tile's number is its number WITHIN its tab.
+
+MAX_TABS = 9                 # ctrl+x 1-9 jump to one
+
+
+class PanelTab:
+    """One tab: its tiles (number -> ChatState), the split tree over the numbers, which
+    tile has the focus and whether it is zoomed."""
+
+    def __init__(self, chats: dict, tree=None, focus_no: int | None = None,
+                 zoomed: bool = False) -> None:
+        self.chats = chats
+        self.tree = tree if tree is not None else next(iter(chats))
+        self.focus_no = focus_no if focus_no in chats else next(iter(chats))
+        self.zoomed = zoomed
+
+
+def tree_to_json(node):
+    """A tile tree as plain JSON: a number, or {dir, children, sizes}."""
+    if not isinstance(node, PanelSplit):
+        return node
+    return {"dir": node.dir, "children": [tree_to_json(c) for c in node.children],
+            "sizes": list(node.sizes)}
+
+
+def tree_from_json(d, valid=None):
+    """The tree back from tree_to_json, or None for anything malformed (a hand-edited
+    file must not stop the client). `valid` (a set of numbers) drops any other leaf."""
+    if isinstance(d, bool):
+        return None
+    if isinstance(d, int):
+        return d if valid is None or d in valid else None
+    if not isinstance(d, dict) or d.get("dir") not in ("row", "col"):
+        return None
+    kids, sizes = [], []
+    raw = d.get("sizes")
+    for i, c in enumerate(d.get("children") or []):
+        n = tree_from_json(c, valid)
+        if n is None:
+            continue
+        kids.append(n)
+        s = raw[i] if isinstance(raw, list) and i < len(raw) else None
+        sizes.append(s if isinstance(s, (int, float)) and s > 0 else 1.0)
+    if not kids:
+        return None
+    return tree_normalize(PanelSplit(d["dir"], kids, [s / sum(sizes) for s in sizes]))
+
+
+def layout_to_json(tabs: list[dict], current: int) -> dict:
+    """What tui.json keeps of the tabs. `tabs` are {tree, focus, zoomed, cids} (cids:
+    tile number -> its conversation id, for the chats that have one)."""
+    return {"v": 2, "current": current, "tabs": [
+        {"tree": tree_to_json(t["tree"]), "focus": t["focus"], "zoomed": bool(t["zoomed"]),
+         "cids": {str(n): c for n, c in t["cids"].items()}} for t in tabs]}
+
+
+def layout_from_json(raw) -> tuple[list[dict], int]:
+    """Saved tabs back as ([{tree, focus, zoomed, cids}], current), never raising. A layout
+    saved before tabs existed is a bare tile tree: it loads as one tab. Nothing usable
+    gives ([], 0)."""
+    if isinstance(raw, dict) and isinstance(raw.get("tabs"), list):
+        items, current = raw["tabs"], raw.get("current")
+    elif raw is not None:
+        items, current = [{"tree": raw}], 0
+    else:
+        return [], 0
+    out = []
+    for item in items[:MAX_TABS]:
+        if not isinstance(item, dict):
+            continue
+        tree = tree_from_json(item.get("tree"))
+        leaves_l = tree_leaves(tree)
+        if tree is None or not 0 < len(leaves_l) <= MAX_PANELS \
+                or len(set(leaves_l)) != len(leaves_l):
+            continue
+        leaves = set(leaves_l)
+        saved = item.get("cids") if isinstance(item.get("cids"), dict) else {}
+        cids = {int(k): v for k, v in saved.items()
+                if str(k).isdigit() and int(k) in leaves
+                and isinstance(v, int) and not isinstance(v, bool)}
+        focus = item.get("focus")
+        out.append({"tree": tree, "focus": focus if focus in leaves else leaves_l[0],
+                    "zoomed": bool(item.get("zoomed")) and len(leaves) > 1, "cids": cids})
+    if not out:
+        return [], 0
+    return out, current if isinstance(current, int) and 0 <= current < len(out) else 0
+
+
+def tab_bar_layout(names: list[str], current: int, width: int):
+    """The tab bar for `width` cells: (markup, hits). hits are (x0, x1, kind, index) with
+    kind "tab" | "close" | "new" | "left" | "right". Names give way first (ellipsis); when
+    even short ones do not fit, the tabs away from the current one drop off behind ‹ ›."""
+    from rich.cells import cell_len
+
+    def label(i: int, limit: int) -> tuple[str, str]:
+        name = _short(names[i], limit)
+        return f" {i + 1} {name} ", name
+
+    for limit in (24, 16, 10, 6, 3):
+        labels = [label(i, limit)[0] for i in range(len(names))]
+        if sum(cell_len(p) + 3 for p in labels) + 3 <= width:      # label, "× ", a gap each
+            lo, hi = 0, len(names)
+            break
+    else:
+        labels = [label(i, 3)[0] for i in range(len(names))]
+        lo, hi = current, current + 1
+        used = cell_len(labels[current]) + 3 + 3 + 4               # the +, both arrows
+        while True:
+            grew = False
+            for side in (-1, 1):
+                j = lo - 1 if side < 0 else hi
+                if 0 <= j < len(names) and used + cell_len(labels[j]) + 3 <= width:
+                    used += cell_len(labels[j]) + 3
+                    lo, hi, grew = (j, hi, True) if side < 0 else (lo, j + 1, True)
+            if not grew:
+                break
+    parts, hits, x = [], [], 0
+    if lo > 0:
+        parts.append("[$text-muted]‹ [/]")
+        hits.append((0, 2, "left", lo - 1))
+        x = 2
+    for i in range(lo, hi):
+        w = cell_len(labels[i])
+        style = "b $background on $accent" if i == current else "$text-muted on $panel"
+        name = _esc(labels[i][len(f" {i + 1} "):-1])
+        parts.append(f"[{style}] {i + 1} {name} × [/] ")
+        hits.append((x, x + w, "tab", i))
+        hits.append((x + w, x + w + 1, "close", i))
+        x += w + 3
+    if hi < len(names):
+        parts.append("[$text-muted]›[/] ")
+        hits.append((x, x + 2, "right", hi))
+        x += 2
+    parts.append("[b $text on $panel] + [/]")
+    hits.append((x, x + 3, "new", len(names)))
+    return "".join(parts), hits
+
+
 def not_in_terminal(name: str) -> str:
     return (f"/{name} is not in the terminal yet — /web {name} opens it in the browser"
             + (" (/details opens and closes the tool rows here)" if name == "tools" else ""))
@@ -2954,7 +3096,7 @@ def build_tui(base: str, token: str, **kw):
 
         def on_click(self) -> None:
             app = self.app
-            chat = next((c for c in app.chats.values() if c.new_hint is self), None)
+            chat = next((c for c in app.all_chats() if c.new_hint is self), None)
             if chat is None:
                 return
             with app.in_chat(chat):
@@ -4707,7 +4849,7 @@ def build_tui(base: str, token: str, **kw):
         """
 
         def compose(self) -> ComposeResult:
-            for chat in self.app.chats.values():
+            for chat in self.app.all_chats():
                 yield Panel(chat)
 
         def on_resize(self, event) -> None:
@@ -4718,6 +4860,11 @@ def build_tui(base: str, token: str, **kw):
             zoomed (or when the window is too small for the tiles to read)."""
             app = self.app
             w, h = self.size
+            for tab in app.ptabs:           # a tab that is not showing keeps its tiles, hidden
+                if tab is not app.ptab:
+                    for chat in tab.chats.values():
+                        if chat.panel is not None:
+                            chat.panel.display = False
             chats = list(app.chats.values())
             multi = len(chats) > 1
             self.set_class(multi, "-multi")
@@ -4728,7 +4875,7 @@ def build_tui(base: str, token: str, **kw):
                 app.cramped = cramped
                 if cramped:
                     app.notify(f"too small for {len(chats)} panels at this size: showing "
-                               "panel %d alone (enlarge the window, or ctrl+x 0 closes one)"
+                               "panel %d alone (enlarge the window, or ctrl+w closes one)"
                                % app.focus_no, severity="warning")
             alone = not multi or app.zoomed or cramped
             for chat in chats:
@@ -4752,6 +4899,38 @@ def build_tui(base: str, token: str, **kw):
                 panel.refresh_title()
             if app.drawer is not None:
                 app.drawer.place(w)
+            app.refresh_tabbar()
+
+    class TabBar(Static):
+        """The top row while there is more than one tab: ` 1 chat ×  2 /vms ×  3 … + `. The
+        showing tab is the solid accent. A click on a tab goes to it, on its × closes it, on
+        + opens a new one. Only drawn with two tabs or more, so a single tab looks as the
+        terminal always did (ctrl+x t makes the second)."""
+
+        DEFAULT_CSS = """
+        TabBar { width: 1fr; height: 1; display: none; background: $background; }
+        """
+
+        def __init__(self, **kw) -> None:
+            super().__init__(**kw)
+            self.hits: list = []
+            self._shown = None
+
+        def show(self, names: list[str], current: int) -> None:
+            width = self.size.width or self.app.size.width
+            key = (tuple(names), current, width)
+            if key == self._shown:
+                return
+            self._shown = key
+            markup, self.hits = tab_bar_layout(names, current, width)
+            self.update(markup)
+
+        def on_click(self, event) -> None:
+            event.stop()
+            for x0, x1, kind, i in self.hits:
+                if x0 <= event.x < x1:
+                    self.app.tab_click(kind, i)
+                    return
 
     class AgentRow(Static):
         """One row of the agents screen: a project header, a root, or a descendant."""
@@ -5435,7 +5614,7 @@ def build_tui(base: str, token: str, **kw):
                 if n and n > len(recent):
                     add("link", "finished", lambda f, n=n: f"  all {n} finished  →")
             else:
-                asks = {c.cid for c in self.app.chats.values() if c.asks and c.cid}
+                asks = {c.cid for c in self.app.all_chats() if c.asks and c.cid}
                 secs = session_sections(self.app.convs, feed.trees["active"], asks)
                 if not secs:
                     add("note", None, lambda f, t=self.empty_note("no chats yet"): t)
@@ -9299,6 +9478,10 @@ def build_tui(base: str, token: str, **kw):
             Binding("ctrl+c", "ctrl_c", show=False, priority=True),
             Binding("escape", "escape", show=False),
             Binding("ctrl+n", "new", show=False, priority=True),
+            # tiles: TextArea binds ctrl+w to delete-word-left, and this wins over it
+            # (alt+backspace and ctrl+backspace still delete a word)
+            Binding("ctrl+t", "new_tile", show=False, priority=True),
+            Binding("ctrl+w", "close_tile", show=False, priority=True),
             Binding("ctrl+b", "toggle_sidebar", show=False, priority=True),
             Binding("ctrl+o", "toggle_tools", show=False, priority=True),
             Binding("ctrl+g", "external_editor", show=False, priority=True),
@@ -9311,8 +9494,8 @@ def build_tui(base: str, token: str, **kw):
             Binding("slash", "command_line", show=False, priority=True),
         ]
         # keys the dialogs need for themselves
-        _MAIN_ONLY = {"leader", "new", "toggle_sidebar", "toggle_tools", "external_editor",
-                      "scroll_log", "ctrl_d"}
+        _MAIN_ONLY = {"leader", "new", "new_tile", "close_tile", "toggle_sidebar",
+                      "toggle_tools", "external_editor", "scroll_log", "ctrl_d"}
         # ...and of those, the ones that mean the chat: a page keeps pgup/pgdn, ctrl+o,
         # ctrl+g and ctrl+d for itself
         _CHAT_ONLY = {"toggle_tools", "external_editor", "scroll_log", "ctrl_d"}
@@ -9327,13 +9510,15 @@ def build_tui(base: str, token: str, **kw):
             self.transport = transport       # tests hand in an httpx mock transport
             # the panels: one ChatState each (see "the chat in context"), tiled by `tree`;
             # a panel's number is its key. `self.cid` and the rest are the chat in context's
-            self.chats: dict[int, ChatState] = {
-                1: ChatState(1, project, "pin" if project else None, agent, model)}
-            self.panel_tree = 1                       # the split tree (PanelSplit | a panel number)
-            self.focus_no = 1                   # the focused panel
+            # ...in tabs: `self.chats`, `panel_tree`, `focus_no` and `zoomed` are the showing
+            # tab's (see PanelTab); the other tabs' tiles stay mounted and keep running
+            self.ptabs: list[PanelTab] = [PanelTab(
+                {1: ChatState(1, project, "pin" if project else None, agent, model)})]
+            self.ptab_i = 0
+            self._layout_ready = False          # not until the saved layout is back
+            self._layout_saved: str | None = None
             self.drawer = None                  # the ← / → drawer showing, if any
             self._drawer_feed = None
-            self.zoomed = False                 # the focused panel fills the area
             self.cramped = False                # the window is too small for the tiles
             self.local_execs: dict[int, LocalExecutor] = {}
             self.local_cids: set[int] = set()         # chats this client opened as /local
@@ -9371,6 +9556,7 @@ def build_tui(base: str, token: str, **kw):
         def compose(self) -> ComposeResult:
             with Horizontal(id="main"):
                 with Vertical(id="left"):
+                    yield TabBar(id="tabbar")
                     yield PanelArea(id="panels")
                     with Vertical(id="bottom"):
                         yield OptionList(id="popup")
@@ -9392,6 +9578,44 @@ def build_tui(base: str, token: str, **kw):
                     yield Static(id="sb-foot")
 
         # -- panels and the chat in context --------------------------------------------------
+
+        @property
+        def ptab(self) -> PanelTab:
+            return self.ptabs[self.ptab_i]
+
+        # the showing tab's tiles, tree, focus and zoom, under the names the panel code
+        # always used
+        @property
+        def chats(self) -> dict[int, ChatState]:
+            return self.ptab.chats
+
+        @property
+        def panel_tree(self):
+            return self.ptab.tree
+
+        @panel_tree.setter
+        def panel_tree(self, value) -> None:
+            self.ptab.tree = value
+
+        @property
+        def focus_no(self) -> int:
+            return self.ptab.focus_no
+
+        @focus_no.setter
+        def focus_no(self, value: int) -> None:
+            self.ptab.focus_no = value
+
+        @property
+        def zoomed(self) -> bool:
+            return self.ptab.zoomed
+
+        @zoomed.setter
+        def zoomed(self, value: bool) -> None:
+            self.ptab.zoomed = value
+
+        def all_chats(self) -> list[ChatState]:
+            """Every tile of every tab: what has to reach a chat whichever tab it is in."""
+            return [c for tab in self.ptabs for c in tab.chats.values()]
 
         @property
         def chat(self) -> ChatState:
@@ -9530,8 +9754,12 @@ def build_tui(base: str, token: str, **kw):
                     await self.open_conversation(self.convs[0]["id"])
                 elif resume is not None:
                     await self.open_conversation(resume)
+                else:
+                    await self._restore_layout()
             except CliError as e:
                 await self.note(str(e), "error")
+            self._layout_ready = True
+            self.refresh_tabbar()
             if prompt:
                 self.send(prompt)
 
@@ -9648,7 +9876,7 @@ def build_tui(base: str, token: str, **kw):
                              timeout=20 if crit else 5, dnd_break=True)
             if crit:
                 from textual.css.query import NoMatches
-                for chat in list(self.chats.values()):
+                for chat in self.all_chats():
                     with self.in_chat(chat):
                         if not (self.busy and self.turn is not None
                                 and self._in_this_turn(ev, proj)):
@@ -9956,7 +10184,7 @@ def build_tui(base: str, token: str, **kw):
                                             and not getattr(lv, "_anchor_released", False))
 
         def _refresh_new_hint(self) -> None:
-            for chat in list(self.chats.values()):
+            for chat in self.all_chats():
                 if chat.new_hint is None or not chat.new_hint.is_attached:
                     continue
                 with self.in_chat(chat):
@@ -10032,7 +10260,7 @@ def build_tui(base: str, token: str, **kw):
             self._refresh_titles()
 
         def _refresh_titles(self) -> None:
-            for chat in list(self.chats.values()):
+            for chat in self.all_chats():
                 if chat.panel is not None:
                     chat.panel.refresh_title()
 
@@ -10083,7 +10311,7 @@ def build_tui(base: str, token: str, **kw):
             self.query_one("#meta", Static).update("  ".join(bits))
             self._refresh_status()
             self._refresh_sidebar()
-            for chat in list(self.chats.values()):
+            for chat in list(self.chats.values()):   # (a tab switch redoes this)
                 if chat.log is None or not chat.log.is_attached:
                     continue
                 with self.in_chat(chat):
@@ -10095,6 +10323,7 @@ def build_tui(base: str, token: str, **kw):
                     continue
                 with self.in_chat(chat):
                     self._header(show)
+            self.refresh_tabbar()
 
         def _home_hints(self) -> None:
             """The empty chat's hints (this chat's own Home, in its own panel)."""
@@ -10109,8 +10338,8 @@ def build_tui(base: str, token: str, **kw):
             proj = self._project_label()
             where = (f"\n[$text-muted]files and chats go to ⌂ {_esc(proj)}[/]"
                      if proj and not self._here() else "")
-            panels = ("\n[$text]ctrl+x ←↑↓→[/]  [$text-muted]move between panels · 1-4 jump · "
-                      "z zoom · 0 close[/]" if len(self.chats) > 1 else "")
+            panels = ("\n[$text]ctrl+x ←↑↓→[/]  [$text-muted]move between tiles · z zoom · "
+                      "ctrl+t new · ctrl+w close[/]" if len(self.chats) > 1 else "")
             home_hints.update(
                 f"{who}{where}\n\n"
                 "[$text]/help[/]       [$text-muted]commands and keys[/]\n"
@@ -10137,7 +10366,7 @@ def build_tui(base: str, token: str, **kw):
             parts = self._status_parts_of_panel()
             if len(self.chats) > 1:
                 n = self.chat.number
-                text = f"panel {n} · ctrl+x ←↑↓→ 1-4 z 0"
+                text = f"tile {n} · ctrl+x ←↑↓→ z · ctrl+t new · ctrl+w close"
                 parts = parts + [(text, f"[$text-muted]{text}[/]", 3)]
             return parts
 
@@ -10238,11 +10467,13 @@ def build_tui(base: str, token: str, **kw):
             if self.leader:
                 keys = "  ".join(f"[$primary]{c.leader}[/] {name}"
                                  for name, c in self.unique_commands() if c.leader)
-                panels = ("  [$primary]←↑↓→[/] panel  [$primary]1-4[/] jump  "
-                          "[$primary]z[/] zoom  [$primary]0[/] close"
-                          if len(self.chats) > 1 else "")
+                tiles = ("  [$primary]←↑↓→[/] tile  [$primary]z[/] zoom"
+                         if len(self.chats) > 1 else "")
+                tabs = ("  [$primary]t[/] new tab  [$primary]w[/] close tab  "
+                        f"[$primary]1-9[/] tab  [$primary]{_esc('[ ]')}[/] prev/next")
                 self._set_status(left, f"[$warning b]ctrl+x[/]  {keys}  "
-                                       f"[$primary]b[/] notifications{panels}")
+                                       f"[$primary]b[/] notifications{tiles}{tabs}  "
+                                       "[$text-muted]· ctrl+t new tile · ctrl+w close[/]")
                 self._set_status(right, "")
                 return
             # both sides share one row: the width is the row's, not the left
@@ -10324,7 +10555,7 @@ def build_tui(base: str, token: str, **kw):
                 # every unfinished row, the turn's and a local `!command`'s alike
                 for tv in list(self.__dict__.get("live_tools", ())):
                     tv.spin(SPINNER[self.frame % len(SPINNER)])
-                for chat in list(self.chats.values()):
+                for chat in self.all_chats():
                     t = chat.turn
                     if chat.busy and t is not None and t.cid is not None \
                             and time.monotonic() - t.polled > 10:
@@ -11537,19 +11768,30 @@ def build_tui(base: str, token: str, **kw):
             if key == "b":
                 self.action_toggle_sidebar()
                 return
-            # the panels: arrows move the focus, 1-4 jump, z zooms, 0 closes (no command
-            # uses a digit, an arrow or z)
+            # tiles: arrows move the focus, z zooms (ctrl+t / ctrl+w open and close one; 0
+            # still closes, for the habit). Tabs: t new, w close, 1-9 jump, [ ] step. No
+            # command takes a digit, an arrow, z, t, w, [ or ]
             if key in ("left", "right", "up", "down"):
                 self.move_focus(key)
-                return
-            if key in ("1", "2", "3", "4"):
-                self.jump_panel(int(key))
                 return
             if key == "z":
                 self.toggle_zoom()
                 return
             if key == "0":
-                self.run_worker(self.close_panel(), group="panels", unbound=True)
+                self.action_close_tile()
+                return
+            if key == "t":
+                self.run_worker(self.new_tab(), group="panels", unbound=True)
+                return
+            if key == "w":
+                self.run_worker(self.close_tab(), group="panels", unbound=True)
+                return
+            if key.isdigit():
+                self.switch_tab(int(key) - 1)
+                return
+            if key in ("[", "left_square_bracket", "]", "right_square_bracket"):
+                step = -1 if key in ("[", "left_square_bracket") else 1
+                self.switch_tab((self.ptab_i + step) % len(self.ptabs))
                 return
             for name, cmd in self.unique_commands():
                 if cmd.leader == key:
@@ -11775,7 +12017,8 @@ def build_tui(base: str, token: str, **kw):
                                     "lists them all)", "[id]", takes_arg=True, leader="l"),
                 "new-panel": Command(self.c_new_panel, "split this panel: a new chat beside "
                                      "it (/page [args] panel opens a page there; at most "
-                                     f"{MAX_PANELS}; ctrl+x ←↑↓→ 1-4 z 0 move, zoom, close)",
+                                     f"{MAX_PANELS}; ctrl+t does the same; ctrl+x ←↑↓→ z move, zoom; "
+                                     "ctrl+w closes)",
                                      busy_ok=True),
                 "models": Command(self.c_model, "pick the model (full access: switch "
                                   "models on/off, set the default)", "[provider/id]",
@@ -11791,7 +12034,7 @@ def build_tui(base: str, token: str, **kw):
                 "themes": Command(self.c_theme, "change the colours; create, export, "
                                   "import custom themes", "[name|create|export [path]|"
                                   "import <path>]",
-                                  takes_arg=True, busy_ok=True, leader="t"),
+                                  takes_arg=True, busy_ok=True),
                 "permissions": Command(self.c_permissions, "ask before agents write or run "
                                        "(yolo · auto · ask); shift+tab cycles",
                                        "[yolo|auto|ask]", takes_arg=True, busy_ok=True,
@@ -11827,8 +12070,7 @@ def build_tui(base: str, token: str, **kw):
                 "detach": Command(self.c_detach, "drop pending !command output",
                                   busy_ok=True),
                 "web": Command(self.c_web, "open this chat in the web app (Work), or a page "
-                               "of it", "[page]", takes_arg=True, busy_ok=True,
-                               leader="w"),
+                               "of it", "[page]", takes_arg=True, busy_ok=True),
                 "status": Command(self.c_status, "server, chat, model, usage", busy_ok=True,
                                   leader="s"),
                 "editor": Command(self.c_editor, "write the prompt in $EDITOR (ctrl+g)",
@@ -11962,9 +12204,16 @@ def build_tui(base: str, token: str, **kw):
                          ("ctrl+c", "clear prompt · interrupt · twice to quit"),
                          ("ctrl+x then a key", "leader: see the table above; "
                                                "b = notifications"),
-                         ("panels", f"/new-panel splits this one (at most {MAX_PANELS}); "
-                                    "/vms panel opens a page in a new one. ctrl+x then "
-                                    "←↑↓→ moves, 1-4 jumps, z zooms, 0 closes"),
+                         ("tiles", f"ctrl+t splits this tile with a new chat (at most "
+                                   f"{MAX_PANELS} a tab); ctrl+w closes it (the chat stays in "
+                                   "sessions). ctrl+x then ←↑↓→ moves, z zooms. /vms panel "
+                                   "opens a page in a new tile"),
+                         ("tabs", "ctrl+x t new tab · w close · 1-9 jump · [ ] previous / next; "
+                                  "click a tab, its × or +. Each tab keeps its own tiles "
+                                  "running"),
+                         ("ctrl+w", "closes the tile, not a word: alt+backspace or "
+                                    "ctrl+backspace delete one. /themes and /web have no "
+                                    "leader key"),
                          ("ctrl+p", "command palette"),
                          ("ctrl+n", "new chat"),
                          ("ctrl+b", "notifications sidebar (● n = unread)"),
@@ -12367,7 +12616,7 @@ def build_tui(base: str, token: str, **kw):
                 return
             d = await self.api("POST", path, json=body)
             stopped = d.get("conversations") or []
-            for chat in list(self.chats.values()):
+            for chat in self.all_chats():
                 with self.in_chat(chat):
                     mine = self.turn.cid if self.turn and self.turn.cid else self.cid
                     if self.busy and mine in stopped:
@@ -12887,12 +13136,6 @@ def build_tui(base: str, token: str, **kw):
                 return
             self.focus_panel(n)
 
-        def jump_panel(self, number: int) -> None:
-            """ctrl+x + 1-4."""
-            if not self.focus_panel(number):
-                self.notify(f"no panel {number}" if len(self.chats) > 1
-                            else "one panel: /new-panel splits it")
-
         def toggle_zoom(self) -> None:
             """ctrl+x z: the focused panel fills the area, and back."""
             if len(self.chats) == 1:
@@ -12905,7 +13148,7 @@ def build_tui(base: str, token: str, **kw):
         def panel_refusal(self) -> str | None:
             """Why a new panel can't open now (four already, or no room at this size), or None."""
             if len(self.chats) >= MAX_PANELS:
-                return f"{MAX_PANELS} panels is the most — ctrl+x 0 closes the focused one"
+                return f"{MAX_PANELS} tiles a tab is the most — ctrl+w closes the focused one"
             w, h = self.panel_area.size
             rect = tree_rects(self.panel_tree, w, h).get(self.focus_no, (0, 0, w, h))
             if panel_split_dir(rect[2], rect[3]) is None:
@@ -12957,14 +13200,7 @@ def build_tui(base: str, token: str, **kw):
             order = tree_leaves(self.panel_tree)
             i = order.index(number)
             nxt = order[i - 1] if i > 0 else order[1]
-            with self.in_chat(chat):
-                await self._leave_turn()
-            mine = [w for w in self.workers if getattr(w, "chat", None) is chat and w.is_running]
-            for w in mine:
-                w.cancel()
-            for w in mine:
-                with contextlib.suppress(Exception):
-                    await w.wait()
+            await self._stop_chat(chat)
             self.panel_tree = tree_close(self.panel_tree, number)
             self.zoomed = False
             if self.focus_no == number:
@@ -12975,6 +13211,177 @@ def build_tui(base: str, token: str, **kw):
             self.panel_area.relayout()
             self.focus_panel(self.focus_no)
             return True
+
+        async def _stop_chat(self, chat: ChatState) -> None:
+            """Stop watching a chat whose tile is closing: its turn keeps running on the
+            server, this client's workers for it end."""
+            with self.in_chat(chat):
+                await self._leave_turn()
+            mine = [w for w in self.workers if getattr(w, "chat", None) is chat and w.is_running]
+            for w in mine:
+                w.cancel()
+            for w in mine:
+                with contextlib.suppress(Exception):
+                    await w.wait()
+
+        def action_new_tile(self) -> None:
+            """ctrl+t: split the focused tile with a new chat."""
+            self.run_worker(self.new_panel(), group="panels", unbound=True)
+
+        def action_close_tile(self) -> None:
+            """ctrl+w: close the focused tile; the last one in a tab closes the tab."""
+            self.run_worker(self.close_tile(), group="panels", unbound=True)
+
+        async def close_tile(self) -> None:
+            if len(self.chats) > 1:
+                await self.close_panel()
+            else:
+                await self.close_tab()
+
+        # -- tabs: each a tile tree of its own ---------------------------------------------
+
+        async def _mount_tab(self, tab: PanelTab) -> None:
+            """Mount the Panels of a tab just added to `ptabs` and wait for their transcripts."""
+            area = self.panel_area
+            for chat in tab.chats.values():
+                await area.mount(Panel(chat))
+            for chat in tab.chats.values():
+                for _ in range(100):        # its transcript composes just after it mounts
+                    if chat.log is not None and chat.log.is_attached \
+                            and chat.new_hint is not None:
+                        break
+                    await asyncio.sleep(0.02)
+
+        async def new_tab(self) -> ChatState | None:
+            """ctrl+x t: a tab with one new chat (in the same project, as the same agent, on
+            the same model), taking the focus."""
+            if len(self.ptabs) >= MAX_TABS:
+                await self.say(f"{MAX_TABS} tabs is the most — ctrl+x w closes the one you "
+                               "are in", "warn")
+                return None
+            chat = self.focused_chat.settings_for_new(1)
+            tab = PanelTab({1: chat})
+            self.ptabs.append(tab)
+            if self.drawer is not None:
+                self.close_drawer()
+            self.ptab_i = len(self.ptabs) - 1
+            await self._mount_tab(tab)
+            self.panel_area.relayout()
+            self.focus_panel(1)
+            return chat
+
+        def switch_tab(self, index: int) -> None:
+            """ctrl+x 1-9 and [ ]: show tab `index` (0-based). Its tiles never stopped."""
+            if not 0 <= index < len(self.ptabs):
+                self.notify(f"no tab {index + 1}" if len(self.ptabs) > 1
+                            else "one tab: ctrl+x t opens another")
+                return
+            if index == self.ptab_i:
+                return
+            if self.drawer is not None:
+                self.close_drawer()
+            self.ptab_i = index
+            self.panel_area.relayout()
+            self.focus_panel(self.focus_no)
+
+        async def close_tab(self, index: int | None = None) -> bool:
+            """ctrl+x w: close a tab (the showing one). Its chats keep running on the server
+            and stay in sessions; this client just stops watching them. The last tab is never
+            closed: it becomes one new chat."""
+            i = self.ptab_i if index is None else index
+            if not 0 <= i < len(self.ptabs):
+                return False
+            if len(self.ptabs) == 1:
+                if await self.new_tab() is None:
+                    return False
+                i = 0
+            tab, showing = self.ptabs[i], self.ptab
+            for chat in tab.chats.values():
+                await self._stop_chat(chat)
+            self.ptabs.remove(tab)
+            self.ptab_i = max(0, i - 1) if tab is showing else self.ptabs.index(showing)
+            for chat in tab.chats.values():
+                if chat.panel is not None:
+                    await chat.panel.remove()
+            self.panel_area.relayout()
+            self.focus_panel(self.focus_no)
+            return True
+
+        def tab_click(self, kind: str, index: int) -> None:
+            """A click on the tab bar (see TabBar)."""
+            if kind in ("tab", "left", "right"):
+                self.switch_tab(index)
+            elif kind == "close":
+                self.run_worker(self.close_tab(index), group="panels", unbound=True)
+            elif kind == "new":
+                self.run_worker(self.new_tab(), group="panels", unbound=True)
+
+        def tab_name(self, tab: PanelTab) -> str:
+            """A tab is named after its focused tile: the page over it, or the chat's title."""
+            chat = tab.chats[tab.focus_no]
+            page = chat.panel.host.current if chat.panel is not None else None
+            if page is not None and not isinstance(page, ChatPage):
+                return "/" + page.NAME
+            return chat.title_text or "chat"
+
+        def refresh_tabbar(self) -> None:
+            """Redraw the tab bar (shown from the second tab on), and keep the layout saved."""
+            try:
+                bar = self.query_one("#tabbar", TabBar)
+            except Exception:  # noqa: BLE001 — a dialog is on top, or not composed yet
+                return
+            bar.display = len(self.ptabs) > 1
+            if bar.display:
+                bar.show([self.tab_name(tb) for tb in self.ptabs], self.ptab_i)
+            self._save_layout()
+
+        def _save_layout(self) -> None:
+            """Keep the tabs and their tiles in tui.json, only when they changed."""
+            if not self._layout_ready:
+                return
+            state = layout_to_json([
+                {"tree": tb.tree, "focus": tb.focus_no, "zoomed": tb.zoomed,
+                 "cids": {n: c.cid for n, c in tb.chats.items()
+                          if c.cid and not c.ephemeral}} for tb in self.ptabs], self.ptab_i)
+            text = json.dumps(state, sort_keys=True)
+            if text != self._layout_saved:
+                self._layout_saved = text
+                self._save_settings(layout=state)
+
+        async def _restore_layout(self) -> None:
+            """Put the saved tabs back: every tile in its place, its chat opened again
+            (a chat that is gone from the server stays a new one)."""
+            saved, current = layout_from_json(self._load_settings().get("layout"))
+            if not saved or (len(saved) == 1 and len(tree_leaves(saved[0]["tree"])) == 1
+                             and not saved[0]["cids"]):
+                return
+            first = self.ptabs[0]
+            base = first.chats[first.focus_no]
+            fresh = []
+            for s in saved:
+                chats = {n: base.settings_for_new(n) for n in tree_leaves(s["tree"])}
+                fresh.append(PanelTab(chats, s["tree"], s["focus"], s["zoomed"]))
+            self.ptabs.extend(fresh)
+            self.ptab_i = len(self.ptabs) - 1
+            for tab in fresh:
+                await self._mount_tab(tab)
+            self.ptabs.remove(first)             # the blank tab the client started with
+            self.ptab_i = current
+            await self._stop_chat(first.chats[first.focus_no])
+            for chat in first.chats.values():
+                if chat.panel is not None:
+                    await chat.panel.remove()
+            self.panel_area.relayout()
+            self.focus_panel(self.focus_no)
+            for s, tab in zip(saved, fresh):
+                for n, cid in s["cids"].items():
+                    running = any(cv.get("id") == cid and cv.get("running") for cv in self.convs)
+                    with self.in_chat(tab.chats[n]):
+                        try:
+                            await self.open_conversation(cid, running=running)
+                        except CliError:
+                            pass
+            self.refresh_chrome()
 
         async def c_new_panel(self, arg: str = "") -> None:
             await self.new_panel()
