@@ -13367,7 +13367,7 @@ def build_tui(base: str, token: str, **kw):
                 await self._mount_tab(tab)
             self.ptabs.remove(first)             # the blank tab the client started with
             self.ptab_i = current
-            await self._stop_chat(first.chats[first.focus_no])
+            # (not _stop_chat: the startup worker running this is bound to that chat)
             for chat in first.chats.values():
                 if chat.panel is not None:
                     await chat.panel.remove()
