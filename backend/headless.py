@@ -484,8 +484,12 @@ class Session:
         try:
             return await asyncio.wait_for(fut, CMD_S)
         except asyncio.TimeoutError:
-            raise BrowserError(f"{method} did not answer in {CMD_S} s; the page is stuck "
-                               "(a busy script?). Close the session and open it again.") from None
+            # 2026-10-30, a WebGL game on the Pi: the 1280x800 capture timed out and the
+            # same page answered at once at 800x500 (WebGL is drawn in software here)
+            raise BrowserError(f"{method} did not answer in {CMD_S} s; the page is too busy "
+                               "to draw (WebGL is software-rendered in the box, so a big "
+                               "viewport is slow). Close the session and open it again "
+                               "smaller, e.g. width 800 height 500.") from None
 
     async def _cmd(self, method: str, params: dict | None = None) -> dict:
         return await self._send(method, params, self._sid)
