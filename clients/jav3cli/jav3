@@ -1352,6 +1352,20 @@ def agent_drawer_rows(active: AgentTree, finished: AgentTree, recent: int = DRAW
     return newest(run), newest(need), done
 
 
+def parse_git_changes(text: str) -> list[tuple[str, str]]:
+    """[(code, path)] from the server's git status text ("branch: ..\nlast commit: ..\n
+    changes:\n M a.py\n?? b.py", or "changes:\nclean"). Codes: M A D R, ? for untracked."""
+    out, seen = [], False
+    for line in text.splitlines():
+        if not seen:
+            seen = line.strip() == "changes:"
+            continue
+        m = re.match(r"^\s*(\S{1,2})\s+(.+)$", line)
+        if m and line.strip() != "clean":
+            out.append(("?" if m.group(1) == "??" else m.group(1), m.group(2).strip()))
+    return out
+
+
 DRAWER_KID_STATES = ("running", "needs_you", "failed")    # an open root's rows; the rest fold
 
 
@@ -9633,6 +9647,18 @@ def build_tui(base: str, token: str, **kw):
         def _runner(self, name: str):
             return lambda: self.app.dispatch(f"/{name}")
 
+    class SbSection(Static):
+        """One block of the sidebar. A click on its first line (the header) opens that
+        block's page in a tab; on the title's `x` it hides the sidebar."""
+
+        def __init__(self, kind: str, **kw) -> None:
+            super().__init__(**kw)
+            self.kind = kind
+
+        def on_click(self, event) -> None:
+            event.stop()
+            self.app.sidebar_click(self.kind, event.x, event.y, self.size.width)
+
     # -- the app ---------------------------------------------------------------------------
 
     class Jav3App(App):
@@ -9647,7 +9673,7 @@ def build_tui(base: str, token: str, **kw):
         #sidebar { width: 42; background: $surface; padding: 1 2; scrollbar-size-vertical: 1; }
         #sidebar Static { margin-bottom: 1; }
         #sb-foot { dock: bottom; margin: 0; color: $text-muted; }
-        #sidebar #sb-title, #sidebar #sb-context { margin-bottom: 0; }
+        #sidebar #sb-title { margin-bottom: 1; }
         #sb-notes { margin-top: 1; }
         Home { height: 1fr; align: center middle; }
         #logo { width: auto; }
@@ -9795,6 +9821,9 @@ def build_tui(base: str, token: str, **kw):
             self.commands = self._commands()
             self.frame = 0
             self.example = EXAMPLES[int(time.time()) % len(EXAMPLES)]
+            # the sidebar's sources (git, agents, box, security glance), polled while it shows
+            self.sb: dict = {"key": None, "at": {}, "gone": set()}
+            self._sb_shown: dict[str, tuple] = {}     # what each block shows now
 
         # -- composition ---------------------------------------------------------------
 
@@ -9814,13 +9843,15 @@ def build_tui(base: str, token: str, **kw):
                             yield Static(id="status-left")
                             yield Static(id="status-right")
                 with VerticalScroll(id="sidebar", can_focus=False):
-                    yield Static(id="sb-title")
-                    yield Static(id="sb-context")
-                    yield Static(id="sb-model")
-                    yield Static(id="sb-files")
-                    yield Static(id="sb-todo")
-                    yield Static(id="sb-notes")
-                    yield Static(id="sb-foot")
+                    yield SbSection("title", id="sb-title")
+                    yield SbSection("turn", id="sb-context")
+                    yield SbSection("agents", id="sb-agents")
+                    yield SbSection("git", id="sb-files")
+                    yield SbSection("todo", id="sb-todo")
+                    yield SbSection("box", id="sb-box")
+                    yield SbSection("security", id="sb-sec")
+                    yield SbSection("notes", id="sb-notes")
+                    yield SbSection("foot", id="sb-foot")
 
         # -- panels and the chat in context --------------------------------------------------
 
@@ -10738,51 +10769,178 @@ def build_tui(base: str, token: str, **kw):
             with self.in_chat(self.focused_chat):
                 self._sidebar()
 
+        def _sb_slug(self) -> str | None:
+            """The project whose git, box and security the sidebar shows (None: none)."""
+            if self._here() or self.project_mode == "none":
+                return None
+            return (self.project or (self.info or {}).get("project")
+                    or (self.options or {}).get("active_project") or None)
+
+        def _sb_set(self, wid: str, markup: str, show: bool = True) -> None:
+            """Update a block only when what it shows changed (the tick calls this a lot)."""
+            if self._sb_shown.get(wid) == (markup, show):
+                return
+            self._sb_shown[wid] = (markup, show)
+            w = self.query_one("#" + wid, Static)
+            w.display = show
+            if show:
+                w.update(markup)
+
+        def _sb_foot(self) -> str:
+            """The connection in one line, coloured by the Link's state, then who you are."""
+            host = _esc(self.base.split("://")[-1] or "(no server)")
+            link = self.link
+            age = link.beat_age()
+            if link.state == "live":
+                mark, word = "$success", "live" + (
+                    f" (beat {_elapsed(age)} ago)" if age is not None else "")
+            elif link.state == "quiet":
+                mark, word = "$warning", "quiet" + (
+                    f" (nothing for {_elapsed(age)})" if age is not None else "")
+            elif link.state in ("reconnecting", "down"):
+                mark, word = "$error", link.state + (f": {link.why}" if link.why else "")
+            else:
+                mark, word = "$text-muted", "connected" if self.logged_in else "not connected"
+            access = self._access_label()
+            return (f"[{mark}]●[/] [$text-muted]{host} · {_esc(_short(word, 60))}[/]\n"
+                    f"  [$text-muted]{_esc(self.whoami)} · {access}[/]")
+
         def _sidebar(self) -> None:
             info = self.info or {}
+            cur = self.sb if self.sb.get("key") == (self.cid, self._sb_slug()) else {}
+            width = self.query_one("#sb-title").size.width or 38
+            # the title, the project and the model
             title = self.title_text or ("New chat" if self.cid is None else f"Chat #{self.cid}")
-            sub = [f"#{self.cid}"] if self.cid else []
+            hint = "× ctrl+b"
+            shown = _short(title, max(8, width - len(hint) - 2))
+            pad = " " * max(1, width - len(shown) - len(hint))
+            sub = []
+            if self.title_text and self.cid:
+                sub.append(f"#{self.cid}")
             if self.agent:
                 sub.append(f"@{self.agent}")
             proj = self._project_label()
             if proj:
                 sub.append(f"⌂ {proj}")
-            self.query_one("#sb-title", Static).update(
-                f"[b]{_esc(title)}[/]\n[$text-muted]{_esc(' · '.join(sub))}[/]")
-            # the chat, compactly: usage on one line, the model on the next
-            ctx = []
+            model = self._model_label()
+            sub.append(model.split("/")[-1])
+            self._sb_set("sb-title", f"[b]{_esc(shown)}[/]{pad}[b]×[/] [$text-muted]ctrl+b[/]\n"
+                         f"[$text-muted]{_esc(_short(' · '.join(sub), width))}[/]")
+            # this turn (the status row's numbers) and the chat's totals
+            lines = []
+            t = self.turn or self.last_turn
+            if t is not None:
+                lines.append("[b]This turn[/]  " + " · ".join(t.stats()))
+                tin, tout, toks = t.tokens()
+                if tin is not None:
+                    lines.append(f"  [$text-muted]↑ {_tok(tin)}  ↓ {_tok(tout)}"
+                                 + (f"  {toks:.0f} tok/s" if toks else "") + "[/]")
             if info:
-                line = (f"{_fmt_tokens(info.get('input_tokens', 0) + info.get('output_tokens', 0))}"
-                        f" tok · ${info.get('cost_usd', 0):.4f}")
+                line = (f"[b]Chat[/]       {_fmt_cost(info.get('cost_usd', 0))} · "
+                        f"{(lambda n: f'{n / 1e6:.1f}M' if n >= 1e6 else _tok(n))(info.get('input_tokens', 0) + info.get('output_tokens', 0))} tok")
                 c = info.get("context") or {}
                 if c.get("used") and c.get("window"):
                     pct = min(100, round(100 * c["used"] / c["window"]))
                     colour = "$error" if pct > 85 else "$warning" if pct > 60 else "$primary"
                     line += f" · [{colour}]{pct}%[/] ctx"
-                ctx.append(line)
+                lines.append(line)
             else:
-                ctx.append("[$text-muted]no usage yet[/]")
-            self.query_one("#sb-context", Static).update("\n".join(ctx))
-            model = self._model_label()
-            self.query_one("#sb-model", Static).update(
-                f"{_esc(model.split('/')[-1])}"
-                + (f" [$text-muted]· {_esc(model.split('/')[0])}[/]" if "/" in model else ""))
+                lines.append("[$text-muted]no usage yet[/]")
+            self._sb_set("sb-context", "\n".join(lines))
+            # agents: this chat's subtree
+            kids = []
+            if self.cid is not None and cur.get("agents"):
+                kids = [k for k, _ in cur["agents"].descendants(self.cid)]
+            if kids:
+                stat = [node_status(k) for k in kids]
+                head = [f"{stat.count('running') + stat.count('needs_you')} running"]
+                if stat.count("done"):
+                    head.append(f"{stat.count('done')} done")
+                if stat.count("failed"):
+                    head.append(f"[$error]{stat.count('failed')} failed[/]")
+                rows = ["[b]Agents[/]  " + " · ".join(head)]
+                order = {"needs_you": 0, "running": 1, "failed": 2}
+                for k in sorted(kids, key=lambda k: order.get(node_status(k), 3))[:5]:
+                    st = node_status(k)
+                    word = {"needs_you": "[$warning]needs you[/]", "running": "running",
+                            "done": "[$success]done[/]", "failed": "[$error]failed[/]"}.get(
+                                st, st)
+                    name = k.get("agent_slug") or k.get("title") or f"#{k['id']}"
+                    rows.append(f"  [$primary]◇[/] {_esc(_short(str(name), 20)):<20} {word}")
+                if len(kids) > 5:
+                    rows.append(f"  [$text-muted]+{len(kids) - 5} more[/]")
+                self._sb_set("sb-agents", "\n".join(rows))
+            else:
+                self._sb_set("sb-agents", "", False)
+            # the project's git, else the chat's own modified files
+            gitx = cur.get("git")
             files = info.get("files") or []
-            fw = self.query_one("#sb-files", Static)
-            fw.display = bool(files)
-            if files:
-                lines = ["[b]Modified Files[/]"]
+            if gitx is not None:
+                if gitx:
+                    rows = [f"[b]Git[/]  {len(gitx)} changed, not committed"]
+                    for code, path in gitx[:8]:
+                        colour = {"M": "$warning", "A": "$success", "D": "$error"}.get(
+                            code[:1], "$text-muted")
+                        rows.append(f"  [{colour}]{_esc(code[:1]):<1}[/] "
+                                    f"{_esc(_short(path, width - 4))}")
+                    if len(gitx) > 8:
+                        rows.append(f"  [$text-muted]+{len(gitx) - 8} more[/]")
+                else:
+                    rows = ["[b]Git[/]  [$text-muted]clean[/]"]
+                self._sb_set("sb-files", "\n".join(rows))
+            elif files:
+                rows = ["[b]Modified Files[/]"]
                 for f in files[-12:]:
                     n = f.get("writes", 1)
-                    lines.append(f"{_esc(_short(f['path'], 30))}"
-                                 + (f" [$text-muted]×{n}[/]" if n > 1 else ""))
-                fw.update("\n".join(lines))
-            tw = self.query_one("#sb-todo", Static)
-            tw.display = bool(self.todos)
+                    rows.append(f"{_esc(_short(f['path'], 30))}"
+                                + (f" [$text-muted]×{n}[/]" if n > 1 else ""))
+                self._sb_set("sb-files", "\n".join(rows))
+            else:
+                self._sb_set("sb-files", "", False)
+            # todo
             if self.todos:
-                tw.update("[b]Todo[/]\n" + "\n".join(
-                    f"[$success]✓[/] [$text-muted strike]{_esc(_short(t, 32))}[/]" if done
-                    else f"[$warning]☐[/] {_esc(_short(t, 32))}" for done, t in self.todos))
+                done = sum(1 for d, _ in self.todos if d)
+                self._sb_set("sb-todo", f"[b]Todo[/]  {done}/{len(self.todos)}\n" + "\n".join(
+                    f"[$success]✓[/] [$text-muted strike]{_esc(_short(x, 32))}[/]" if d
+                    else f"[$warning]☐[/] {_esc(_short(x, 32))}" for d, x in self.todos))
+            else:
+                self._sb_set("sb-todo", "", False)
+            # the project's box
+            b = cur.get("box")
+            if b:
+                img = b.get("image") or {}
+                bits = [str(b.get("project") or b.get("id") or "box"), img.get("variant") or "main"]
+                st = b.get("state") or "?"
+                bits.append(f"up {_elapsed(b['uptime_s'])}"
+                            if st == "running" and isinstance(b.get("uptime_s"), (int, float))
+                            else st)
+                colour = "$success" if st == "running" else "$error" if b.get("last_error") \
+                    else "$text-muted"
+                self._sb_set("sb-box", f"[b]Box[/]  [{colour}]{_esc(' · '.join(bits))}[/]")
+            else:
+                self._sb_set("sb-box", "", False)
+            # security: what waits, and the key to keep watching
+            g = cur.get("glance")
+            if g:
+                w = g.get("waiting") or {}
+                names = (("egress", "host", "hosts"), ("packages", "package", "packages"),
+                         ("environments", "environment", "environments"),
+                         ("skills", "skill", "skills"), ("git", "git request", "git requests"),
+                         ("alerts", "alert", "alerts"))
+                waits = [f"{w[k]} {a if w[k] == 1 else m}" for k, a, m in names if w.get(k)]
+                if waits:
+                    head = f"[$warning]![/] {waits[0]} waiting" if len(waits) == 1 \
+                        else f"[$warning]![/] {g.get('total', 0)} waiting"
+                    extra = [f"  [$text-muted]{_esc(', '.join(waits))}[/]"] if len(waits) > 1 \
+                        else []
+                else:
+                    head, extra = "[$text-muted]nothing waiting[/]", []
+                self._sb_set("sb-sec", "\n".join(
+                    [f"[b]Security[/]  {head}"] + extra
+                    + ["  [$text-muted]ctrl+x v  watch in a new tab[/]"]))
+            else:
+                self._sb_set("sb-sec", "", False)
+            # notifications
             icons = {"error": "[$error]✗[/]", "warn": "[$warning]![/]",
                      "done": "[$success]✓[/]"}
             notes = ["[b]Notifications[/]"]
@@ -10791,12 +10949,105 @@ def build_tui(base: str, token: str, **kw):
                              f"{icons.get(kind, '[$primary]·[/]')} {_esc(_short(text, 160))}")
             if not self.notices:
                 notes.append("[$text-muted]nothing yet[/]")
-            self.query_one("#sb-notes", Static).update("\n".join(notes))
-            access = self._access_label()
-            colour = {"full access": "$success", "chat only": "$primary"}.get(access, "$warning")
-            self.query_one("#sb-foot", Static).update(
-                f"[{colour}]●[/] [b]Jav3[/] [$text-muted]{_esc(self.whoami)} · {access}[/]\n"
-                f"[$text-muted]{_esc(self.base.split('://')[-1] or '(no server)')}[/]")
+            self._sb_set("sb-notes", "\n".join(notes))
+            self._sb_set("sb-foot", self._sb_foot())
+
+        def sidebar_click(self, kind: str, x: int, y: int, width: int) -> None:
+            """A click in the sidebar: the title's `x` hides it; a block's header opens its page
+            in a tab (Git has no page of its own to open)."""
+            if kind == "title":
+                if y == 0 and x >= width - 10:
+                    self.action_toggle_sidebar()
+                return
+            page = {"agents": "agents", "box": "vms", "security": "security"}.get(kind)
+            if page and y == 0:
+                self.run_worker(self.open_page_tab(page), group="panels", unbound=True)
+
+        # -- the sidebar's live sources ---------------------------------------------------
+
+        def _sidebar_tick(self) -> None:
+            """From the tick: redraw (cheap: unchanged blocks are left alone), and while the
+            sidebar shows, fetch what it lists: git, agents, box and the security glance every
+            ~15 s, git again soon after a tool finishes, the chat's totals when a turn ends."""
+            if not self.sidebar_shown():
+                return
+            now = time.monotonic()
+            key = (self.cid, self._sb_slug())
+            sb = self.sb
+            if sb.get("key") != key:
+                sb.update(key=key, at={}, gone=set(), done_tools=0)
+                for k in ("git", "agents", "box", "glance"):
+                    sb.pop(k, None)
+            at, due = sb["at"], []
+            t = self.turn
+            running = bool(self.busy and t is not None)
+            if sb.get("was_running") and not running and self.cid is not None:
+                due.append("info")
+            sb["was_running"] = running
+            if running:
+                done = t.ntools - len(t.running)
+                if done > sb.get("done_tools", 0) and now - at.get("git", -1e9) > 3:
+                    due.append("git")
+                sb["done_tools"] = done
+            for kind in ("git", "agents", "box", "glance"):
+                if kind not in due and kind not in sb["gone"] and now - at.get(kind, -1e9) >= 15:
+                    due.append(kind)
+            if due:
+                for kind in due:
+                    at[kind] = now
+                self.run_worker(self._sb_fetch(due, key, self.cid, key[1]), group="sidebar",
+                                exclusive=True, unbound=True)
+            if int(now) != sb.get("sec") or due:
+                sb["sec"] = int(now)
+                self._sidebar()
+
+        async def _sb_fetch(self, kinds: list, key: tuple, cid, slug) -> None:
+            """Fetch the named sources. A 404 (an older server) hides that block quietly; any
+            other failure keeps what was there."""
+            paths = {"info": f"/api/conversations/{cid}/info",
+                     "git": f"/api/projects/{slug}/git/status",
+                     "agents": "/api/chat/agents?scope=active",
+                     "box": "/api/vm/boxes",
+                     "glance": "/api/security/glance" + (f"?project={slug}" if slug else "")}
+            for kind in kinds:
+                if kind in ("git", "box") and not slug:
+                    continue
+                try:
+                    data = await self.api("GET", paths[kind])
+                except NotLoggedIn:
+                    return
+                except CliError as e:
+                    if "said 404" in str(e):
+                        self.sb["gone"].add(kind)
+                        if self.sb.get("key") == key:
+                            self.sb.pop(kind, None)
+                    continue
+                if kind == "info":
+                    if isinstance(data, dict):
+                        for chat in self.all_chats():
+                            if chat.cid == cid:
+                                chat.info = data
+                    continue
+                if self.sb.get("key") != key or not isinstance(data, dict):
+                    continue
+                if kind == "git":
+                    self.sb["git"] = parse_git_changes(str(data.get("status") or ""))
+                elif kind == "agents":
+                    nodes = data.get("nodes")
+                    self.sb["agents"] = AgentTree(
+                        [n for n in nodes if isinstance(n, dict)] if isinstance(nodes, list)
+                        else [])
+                elif kind == "box":
+                    boxes = [b for b in data.get("boxes") or [] if isinstance(b, dict)]
+                    self.sb["box"] = (next((b for b in boxes if b.get("project") == slug
+                                               or slug in (b.get("projects") or [])), None)
+                                      if data.get("enabled", True) else None)
+                else:
+                    self.sb["glance"] = data
+            try:
+                self._sidebar()
+            except Exception:
+                pass          # a dialog is on top; the next tick catches up
 
         def _tick(self) -> None:
             from textual.css.query import NoMatches
@@ -10818,6 +11069,7 @@ def build_tui(base: str, token: str, **kw):
                 self._refresh_titles()            # first: they sit on the base screen, a dialog
                 self._refresh_status()            # over it makes the queries below miss
                 self._refresh_new_hint()
+                self._sidebar_tick()
             except NoMatches:
                 pass          # shutting down, or a screen without the status row
 
@@ -12056,6 +12308,10 @@ def build_tui(base: str, token: str, **kw):
                 step = -1 if key in ("[", "left_square_bracket") else 1
                 self.switch_tab((self.ptab_i + step) % len(self.ptabs))
                 return
+            if key == "v":
+                # the Security area in a tab of its own, so the chat keeps running in view
+                self.run_worker(self.open_page_tab("security"), group="panels", unbound=True)
+                return
             for name, cmd in self.unique_commands():
                 if cmd.leader == key:
                     self.dispatch(f"/{name}")
@@ -12449,6 +12705,8 @@ def build_tui(base: str, token: str, **kw):
                          ("/security (ctrl+x v)",
                           " · ".join(SECURITY_TABS)
                           + f": tab → ← or 1-{len(SECURITY_TABS)} switch, esc back. "
+                            "ctrl+x v opens it in a new tab (or jumps to it) so the chat "
+                            "keeps running in view; /security replaces the panel. "
                             "Rules are the always-allow answers; Calls is how the model "
                             "key is used"),
                          ("in /security", "y approve · n reject (services: 1 2 3 placement, "
@@ -13660,6 +13918,26 @@ def build_tui(base: str, token: str, **kw):
             async def go(arg: str = "") -> None:
                 await self.open_page(name, arg)
             return go
+
+        async def open_page_tab(self, name: str, arg: str = "") -> None:
+            """A page in a tab of its own: jump to the tab already showing it, else open a new
+            tab with it (the chat you were in keeps running in its tab)."""
+            cls = self.page_classes[name]
+            for i, tab in enumerate(self.ptabs):
+                for no, chat in tab.chats.items():
+                    host = getattr(chat.panel, "host", None)
+                    page = host.current if host is not None else None
+                    if type(page) is cls:
+                        if i != self.ptab_i:
+                            self.switch_tab(i)
+                        self.focus_panel(no)
+                        if arg:
+                            page.set_args(arg.split())
+                        return
+            chat = await self.new_tab()
+            if chat is not None:
+                with self.in_chat(chat):
+                    await self.open_page(name, arg)
 
         async def open_page(self, name: str, arg: str = "", *, target=None,
                             panel: bool = False) -> None:

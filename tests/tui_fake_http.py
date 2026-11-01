@@ -738,3 +738,25 @@ if __name__ == "__main__":   # pragma: no cover
         print(f"fake Jav3 server on http://{http.address}; try the client against it with\n"
               f"  XDG_CONFIG_HOME={cfg} python clients/jav3cli/jav3", flush=True)
         threading.Event().wait()
+
+
+# -- the sidebar's sources (nov1, S): the security glance and a project's git status ----------
+# Applied by wrapping SeededServer.seeded, so it holds whenever this module is imported.
+GLANCE = {"waiting": {"egress": 1, "packages": 0, "environments": 0, "skills": 0, "git": 0,
+                      "alerts": 0}, "total": 1, "net24h": {"allowed": 9, "denied": 1}}
+GIT_STATUS = ("branch: main\nlast commit: a1b2c3d add the loop\nchanges:\n"
+              " M index.html\nA  GAME_DESIGN.md\n?? smoke.js")
+
+
+def _with_sidebar_routes(inner):
+    def seeded(self, request):
+        path = request.url.path
+        if request.method == "GET" and path == "/api/security/glance":
+            return self._json(GLANCE)
+        if request.method == "GET" and re.fullmatch(r"/api/projects/[\w-]+/git/status", path):
+            return self._json({"status": GIT_STATUS})
+        return inner(self, request)
+    return seeded
+
+
+SeededServer.seeded = _with_sidebar_routes(SeededServer.seeded)
