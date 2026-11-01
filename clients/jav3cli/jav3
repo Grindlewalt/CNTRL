@@ -560,7 +560,7 @@ HEALTH_EVERY_S = 30.0     # idle link check
 def probe_route(host: str, port: int) -> str | None:
     """No traffic: does this machine have a way to `host` at all? A UDP connect() sends
     nothing but asks the kernel for a route. "dns" (the name does not resolve), "route"
-    (ENETUNREACH / EHOSTUNREACH / ENETDOWN), or None (a route exists)."""
+    (ENETUNREACH / EHOSTUNREACH / ENETDOWN), "ok" (a route exists), or None (unknown)."""
     import errno
     try:
         infos = socket.getaddrinfo(host, port, type=socket.SOCK_DGRAM)
@@ -575,7 +575,8 @@ def probe_route(host: str, port: int) -> str | None:
     except OSError as e:
         if e.errno in (errno.ENETUNREACH, errno.EHOSTUNREACH, errno.ENETDOWN):
             return "route"
-    return None
+        return None
+    return "ok"
 
 
 def _hostport(base: str) -> tuple[str, int]:
@@ -600,6 +601,11 @@ def classify_net_error(e: Exception, base: str = "", route: str | None = None) -
         if route == "route":
             return "client", f"your network is down (no route to {host})"
         msg = str(e).lower()
+        if route == "ok" and ("unreachable" in msg or "no route" in msg):
+            # this machine has a route; the host on it did not answer (macOS says "no
+            # route to host" when a LAN address gets no ARP reply): it is off or gone
+            return "server", (f"no answer from {host} (that machine is off, or not on "
+                              "your network)")
         if "unreachable" in msg or "no route" in msg or "name or service" in msg \
                 or "nodename" in msg or "getaddrinfo" in msg:
             return "client", f"your network is down (no route to {host})"

@@ -27,6 +27,10 @@ def test_no_route_is_the_clients_fault():
     where, text = jav3.classify_net_error(httpx.ConnectError("x"), BASE, route="route")
     assert (where, text) == ("client", "your network is down (no route to 10.0.0.82)")
     assert jav3.classify_net_error(httpx.ConnectError("x"), BASE, route="dns")[0] == "client"
+    # a route exists but the host on it does not answer: the server's machine, not your network
+    where, text = jav3.classify_net_error(httpx.ConnectError("[Errno 65] No route to host"),
+                                          BASE, route="ok")
+    assert where == "server" and "no answer" in text
     assert jav3.classify_net_error(
         httpx.ConnectError("[Errno 51] Network is unreachable"), BASE)[0] == "client"
 
