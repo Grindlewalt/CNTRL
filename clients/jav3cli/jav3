@@ -548,13 +548,92 @@ def iter_sse(lines):
         yield json.loads("\n".join(buf))
 
 
-def net_error_text(e: Exception) -> str:
+STREAM_READ_S = 60.0      # a chat stream with no byte (keepalives come every 25 s) for this long is dead
+LINK_QUIET_S = 40.0       # a stream is open but nothing arrived for this long: the link looks quiet
+QUIET_WAIT_S = 30.0       # no model/tool event for this long: "waiting for the model"
+QUIET_WARN_S = 120.0      # ... and this long: the loud warning
+PULSE_AFTER_S = 45.0      # from this much quiet, ask the server what the turn is doing
+PULSE_EVERY_S = 15.0
+HEALTH_EVERY_S = 30.0     # idle link check
+
+
+def probe_route(host: str, port: int) -> str | None:
+    """No traffic: does this machine have a way to `host` at all? A UDP connect() sends
+    nothing but asks the kernel for a route. "dns" (the name does not resolve), "route"
+    (ENETUNREACH / EHOSTUNREACH / ENETDOWN), or None (a route exists)."""
+    import errno
+    try:
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_DGRAM)
+    except socket.gaierror:
+        return "dns"
+    except OSError:
+        return None
+    fam, typ, proto, _c, addr = infos[0]
+    try:
+        with socket.socket(fam, typ, proto) as sk:
+            sk.connect(addr)
+    except OSError as e:
+        if e.errno in (errno.ENETUNREACH, errno.EHOSTUNREACH, errno.ENETDOWN):
+            return "route"
+    return None
+
+
+def _hostport(base: str) -> tuple[str, int]:
+    try:
+        u = httpx.URL(base)
+        return u.host or base, u.port or (443 if u.scheme == "https" else 80)
+    except Exception:
+        return base or "the server", 80
+
+
+def classify_net_error(e: Exception, base: str = "", route: str | None = None) -> tuple[str, str]:
+    """(where, words) for a transport error: whose side the fault is (client | server)
+    and what to do about it. `route` is probe_route's answer for the host (None: not
+    checked, or a route exists)."""
+    host, port = _hostport(base)
+    if isinstance(e, httpx.ConnectTimeout):
+        return "server", (f"no answer from {host} (that machine is off, or your network "
+                          "can't reach it)")
+    if isinstance(e, httpx.ConnectError):
+        if route == "dns":
+            return "client", f"your network is down (can't look up {host})"
+        if route == "route":
+            return "client", f"your network is down (no route to {host})"
+        msg = str(e).lower()
+        if "unreachable" in msg or "no route" in msg or "name or service" in msg \
+                or "nodename" in msg or "getaddrinfo" in msg:
+            return "client", f"your network is down (no route to {host})"
+        return "server", (f"{host} refuses connections on :{port} — the jav3 server is "
+                          "down or restarting")
+    if isinstance(e, httpx.ReadTimeout):
+        return "server", (f"no heartbeat from the server for {STREAM_READ_S:.0f} s; "
+                          "the connection went dead")
+    if isinstance(e, httpx.TransportError):
+        return "server", "the server closed the connection (it may be restarting)"
+    return "server", str(e) or type(e).__name__
+
+
+def classify_status(code: int, message: str = "") -> tuple[str, str]:
+    """(where, words) for an HTTP error status on a chat request."""
+    if code in (502, 503, 504):
+        return "server", f"the proxy answers but the jav3 server behind it doesn't ({code})"
+    return classify_message(message or f"HTTP {code}")
+
+
+def classify_message(msg: str) -> tuple[str, str]:
+    """(where, words) for an error the server itself reported (an SSE `error` event)."""
+    m = (msg or "").strip()
+    low = m.lower()
+    if low.startswith("model api") or "modelerror" in low or "provider" in low:
+        return "provider", f"the model provider failed: {m}"
+    return "server", f"server error: {m}"
+
+
+def net_error_text(e: Exception, base: str = "") -> str:
     """A network error in words: '[Errno 104] Connection reset by peer' and 'All
     connection attempts failed' say nothing about what to do."""
-    if isinstance(e, (httpx.ConnectError, httpx.ConnectTimeout)):
-        return "nothing answers there (is the server running?)"
     if isinstance(e, httpx.TransportError):
-        return "the connection dropped (the server may be restarting)"
+        return classify_net_error(e, base)[1]
     return str(e) or type(e).__name__
 
 
@@ -1079,9 +1158,11 @@ def fold_verb(name: str, args) -> str:
     return (title.split() or [name])[0].lower()
 
 
-def fold_summary(steps: list[tuple[str, object, bool | None]]) -> str:
+def fold_summary(steps: list[tuple[str, object, bool | None]], thought: float = 0.0) -> str:
     """`4 steps · grep, read, edit, run` for the finished steps (name, args, ok) of a
     fold; a failed one shows as `4 steps (1 failed)`. At most 5 verbs, then ..."""
+    if not steps:
+        return f"thought for {_elapsed(thought)}" if thought else "no steps"
     verbs: list[str] = []
     for name, args, _ok in steps:
         v = fold_verb(name, args)
@@ -1089,7 +1170,8 @@ def fold_summary(steps: list[tuple[str, object, bool | None]]) -> str:
             verbs.append(v)
     failed = sum(1 for _n, _a, ok in steps if ok is False)
     head = _plural(len(steps), "step") + (f" ({failed} failed)" if failed else "")
-    return f"{head} · {', '.join(verbs[:5])}" + (", …" if len(verbs) > 5 else "")
+    return (f"{head} · {', '.join(verbs[:5])}" + (", …" if len(verbs) > 5 else "")
+            + (f" · thought {_elapsed(thought)}" if thought else ""))
 
 
 def _tok(n: int) -> str:
@@ -1106,6 +1188,28 @@ def fold_live_text(title: str, step: int, secs: float, tin: int | None = None,
         if toks:
             bits.append(f"{toks:.0f} tok/s")
     return " · ".join(bits)
+
+
+def think_live_text(secs: float, words: int, text: str, step: int = 0, tin: int | None = None,
+                    tout: int = 0, toks: float | None = None, width: int = 80) -> str:
+    """The text of a fold while the model thinks, after its spinner: `thinking 14s ·
+    320 words · step 2 · ↑ 18.2k ↓ 640 · 41 tok/s · …the end of the thought`. The tail
+    comes last and takes the room that is left on one line (newlines collapsed, cut
+    at the front)."""
+    bits = [f"thinking {_elapsed(secs)}", f"{words} words"]
+    if step:
+        bits.append(f"step {step}")
+    if tin is not None:
+        bits.append(f"↑ {_tok(tin)} ↓ {_tok(tout)}")
+        if toks:
+            bits.append(f"{toks:.0f} tok/s")
+    head = " · ".join(bits)
+    room = width - len(head) - 3 - 3
+    flat = " ".join(text.split())
+    if room < 12 or not flat:
+        return head
+    tail = flat if len(flat) <= room else "…" + flat[-(room - 1):].lstrip()
+    return f"{head} · {tail}"
 
 
 def parse_todos(result: str) -> list[tuple[bool, str]]:
@@ -1698,6 +1802,25 @@ class Link:
     def beat_age(self) -> float | None:
         return None if self.last_byte is None else time.monotonic() - self.last_byte
 
+    # -- the rest is the live-line work's (nov1, L) --
+    streams = 0                           # chat streams open now (class default; per-app below)
+    checked = 0.0                         # monotonic: the last idle /api/health ping
+    next_s = 0                            # seconds until the next reconnect try
+
+    def lost(self, where: str, why: str, tries: int = 1) -> None:
+        self.state, self.where, self.why, self.tries = "reconnecting", where, why, tries
+
+    def down(self, where: str, why: str) -> None:
+        self.state, self.where, self.why = "down", where, why
+
+    def watch(self, open_streams: int) -> None:
+        """Called every tick: a stream that is open but silent for LINK_QUIET_S is
+        "quiet" (live again with the next byte)."""
+        self.streams = open_streams
+        age = self.beat_age()
+        if self.state == "live" and open_streams and age is not None and age > LINK_QUIET_S:
+            self.state, self.why = "quiet", f"nothing from the server for {int(age)}s"
+
 
 class TurnState:
     """What one streaming turn has on screen so far."""
@@ -1740,12 +1863,52 @@ class TurnState:
         self.tms = 0                      # model time, ms
         self.chars = 0                    # streamed since the last usage event (the ↓ estimate)
         self.stream_t0: float | None = None
+        # thinking (the `think` event) and silence
+        self.think = None                 # the ThinkView being filled, or None
+        self.think_chars = 0
+        self.round_thinks: list = []      # ThinkViews of this model round (a retry voids them)
+        self.thought = 0.0                # seconds spent thinking over finished thoughts
+        self.last_event = time.monotonic()   # any event but a keepalive
+        self.pulse: dict | None = None    # the server's /pulse answer, once asked
+        self.pulse_at = 0.0               # when it was last asked
+        self.pulse_off = False            # an older server (404): don't ask again
+        self.stream_open = False          # a chat stream is attached to this turn
+        self.abort = asyncio.Event()      # set: stop reading the stream (the turn ended unheard)
+
+    def quiet_s(self) -> float:
+        return time.monotonic() - self.last_event
+
+    def quiet_line(self, link: "Link | None" = None) -> tuple[str, str] | None:
+        """(level, text) when the turn has said nothing for long: ("wait", "waiting for
+        the model · 35s") from QUIET_WAIT_S, ("warn", "! nothing for 2m · ...") from
+        QUIET_WARN_S. None while a tool runs (it shows its own time) or while busy."""
+        if self.running:
+            return None
+        q = self.quiet_s()
+        if q < QUIET_WAIT_S:
+            return None
+        if q < QUIET_WARN_S:
+            return "wait", f"waiting for the model · {_elapsed(q)}"
+        age = link.beat_age() if link is not None else None
+        bits = [f"! nothing for {_elapsed(q)}"]
+        p = self.pulse
+        if p and p.get("running"):
+            ph = p.get("phase")
+            ps = p.get("phase_s")
+            when = f" {_elapsed(ps)}" if ps else ""
+            bits.append(f"server: {'running ' + str(p.get('tool')) if ph == 'tool' else 'waiting on the model'}{when}")
+        elif age is not None:
+            bits.append(f"server up (beat {_elapsed(age)} ago)" if age < LINK_QUIET_S
+                        else f"no heartbeat for {_elapsed(age)}")
+        bits.append("esc stops")
+        return "warn", " · ".join(bits)
 
     def usage(self, ev: dict) -> None:
         self.tin = (self.tin or 0) + int(ev.get("in") or 0)
         self.tout += int(ev.get("out") or 0)
         self.tms += int(ev.get("ms") or 0)
         self.chars, self.stream_t0 = 0, None   # the real count replaces the estimate
+        self.think_chars = 0
 
     def streamed(self, chunk: str) -> None:
         self.chars += len(chunk)
@@ -3219,6 +3382,67 @@ def build_tui(base: str, token: str, **kw):
                                 True, cap=5000)
             return body or "[$text-muted](no output)[/]"
 
+    class ThinkView(Static):
+        """What the model is thinking, as a member of a run's fold: hidden while the
+        fold is folded, shown (ctrl+o, a click on the fold) under it. `⠋ thinking…`
+        while it streams, `▾ thought for 14s` and the text after. Not a step: the
+        fold's summary counts it as time (` · thought 40s`). Redraws are throttled."""
+
+        DEFAULT_CSS = """
+        ThinkView { height: auto; padding-left: 2; }
+        """
+        REDRAW_S = 0.1
+        MAX_CHARS = 4000        # the end of a long thought is what shows
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.text, self.done = "", False
+            self.t0, self.t1 = time.monotonic(), None
+            self._shown, self._last = None, 0.0
+
+        def on_mount(self) -> None:
+            if not self.done:
+                self.app.__dict__.setdefault("live_tools", set()).add(self)
+            self.redraw()
+
+        def on_unmount(self) -> None:
+            self.app.__dict__.get("live_tools", set()).discard(self)
+
+        def secs(self) -> float:
+            return (self.t1 if self.t1 is not None else time.monotonic()) - self.t0
+
+        def add(self, chunk: str) -> None:
+            self.text += chunk
+            if time.monotonic() - self._last >= self.REDRAW_S:
+                self.redraw()
+
+        def end(self) -> None:
+            if not self.done:
+                self.done, self.t1 = True, time.monotonic()
+                self.app.__dict__.get("live_tools", set()).discard(self)
+                self.redraw()
+
+        def spin(self, frame: str) -> None:
+            if not self.done:
+                self.redraw(frame)
+
+        def redraw(self, frame: str = "") -> None:
+            self._last = time.monotonic()
+            if not self.display:
+                self._shown = None
+                return
+            body = self.text.strip()
+            if len(body) > self.MAX_CHARS:
+                body = "…" + body[-self.MAX_CHARS:]
+            if self.done:
+                head = f"[$text-muted]▾ thought for {_elapsed(self.secs())}[/]"
+            else:
+                head = f"[$warning]{frame or '~'}[/] [$text-muted]thinking…[/]"
+            text = head + (f"\n[$text-muted]{_esc(body)}[/]" if body else "")
+            if text != self._shown:
+                self._shown = text
+                self.update(text, layout=True)
+
     class FoldLine(Static):
         """A run of tool steps between two messages, as one line. While the turn
         runs it is live (`⠋ Grep "retry" · step 3 · 12s · ↑ 18.2k ↓ 640 · 41 tok/s`);
@@ -3260,6 +3484,8 @@ def build_tui(base: str, token: str, **kw):
             self.display = not opened
             for tv in self.rows:
                 tv.display = opened
+                if opened and isinstance(tv, ThinkView):
+                    tv.redraw()
 
         def on_click(self) -> None:
             self.set_open(True)
@@ -3269,20 +3495,36 @@ def build_tui(base: str, token: str, **kw):
 
         def redraw(self, frame: str = "") -> None:
             rows = self.rows
+            tools = [tv for tv in rows if not isinstance(tv, ThinkView)]
+            thinks = [tv for tv in rows if isinstance(tv, ThinkView)]
             if self.live:
-                run = next((tv for tv in rows if not tv.done), None)
+                run = next((tv for tv in tools if not tv.done), None)
+                think = next((tv for tv in thinks if not tv.done), None)
                 title = tool_title(run.tname, run.args)[1] if run else "thinking"
                 t = self.turn
                 tin, tout, toks = t.tokens() if t is not None else (None, 0, None)
-                step = t.ntools if t is not None else len(rows)
+                step = t.ntools if t is not None else len(tools)
                 secs = time.monotonic() - (rows[0].t0 if rows else time.monotonic())
-                text = (f"[$accent]{frame or '~'}[/] " + _esc(fold_live_text(
-                    title, step, secs, tin, tout, toks)))
+                quiet = t.quiet_line(self.app.__dict__.get("link")) \
+                    if t is not None and think is None else None
+                if think is not None:
+                    width = (self.size.width or 80) - 4
+                    text = (f"[$accent]{frame or '~'}[/] " + _esc(think_live_text(
+                        think.secs(), len(think.text.split()), think.text, step, tin, tout,
+                        toks, width)))
+                elif quiet is not None:
+                    text = (f"[$warning{' b' if quiet[0] == 'warn' else ''}]"
+                            f"{'' if quiet[0] == 'warn' else (frame or '~') + ' '}"
+                            f"{_esc(quiet[1])}[/]")
+                else:
+                    text = (f"[$accent]{frame or '~'}[/] " + _esc(fold_live_text(
+                        title, step, secs, tin, tout, toks)))
             else:
-                steps = [(tv.tname, tv.args, False if tv.interrupted else tv.ok) for tv in rows]
+                steps = [(tv.tname, tv.args, False if tv.interrupted else tv.ok) for tv in tools]
                 failed = any(ok is False for _n, _a, ok in steps)
-                text = (f"[{'$warning' if failed else '$text-muted'}]▸ {_esc(fold_summary(steps))}[/]"
-                        f"   [$primary]ctrl+o[/]")
+                thought = sum(tv.secs() for tv in thinks)
+                text = (f"[{'$warning' if failed else '$text-muted'}]▸ "
+                        f"{_esc(fold_summary(steps, thought))}[/]   [$primary]ctrl+o[/]")
             if text != self._shown:
                 self._shown = text
                 self.update(text, layout=False)
@@ -3335,7 +3577,7 @@ def build_tui(base: str, token: str, **kw):
             """The FoldLine whose run the log ends with, or None: a message after
             the last step starts a new run."""
             for w in reversed(self.children):
-                if isinstance(w, ToolView):
+                if isinstance(w, (ToolView, ThinkView)):
                     continue
                 return w if isinstance(w, FoldLine) else None
             return None
@@ -10451,7 +10693,7 @@ def build_tui(base: str, token: str, **kw):
                 await home.remove()
             if not self._following():
                 self.unseen += 1               # "↓ n new" until they scroll back down
-            if isinstance(widget, ToolView):
+            if isinstance(widget, (ToolView, ThinkView)):
                 await lv.add_tool(widget, self.tools_expanded,
                                   self.turn if self.busy else None)
             else:
@@ -10698,13 +10940,24 @@ def build_tui(base: str, token: str, **kw):
             armed = time.monotonic() - self.esc_armed < 2
             nq = len(self.queue) + len(self.pending)
             parts = [(f"x {verb} {stats[0]}", f"{spin}{vm} [$text-muted]{stats[0]}[/]", 0)]
-            for s in stats[1:]:
+            lk = self.link
+            if self.reconnecting and not self.stop_requested:
+                nxt = f", next {lk.next_s}s" if lk.next_s else ""
+                msg = (f"✗ lost connection: {lk.why or 'no answer'} · retrying "
+                       f"(try {max(1, lk.tries)}{nxt}) · esc gives up")
+                parts = [(msg, f"[$error]{_esc(msg)}[/]", 0)]
+                armed = False
+            elif (q := t.quiet_line(lk)) is not None and not (
+                    self.log_view.current_fold() is not None and self.log_view.current_fold().live):
+                parts = [(q[1], f"[$warning]{_esc(q[1])}[/]", 0)]
+            for s in (stats[1:] if not self.reconnecting else []):
                 rank = 2 if s.startswith("$") else 1 if s.endswith(("tool", "tools")) else 3
                 parts.append((s, f"[$text-muted]{s}[/]", rank))
             if nq:
                 parts.append((f"{nq} queued", f"[$accent]{nq} queued[/]", 1))
-            parts.append(("esc again to interrupt", "[$warning]esc again to interrupt[/]", 0)
-                         if armed else ("esc interrupt", "[$text-muted]esc interrupt[/]", 4))
+            if not (self.reconnecting and not self.stop_requested):
+                parts.append(("esc again to interrupt", "[$warning]esc again to interrupt[/]", 0)
+                             if armed else ("esc interrupt", "[$text-muted]esc interrupt[/]", 4))
             return parts
 
         def _status_right(self) -> list[tuple[str, str, int]]:
@@ -11059,6 +11312,7 @@ def build_tui(base: str, token: str, **kw):
                     tv.spin(SPINNER[self.frame % len(SPINNER)])
                 for fl in list(self.__dict__.get("live_folds", ())):
                     fl.spin(SPINNER[self.frame % len(SPINNER)])
+                self._watch_link()
                 for chat in self.all_chats():
                     t = chat.turn
                     if chat.busy and t is not None and t.cid is not None \
@@ -11201,26 +11455,118 @@ def build_tui(base: str, token: str, **kw):
             keeps trying and picks the turn up again (_reattach). A message that
             never got there goes back in the prompt, with a line saying so."""
             started = self.turn is not None and self.turn.cid is not None
+            where, why = await self._diagnose(e)
+            self.link.lost(where, why, 1)
             if started and isinstance(e, httpx.TransportError):
                 if await self._reattach():
                     return
-                await self.note(f"lost {self.base} mid-turn and it has not answered since. "
-                                "The turn may still be running there: /sessions shows it.",
-                                "error")
+                self.link.down(self.link.where, self.link.why)
+                await self.note(f"lost {self.base} mid-turn ({self.link.why}) and it has not "
+                                "answered since. The turn may still be running there: "
+                                "/sessions shows it.", "error")
                 if self.queue:              # typed while it ran: these never left here
                     ed = self.editor
                     ed.text = "\n".join(self.queue + ([ed.text] if ed.text else []))
                     ed.move_cursor(ed.document.end)
                     self.queue = []
                 return
+            self.link.down(where, why)
             if not started or isinstance(e, (httpx.ConnectError, httpx.ConnectTimeout)):
-                line = (f"can't reach {self.base}: {net_error_text(e)}. Your message was "
+                line = (f"can't reach {self.base}: {why}. Your message was "
                         "not sent; it is back in the prompt.")
             else:
                 line = f"connection to {self.base} failed: {e}"
             await self.note(line, "error")
             back, self.queue = [text, *self.queue], []
             self._not_sent(um if not started else None, back)
+
+        async def _diagnose(self, e: Exception) -> tuple[str, str]:
+            """(where, words) for a transport error. A failed connect is checked against
+            the routing table first (no traffic), so "your network is down" is known, not guessed."""
+            route = None
+            if isinstance(e, httpx.ConnectError) and not isinstance(e, httpx.ConnectTimeout):
+                host, port = _hostport(self.base)
+                try:
+                    route = await asyncio.wait_for(asyncio.to_thread(probe_route, host, port), 2.0)
+                except Exception:
+                    route = None
+            return classify_net_error(e, self.base, route)
+
+        def _watch_link(self) -> None:
+            """Every tick: the Link's quiet state, the pulse poll for a silent turn, and
+            a health ping while no stream is open (so the state is real when idle too)."""
+            now = time.monotonic()
+            link = self.link
+            link.watch(link.streams)
+            any_stream = False
+            for chat in self.all_chats():
+                t = chat.turn
+                if not (chat.busy and t is not None):
+                    continue
+                any_stream = any_stream or t.stream_open
+                if t.stream_open and t.cid is not None and not t.pulse_off \
+                        and t.quiet_s() >= PULSE_AFTER_S and now - t.pulse_at >= PULSE_EVERY_S:
+                    t.pulse_at = now
+                    with self.in_chat(chat):
+                        self.run_worker(self._poll_pulse(t), group=f"pulse-{chat.number}",
+                                        exclusive=True)
+            if any_stream or self.logged_in is False or not self.token:
+                link.checked = now
+                return
+            if not link.checked:
+                link.checked = now
+            elif now - link.checked >= HEALTH_EVERY_S:
+                link.checked = now
+                self.run_worker(self._ping_health(), group="health", exclusive=True)
+
+        async def _ping_health(self) -> None:
+            if self.client is None or self.reconnecting:
+                return
+            try:
+                await self.client.get("/api/health", timeout=10.0)
+            except httpx.TransportError as e:
+                w, why = await self._diagnose(e)
+                self.link.down(w, why)
+                return
+            except httpx.HTTPError:
+                return
+            if self.link.state in ("down", "idle", "quiet"):
+                self.link.beat()
+
+        async def _poll_pulse(self, t: TurnState) -> None:
+            """The turn has been silent a while: ask the server what it is doing. 404 =
+            an older server (don't ask again). running false while our stream is still
+            open = the turn ended without telling us: settle it from the saved transcript."""
+            try:
+                r = await self.client.get(f"/api/chat/{t.cid}/pulse", timeout=10.0)
+            except httpx.HTTPError:
+                return
+            if r.status_code == 404:
+                t.pulse_off = True
+                return
+            if r.status_code != 200 or self.turn is not t:
+                return
+            try:
+                data = r.json()
+            except ValueError:
+                return
+            t.pulse = data
+            if data.get("running") or not t.stream_open:
+                return
+            try:
+                saved = await self.client.get(f"/api/conversations/{t.cid}/messages")
+            except httpx.HTTPError:
+                return
+            if saved.status_code != 200 or self.turn is not t:
+                return
+            sdata = saved.json()
+            if sdata.get("running"):
+                t.pulse = None          # the pulse can miss heads and agent runs: keep waiting
+                return
+            await self._settle(t, sdata)
+            if not (t.done or t.failed or t.interrupted):
+                t.idle = True
+            t.abort.set()
 
         # -- re-attaching after a lost connection ---------------------------------------------
         # The web app does the same in useChatStream.openThread: read the saved
@@ -11237,6 +11583,8 @@ def build_tui(base: str, token: str, **kw):
             when the server never came back (or esc gave up on it)."""
             turn = self.turn
             self.reconnecting = True
+            self.link.tries = max(1, self.link.tries)
+            self.link.next_s = 0
             self._refresh_status()
             try:
                 return await self._reattach_loop(turn)
@@ -11250,15 +11598,22 @@ def build_tui(base: str, token: str, **kw):
                 if tries:
                     if self.stop_requested or time.monotonic() - t0 > RECONNECT_GIVE_UP:
                         return False
-                    await asyncio.sleep(RECONNECT_STEPS[min(tries - 1, len(RECONNECT_STEPS) - 1)])
+                    nxt_s = RECONNECT_STEPS[min(tries - 1, len(RECONNECT_STEPS) - 1)]
+                    self.link.next_s = nxt_s
+                    await asyncio.sleep(nxt_s)
                 tries += 1
+                self.link.tries = tries
                 try:
-                    async with self.client.stream("GET", f"/api/chat/{cid}/stream") as r:
+                    async with self.client.stream(
+                            "GET", f"/api/chat/{cid}/stream",
+                            timeout=httpx.Timeout(30.0, read=STREAM_READ_S)) as r:
                         if r.status_code == 401:
                             self._login_lost()
                             await self.note(SESSION_LOST, "error")
                             return True
                         if r.status_code >= 500:
+                            w, why = classify_status(r.status_code)
+                            self.link.lost(w, why, tries)
                             continue            # a proxy that is up before the server behind it
                         if r.status_code >= 400:
                             return False        # the chat is gone (a temporary one, wiped)
@@ -11272,6 +11627,7 @@ def build_tui(base: str, token: str, **kw):
                             await self._settle(turn, data)
                             return True
                         self.reconnecting = False       # attached: the status line says working
+                        self.link.beat()
                         self._refresh_status()
                         await self._resync(turn, data)
                         t0, tries = time.monotonic(), 1
@@ -11281,7 +11637,9 @@ def build_tui(base: str, token: str, **kw):
                     if turn.done or turn.failed or turn.interrupted:
                         return True
                     # `idle`, or a clean close with no final: look again
-                except httpx.TransportError:
+                except httpx.TransportError as e:
+                    w, why = await self._diagnose(e)
+                    self.link.lost(w, why, tries)
                     self.reconnecting = True            # dropped again: back to trying
                     self._refresh_status()
                     continue
@@ -11373,7 +11731,8 @@ def build_tui(base: str, token: str, **kw):
                                      if (m.get("content") or "").strip()), ""))
 
         async def _post(self, body: dict) -> None:
-            async with self.client.stream("POST", "/api/chat", json=body) as r:
+            async with self.client.stream("POST", "/api/chat", json=body,
+                                          timeout=httpx.Timeout(30.0, read=STREAM_READ_S)) as r:
                 if r.status_code == 409:
                     await r.aread()
                     why = _detail(r)
@@ -11388,19 +11747,53 @@ def build_tui(base: str, token: str, **kw):
                     raise NotLoggedIn(SESSION_LOST)
                 if r.status_code >= 400:
                     await r.aread()
+                    if r.status_code >= 500:
+                        where, text = classify_status(r.status_code, _detail(r))
+                        self.link.down(where, text)
+                        raise CliError(text)
                     raise CliError(f"server said {r.status_code}: {_detail(r)}")
                 await self._consume(r.aiter_lines())
 
         async def _consume(self, lines) -> bool:
-            """Render a stream; True if it carried anything but `idle`."""
+            """Render a stream; True if it carried anything but `idle`. Every raw line,
+            keepalive comments included, is a heartbeat for the Link."""
             seen = False
             turn = self.turn
-            async for ev in aiter_sse(lines):
-                if self.turn is not turn:
-                    break          # this view moved on: the rest belongs to a turn no longer here
-                seen = seen or ev.get("type") != "idle"
-                if await self.handle_event(ev):
-                    break
+            link = self.link
+
+            async def beating():
+                async for ln in lines:
+                    link.beat()
+                    yield ln
+
+            it = aiter_sse(beating()).__aiter__()
+            abort = asyncio.ensure_future(turn.abort.wait())
+            turn.stream_open = True
+            link.streams += 1
+            nxt = None
+            try:
+                while True:
+                    nxt = asyncio.ensure_future(it.__anext__())
+                    await asyncio.wait({nxt, abort}, return_when=asyncio.FIRST_COMPLETED)
+                    if not nxt.done():
+                        break              # the pulse said the turn ended: stop waiting
+                    try:
+                        ev = nxt.result()
+                    except StopAsyncIteration:
+                        break
+                    if self.turn is not turn:
+                        break          # this view moved on: the rest belongs to a turn no longer here
+                    seen = seen or ev.get("type") != "idle"
+                    if await self.handle_event(ev):
+                        break
+            finally:
+                turn.stream_open = False
+                link.streams = max(0, link.streams - 1)
+                abort.cancel()
+                if nxt is not None and not nxt.done():
+                    nxt.cancel()
+                    with contextlib.suppress(BaseException):
+                        await nxt
             return seen
 
         async def _midturn(self, texts: list[str]) -> None:
@@ -11481,6 +11874,10 @@ def build_tui(base: str, token: str, **kw):
             t, turn = ev.get("type"), self.turn
             if turn is None:
                 return True
+            turn.last_event = time.monotonic()
+            turn.pulse = None
+            if t not in ("think", "retry"):
+                self._think_end(turn)
             if t == "start":
                 if ev.get("conversation_id") is not None:
                     turn.cid = ev["conversation_id"]
@@ -11496,6 +11893,17 @@ def build_tui(base: str, token: str, **kw):
                 elif self.queue and turn.cid is not None:
                     texts, self.queue = self.queue, []
                     self.run_worker(self._midturn(texts), group="midturn")
+            elif t == "think":
+                chunk = ev.get("text") or ""
+                if not chunk:
+                    return False
+                if turn.think is None:
+                    await self._close_seg()
+                    turn.think = ThinkView()
+                    turn.round_thinks.append(turn.think)
+                    await self.mount_log(turn.think)
+                turn.think.add(chunk)
+                turn.streamed(chunk)
             elif t == "token":
                 chunk = ev.get("text", "")
                 if turn.md is None:
@@ -11512,6 +11920,7 @@ def build_tui(base: str, token: str, **kw):
             elif t == "retry":
                 # the model stream dropped mid-round and is re-asked: the text it
                 # had streamed is void, so the segment goes instead of showing twice
+                await self._think_void(turn)
                 if turn.stream is not None:
                     await turn.stream.stop()
                     turn.stream = None
@@ -11522,6 +11931,7 @@ def build_tui(base: str, token: str, **kw):
                 if turn.claim(ev):
                     return False
                 await self._close_seg()
+                turn.round_thinks.clear()
                 name = ev.get("name") or "?"
                 tv = ToolView(name, ev.get("args") or {})
                 # a call without an id (an older guest) must not take the place
@@ -11584,7 +11994,9 @@ def build_tui(base: str, token: str, **kw):
                 await self._close_seg()
                 turn.failed = True
                 self._stop_rows(turn, "no result: the turn failed")
-                await self.note(ev.get("message") or "error", "error")
+                where, text = classify_message(ev.get("message") or "error")
+                self.link.where, self.link.why = where, text
+                await self.note(text, "error")
                 if turn.sent is not None and not self.ephemeral and not ev.get("node_id"):
                     # the server saved the failure with the steps it got through
                     await self.note("/resume picks it up from its last step")
@@ -11835,9 +12247,39 @@ def build_tui(base: str, token: str, **kw):
                     await turn.md.remove()
             turn.md, turn.seg = None, ""
 
+        def _think_end(self, turn: TurnState) -> None:
+            tv, turn.think = turn.think, None
+            if tv is not None:
+                turn.thought += tv.secs()
+                tv.end()
+                lv = self.log_view
+                if lv is not None and lv.is_attached:
+                    for fl in lv.query(FoldLine):
+                        if tv in fl.rows:
+                            fl.redraw()
+
+        async def _think_void(self, turn: TurnState) -> None:
+            """A retry voids the thinking streamed in this round, like its tokens."""
+            turn.think = None
+            lv = self.log_view
+            for tv in turn.round_thinks:
+                if lv is not None and lv.is_attached:
+                    for fl in list(lv.query(FoldLine)):
+                        if tv in fl.rows:
+                            fl.rows.remove(tv)
+                            if not fl.rows:
+                                await fl.remove()
+                            else:
+                                fl.redraw()
+                tv.done = True
+                if tv.is_attached:
+                    await tv.remove()
+            turn.round_thinks.clear()
+
         def _stop_rows(self, turn: TurnState, why: str) -> None:
             """Calls that will get no result now (a stop, a failure, a lost
             stream): their rows say so and their timers stop."""
+            self._think_end(turn)
             for tv in turn.running.values():
                 tv.interrupt(why)
             turn.running.clear()
