@@ -5,6 +5,7 @@ small ones. The client file is loaded from tests/cli_fake.py (JAV3_CLIENT points
 at another copy, to watch a test fail on the base commit)."""
 import io
 import json
+import time
 
 import httpx
 import pytest
@@ -255,7 +256,8 @@ def test_times_are_shown_in_the_local_zone(monkeypatch):
     assert jav3.local_ts("2026-09-30T04:56:59Z") == "09-29 21:56"
     assert jav3.local_ts(1_790_000_000) == jav3.local_ts(1_790_000_000.0) != ""
     assert jav3.full_ts("2026-09-30 04:56:59") == "2026-09-29 21:56:59"
-    assert jav3.tz_label() == "PDT"
+    # PDT or PST by the date the suite runs (DST ended 2026-11-01 and broke a fixed "PDT")
+    assert jav3.tz_label() == time.strftime("%Z") and jav3.tz_label() in ("PDT", "PST")
     assert jav3.row_ts("2026-09-30 04:56:59") == "09-29 21:56"
     assert jav3.row_ts("") == "" and jav3.full_ts(None) == "" and jav3.local_ts("soon") == ""
     assert jav3.full_ts("2026-09-20") == "2026-09-20"          # a date alone stays as sent
@@ -276,10 +278,10 @@ async def test_security_rows_details_and_footer_use_local_time(monkeypatch):
         scr.select_key("s7")
         detail = str(scr.query_one("#sec-detail").render())
         assert "2026-09-25 03:05:00" in detail
-        assert "times PDT" in str(scr.query_one("#sec-foot").render())
+        assert f"times {time.strftime('%Z')}" in str(scr.query_one("#sec-foot").render())
         await pilot.press("4")                                   # Secrets: no times, no label
         await pilot.pause(0.2)
-        assert "times PDT" not in str(scr.query_one("#sec-foot").render())
+        assert "times P" not in str(scr.query_one("#sec-foot").render())
 
 
 # --- TUIB-04: the selected row stays readable on the selection bar ------------------------------
