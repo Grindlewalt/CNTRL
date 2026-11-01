@@ -59,7 +59,7 @@ async def retrying(once: Callable[[], AsyncIterator[dict]]) -> AsyncIterator[dic
     for attempt in range(settings.model_retries + 1):
         try:
             async for ev in once():
-                if ev["type"] == "token":
+                if ev["type"] in ("token", "think"):
                     yielded = True
                 yield ev
             return
@@ -261,6 +261,8 @@ async def _anthropic_once(route, payload: dict) -> AsyncIterator[dict]:
                         b["_json"] = b.get("_json", "") + d.get("partial_json", "")
                     elif dt == "thinking_delta":
                         b["thinking"] = b.get("thinking", "") + d.get("thinking", "")
+                        if d.get("thinking"):
+                            yield {"type": "think", "text": d["thinking"]}
                     elif dt == "signature_delta":
                         b["signature"] = d.get("signature", "")
                 elif t == "message_delta":
@@ -327,7 +329,7 @@ async def anthropic_complete(route, messages: list[dict], tools: list[dict] | No
     body = payload(True)
     try:
         async for ev in retrying(lambda: _anthropic_once(route, body)):
-            if ev["type"] in ("token", "retry"):
+            if ev["type"] in ("token", "think", "retry"):
                 yield ev
             else:
                 final = ev
@@ -341,7 +343,7 @@ async def anthropic_complete(route, messages: list[dict], tools: list[dict] | No
             raise
         body = payload(False)
         async for ev in retrying(lambda: _anthropic_once(route, body)):
-            if ev["type"] in ("token", "retry"):
+            if ev["type"] in ("token", "think", "retry"):
                 yield ev
             else:
                 final = ev
@@ -503,7 +505,7 @@ async def google_complete(route, messages: list[dict], tools: list[dict] | None,
     payload["generationConfig"] = gen
     final = None
     async for ev in retrying(lambda: _gemini_once(route, payload)):
-        if ev["type"] in ("token", "retry"):
+        if ev["type"] in ("token", "think", "retry"):
             yield ev
         else:
             final = ev

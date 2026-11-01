@@ -54,7 +54,7 @@ class VsockModelClient:
                     continue
                 ev = json.loads(line)
                 kind = ev.get("type")
-                if kind in ("token", "retry"):     # retry: the stream dropped, text so far is void
+                if kind in ("token", "think", "retry"):     # retry: the stream dropped, text so far is void
                     yield ev
                 elif kind == "message":
                     yield ev

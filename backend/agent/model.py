@@ -246,7 +246,7 @@ class ModelClient:
         # while nothing has streamed to the caller yet (adapters.retrying).
         raw: dict | None = None
         async for ev in retrying(lambda: self._stream_once(base, key, payload)):
-            if ev["type"] in ("token", "retry"):
+            if ev["type"] in ("token", "think", "retry"):
                 yield ev
             else:
                 raw = ev
@@ -322,6 +322,9 @@ class ModelClient:
                                              f"ended the reply with finish_reason {finish}",
                                              retryable=True)
                     delta = choices[0].get("delta") or {}
+                    rtxt = delta.get("reasoning_content") or delta.get("reasoning")
+                    if rtxt and isinstance(rtxt, str):
+                        yield {"type": "think", "text": rtxt}
                     if delta.get("content"):
                         content_parts.append(delta["content"])
                         if not dsml and watch_dsml:
@@ -526,7 +529,7 @@ class ModelGateway:
         abandoned = False     # the caller stopped reading (or was cancelled) mid-call
         try:
             async for ev in stream:
-                if ev["type"] == "token":
+                if ev["type"]  in ("token", "think"):
                     streamed += len(ev["text"])
                     yield ev
                 elif ev["type"] == "retry":

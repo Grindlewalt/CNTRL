@@ -3,6 +3,7 @@ import contextlib
 import json
 import logging
 import shutil
+import time
 import uuid
 from typing import Literal
 
@@ -610,6 +611,22 @@ async def get_messages(conversation_id: int):
 # the HTTP connection that started it goes away.
 _active_turns: dict[int, asyncio.Task] = {}
 
+# in-memory phase of each running turn, for GET /api/chat/{cid}/pulse
+_pulse: dict[int, dict] = {}
+
+
+def _pulse_note(cid: int, kind: str | None, tool: str | None = None) -> None:
+    now = time.monotonic()
+    p = _pulse.get(cid)
+    phase = {"start": "starting", "tool": "tool"}.get(kind or "", "model")
+    if p is None:
+        p = _pulse[cid] = {"phase": None, "tool": None, "since": now, "last": now}
+    if p["phase"] != phase or (phase == "tool" and p["tool"] != tool):
+        p["since"] = now
+    p["phase"] = phase
+    p["tool"] = tool if phase == "tool" else None
+    p["last"] = now
+
 # Voice barge-in: the orchestrator knows exactly how much of a reply was
 # actually spoken, so it parks an annotated interruption note here before
 # cancelling the turn task. The CancelledError handler writes the note in
@@ -1077,6 +1094,7 @@ async def _run_chat_turn(conversation_id: int, ephemeral: bool,
         rec = narration.Recorder(db, conversation_id, enabled=not ephemeral)
         try:
             async for event in source:
+                _pulse_note(conversation_id, event.get("type"), event.get("name"))
                 await rec.feed(event)
                 if event["type"] == "final":
                     # a 402 reaches here as the guest loop's wrapped error text;
@@ -1233,6 +1251,7 @@ async def _run_chat_turn(conversation_id: int, ephemeral: bool,
             # signal end — a subscriber that still sees the flag is guaranteed
             # the job_end is ahead of it in the queue (both happen in this tick)
             _active_turns.pop(conversation_id, None)
+            _pulse.pop(conversation_id, None)
             _turn_actors.pop(conversation_id, None)
             _interrupt_notes.pop(conversation_id, None)   # stale note must not leak
             # a /local call still waiting on the client dies with its turn (stop,
@@ -2140,6 +2159,7 @@ def start_turn(conversation_id: int, *, ephemeral: bool = False,
                        model_name=model_name, base_url=base_url,
                        context_exclude=context_exclude, tools_only=tools_only))
     _active_turns[conversation_id] = task
+    _pulse_note(conversation_id, "start")
     # open alongside the running flag, in the same tick: from here the turn
     # takes operator messages (POST /api/chat/{cid}/message) until it closes
     # its inbox after its last drain
@@ -2147,3 +2167,17 @@ def start_turn(conversation_id: int, *, ephemeral: bool = False,
     if actor:
         _turn_actors[conversation_id] = actor
     return task
+
+
+@router.get("/chat/{conversation_id}/pulse")
+async def chat_pulse(conversation_id: int):
+    """Cheap in-memory liveness of a chat turn, for the client freeze check."""
+    task = _active_turns.get(conversation_id)
+    p = _pulse.get(conversation_id)
+    if task is None or task.done() or p is None:
+        return {"running": False, "phase": None, "tool": None,
+                "phase_s": None, "quiet_s": None}
+    now = time.monotonic()
+    return {"running": True, "phase": p["phase"], "tool": p["tool"],
+            "phase_s": round(now - p["since"], 1),
+            "quiet_s": round(now - p["last"], 1)}

@@ -339,7 +339,7 @@ async def _force_conclusion(messages: list[dict], conversation_id: int,
                 conversation_id=conversation_id,
                 model_name=model_name, base_url=base_url,
             ):
-                if ev["type"] in ("token", "retry"):
+                if ev["type"] in ("token", "think", "retry"):
                     yield ev
                 else:
                     conclusion = ev["content"] or ""
@@ -601,7 +601,7 @@ async def _run_turn(
                 messages, tools=call_tools, conversation_id=conversation_id,
                 model_name=model_name, base_url=base_url,
             ):
-                if event["type"] in ("token", "retry"):
+                if event["type"] in ("token", "think", "retry"):
                     yield event       # retry: the stream dropped, the text so far is void
                 else:
                     final = event
