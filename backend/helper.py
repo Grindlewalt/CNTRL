@@ -4,6 +4,7 @@ commands to pull the code the agent made.
 `pull_info` answers "how do I get this project onto my machine"; the manual is
 docs/SELF.md. A helper turn (ChatRequest.helper) gets both in that turn's
 system prompt only."""
+import asyncio
 import contextvars
 import re
 import subprocess
@@ -120,7 +121,9 @@ def helper_block(slug: str | None, base: str | None) -> str:
 async def pull(request: Request, project: str, base: str | None = None):
     if base is not None and clean_base(base) is None:
         raise HTTPException(status_code=422, detail="base must be http(s)://host[:port]")
-    return pull_info(project, clean_base(base) or str(request.base_url).rstrip("/"))
+    # git runs in a thread: a slow repo must not stall every other request
+    return await asyncio.to_thread(pull_info, project,
+                                   clean_base(base) or str(request.base_url).rstrip("/"))
 
 
 @router.get("/manual")

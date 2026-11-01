@@ -933,7 +933,9 @@ async def _run_chat_turn(conversation_id: int, ephemeral: bool,
                 system_prompt = f"{system_prompt}\n\n{SMART_PROMPT}"
         from . import helper as _h
         if conversation_id in _h._pending:   # helper turn: this turn only
-            system_prompt = f"{system_prompt}\n\n{_h.helper_block(active, _h._pending.pop(conversation_id))}"
+            block = await asyncio.to_thread(_h.helper_block, active,
+                                            _h._pending.pop(conversation_id))
+            system_prompt = f"{system_prompt}\n\n{block}"
         # an orchestrator is a chat with a job description: the same turn,
         # plus the prompt that says how to run a team (after everything, the
         # voice block's reasoning) and, below, the tool to watch one

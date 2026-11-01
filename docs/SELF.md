@@ -48,9 +48,14 @@ same way. To see what is still uncommitted: the project's git status
 returns the commands for a project plus the uncommitted count and last commit;
 the terminal's `/pull` prints them.
 
-With Gitea enabled (`python -m backend.cli gitea-setup --access`, see
-docs/gitea.md) the operator can use that server instead; its tokens are in
-`~/.config/jarvis/gitea-admin.token` and `gitea-bot.token` on the host.
+With Gitea enabled (`python -m backend.cli gitea-setup`, see docs/gitea.md)
+the operator can browse and clone there too (port 3000 by default). They sign
+in with their Jav3 username and the Gitea password chosen at setup (setup
+offers to reuse the Jav3 password; without a terminal it wrote a random one to
+`~/.config/jarvis/gitea-admin.password` on the host and Gitea asks for a new
+one at first sign-in). `gitea-setup --access` gives other Gitea users read
+access. The admin and bot API tokens setup minted are the server's own and stay
+on the host.
 
 ## logins and tokens
 
@@ -66,7 +71,7 @@ operator the steps; they do it.
 - Model API keys (e.g. `deepseek_api_key`) are server settings on the host. The
   model gateway holds them; they never enter your box.
 - git: the Jav3 username and password (see getting your code).
-- Gitea: the tokens above.
+- Gitea: the operator's own Gitea sign-in (see getting your code).
 - Secrets a project needs are added by the operator under Secrets; you see
   names, not values.
 
