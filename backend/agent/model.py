@@ -529,7 +529,7 @@ class ModelGateway:
         abandoned = False     # the caller stopped reading (or was cancelled) mid-call
         try:
             async for ev in stream:
-                if ev["type"]  in ("token", "think"):
+                if ev["type"] in ("token", "think"):
                     streamed += len(ev["text"])
                     yield ev
                 elif ev["type"] == "retry":
