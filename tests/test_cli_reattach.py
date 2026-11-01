@@ -87,7 +87,7 @@ async def test_a_turn_that_finished_while_away_is_drawn_once_and_the_footer_is_r
     async with app.run_test(size=(100, 30)) as pilot:
         await two_calls_then_drop(pilot, app, srv)
         # the one status line says so; the log does not fill with notes
-        assert "reconnecting…" in " ".join(p[0] for p in app._status_parts())
+        assert "lost connection" in " ".join(p[0] for p in app._status_parts())
         assert not [n for n in notes(app) if "server" in n or "reconnect" in n]
         app.send("and then the docs")                  # typed while it was down: waits
         assert app.queue == ["and then the docs"]
