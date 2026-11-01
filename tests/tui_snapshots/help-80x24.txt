@@ -18,8 +18,8 @@
                             /work or ctrl+c to the chat
       /security (ctrl+x v)  queue · network · logs · secrets ·
                             persistent · profiles · rules · calls: tab →
-  █                         ← or 1-8 switch, esc back. Rules are the
-  █                         always-allow answers; Calls is how the model
+  █                         ← or 1-8 switch, esc back. ctrl+x v opens it
+  █                         in a new tab (or jumps to it) so the chat
   █
   █  Jav3  deepseek-flash  deepseek  ⏵ yolo
   █
