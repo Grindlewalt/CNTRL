@@ -7,7 +7,7 @@ import time
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -58,6 +58,9 @@ class ChatRequest(BaseModel):
     # /api/gui/stream, so anything this turn plays comes out of the machine the
     # operator is sitting at instead of every open tab at once.
     tab: str | None = None
+    # the operator opened the helper: THIS turn also carries the manual and the
+    # project's pull commands (backend/helper.py)
+    helper: bool = False
     # `provider/model` (a bare id = the default provider) from the enabled
     # list. Pins THIS conversation to it — new or existing, since switching
     # model mid-thread is ordinary; omitted keeps the thread's pin, and a
@@ -928,6 +931,9 @@ async def _run_chat_turn(conversation_id: int, ephemeral: bool,
                 system_prompt += await voice_library_prompt()
             else:
                 system_prompt = f"{system_prompt}\n\n{SMART_PROMPT}"
+        from . import helper as _h
+        if conversation_id in _h._pending:   # helper turn: this turn only
+            system_prompt = f"{system_prompt}\n\n{_h.helper_block(active, _h._pending.pop(conversation_id))}"
         # an orchestrator is a chat with a job description: the same turn,
         # plus the prompt that says how to run a team (after everything, the
         # voice block's reasoning) and, below, the tool to watch one
@@ -1938,7 +1944,10 @@ _posting: set[int] = set()
 
 
 @router.post("/chat")
-async def chat(body: ChatRequest, actor: dict = Depends(require_actor)):
+async def chat(body: ChatRequest, request: Request, actor: dict = Depends(require_actor)):
+    if body.helper:
+        from . import helper as _h
+        _h.request_base.set(str(request.base_url).rstrip('/'))
     claimed = body.conversation_id
     if claimed is not None:
         # _running_loops, not just _active_turns: an agent run or plan item
@@ -2119,6 +2128,9 @@ async def _post_chat(body: ChatRequest, actor: dict):
     # subscribe BEFORE spawning so this tail can't miss the first events, then
     # run the turn as a detached task: it outlives this HTTP connection
     q = bus.subscribe(_chan(conversation_id))
+    if body.helper:
+        from . import helper as _h
+        _h._pending[conversation_id] = _h.request_base.get()
     start_turn(conversation_id, ephemeral=body.ephemeral,
                user_msg=body.message, tab=body.tab, actor=actor_key(actor))
     return _tail(conversation_id, q)
