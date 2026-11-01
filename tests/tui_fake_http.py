@@ -727,19 +727,6 @@ class SeededServer(FakeServer):
         return None
 
 
-if __name__ == "__main__":   # pragma: no cover
-    import tempfile
-    srv = SeededServer()
-    with HttpFake(srv.handle, int(sys.argv[1]) if len(sys.argv) > 1 else 0) as http:
-        cfg = Path(tempfile.mkdtemp(prefix="tui-fake-", dir="/tmp"))
-        (cfg / "jav3").mkdir(mode=0o700)
-        (cfg / "jav3" / "credentials.json").write_text(json.dumps(
-            {"address": http.address, "session": "fake-session", "username": USERNAME}))
-        print(f"fake Jav3 server on http://{http.address}; try the client against it with\n"
-              f"  XDG_CONFIG_HOME={cfg} python clients/jav3cli/jav3", flush=True)
-        threading.Event().wait()
-
-
 # -- the sidebar's sources (nov1, S): the security glance and a project's git status ----------
 # Applied by wrapping SeededServer.seeded, so it holds whenever this module is imported.
 GLANCE = {"waiting": {"egress": 1, "packages": 0, "environments": 0, "skills": 0, "git": 0,
@@ -760,3 +747,16 @@ def _with_sidebar_routes(inner):
 
 
 SeededServer.seeded = _with_sidebar_routes(SeededServer.seeded)
+
+
+if __name__ == "__main__":   # pragma: no cover
+    import tempfile
+    srv = SeededServer()
+    with HttpFake(srv.handle, int(sys.argv[1]) if len(sys.argv) > 1 else 0) as http:
+        cfg = Path(tempfile.mkdtemp(prefix="tui-fake-", dir="/tmp"))
+        (cfg / "jav3").mkdir(mode=0o700)
+        (cfg / "jav3" / "credentials.json").write_text(json.dumps(
+            {"address": http.address, "session": "fake-session", "username": USERNAME}))
+        print(f"fake Jav3 server on http://{http.address}; try the client against it with\n"
+              f"  XDG_CONFIG_HOME={cfg} python clients/jav3cli/jav3", flush=True)
+        threading.Event().wait()
