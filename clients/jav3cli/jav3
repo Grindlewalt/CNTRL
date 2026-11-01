@@ -1185,6 +1185,14 @@ def fold_summary(steps: list[tuple[str, object, bool | None]], thought: float = 
             + (f" · {thought_words(thought).replace(' for ', ' ')}" if thought else ""))
 
 
+def _tok_short(n: int) -> str:
+    """Token counts for a narrow column: 812, 12.4k, 176k, 1.2M (the sidebar's
+    chat line has to fit 38 columns with its cost and ctx %)."""
+    if n >= 1e6:
+        return f"{n / 1e6:.1f}M"
+    return f"{n / 1000:.0f}k" if n >= 100_000 else _tok(n)
+
+
 def _tok(n: int) -> str:
     return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
 
@@ -11105,7 +11113,7 @@ def build_tui(base: str, token: str, **kw):
                                  + (f"  {toks:.0f} tok/s" if toks else "") + "[/]")
             if info:
                 line = (f"[b]Chat[/]       {_fmt_cost(info.get('cost_usd', 0))} · "
-                        f"{(lambda n: f'{n / 1e6:.1f}M' if n >= 1e6 else _tok(n))(info.get('input_tokens', 0) + info.get('output_tokens', 0))} tok")
+                        f"{_tok_short(info.get('input_tokens', 0) + info.get('output_tokens', 0))} tok")
                 c = info.get("context") or {}
                 if c.get("used") and c.get("window"):
                     pct = min(100, round(100 * c["used"] / c["window"]))
