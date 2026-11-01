@@ -184,6 +184,8 @@ app.include_router(runs_api.router)
 app.include_router(runs_api.jobs_router)
 app.include_router(git_api.router)
 app.include_router(git_serve_api.router)
+from . import helper as _helper
+app.include_router(_helper.router)
 app.include_router(gitea_api.router)
 app.include_router(notifications_api.router)
 app.include_router(harness_api.router)

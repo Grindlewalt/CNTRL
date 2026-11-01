@@ -15,12 +15,119 @@ opt-ins), `skills/<name>/SKILL.md`, `agents/<slug>/AGENT.md`,
 GUI edit are the same data.
 
 Your reasoning loop (the ReAct loop: model call → tool calls → repeat) runs
-inside a disposable KVM guest VM with no keys, no DB, no secrets, reachable
-only over vsock. The host is a thin supervisor: a model gateway (the only path
+inside a disposable box (a KVM guest VM; with `docker_enabled` a hardened
+Docker container instead) with no keys, no DB, no secrets, reachable only over
+vsock (KVM) or the broker socket (Docker). The host is a thin supervisor: a model gateway (the only path
 to DeepSeek) and a tool broker (the only path to tools). `run_code` executes
 inside the guest only; every other tool executes host-side behind its gates.
 One shared token Budget rides the whole operation (all subagents included) and
 stops it when exhausted.
+
+## getting your code
+
+Projects live on the host as git repos (`projects/<slug>`). The server serves
+each one read-only, so the operator pulls with plain git (on by default,
+`git_serve_enabled`; a push is refused):
+
+    git clone http://<host>:<port>/git/<slug>      # first time, e.g. http://10.0.0.82:8000
+    cd <slug> && git pull                          # afterwards
+
+git asks for the operator's Jav3 username and password (HTTP Basic, the same
+login as the app). To stop it asking: macOS `git config --global
+credential.helper osxkeychain`; elsewhere `store` (plain text in
+`~/.git-credentials`) or `cache` (kept in memory, 15 minutes by default).
+Keychain is safest; `store` is convenient but readable by anyone on that
+account.
+
+Only COMMITTED work is served. Your edits land in the working tree at once, but a
+commit is a request: you call `git_commit_request`, the operator approves it in
+the Review page (web) or the `/security` Queue (terminal), and only then is it a
+commit. Remotes and pushes (`git_remote_request`, `git_push_request`) wait the
+same way. To see what is still uncommitted: the project's git status
+(`GET /api/projects/<slug>/git/status`). `GET /api/helper/pull?project=<slug>`
+returns the commands for a project plus the uncommitted count and last commit;
+the terminal's `/pull` prints them.
+
+With Gitea enabled (`python -m backend.cli gitea-setup --access`, see
+docs/gitea.md) the operator can use that server instead; its tokens are in
+`~/.config/jarvis/gitea-admin.token` and `gitea-bot.token` on the host.
+
+## logins and tokens
+
+You never create, see or rotate credentials. When one is needed, tell the
+operator the steps; they do it.
+
+- Terminal client: `jav3 login` or `/login`. Two kinds. A device token is chat
+  only (no security pages, no secrets). A password session has full access. For
+  a device login the operator opens the web app, Settings > Access > Add
+  computer, which shows a single-use login code and the install line; the code
+  goes to `jav3 login`. The same panel lists and revokes devices, and a code can
+  be cancelled before it is used. `/login password` signs in with the password.
+- Model API keys (e.g. `deepseek_api_key`) are server settings on the host. The
+  model gateway holds them; they never enter your box.
+- git: the Jav3 username and password (see getting your code).
+- Gitea: the tokens above.
+- Secrets a project needs are added by the operator under Secrets; you see
+  names, not values.
+
+## terminal client
+
+`jav3` is a keyboard-first copy of the web app. `/help` lists everything. Keys:
+- ctrl+t splits the tile with a new chat; ctrl+w closes the tile
+- ctrl+x then a key is the leader: arrows move between tiles, z zooms, t new
+  tab, w close tab, 1-9 jump to a tab, [ ] previous or next tab, v security,
+  c boxes (/vms), b notifications
+- ctrl+o opens or folds every run of tool steps; tab picks a row (enter opens,
+  right shows all of it, esc goes back)
+- ctrl+b notifications sidebar; ctrl+n new chat; ctrl+p palette; ctrl+g edits
+  the prompt in $EDITOR; ctrl+j new line
+- esc esc interrupts the running turn; ctrl+c clears, interrupts, twice quits
+- shift+tab cycles permissions (yolo, auto, ask); left and right on an empty
+  prompt open the agents and sessions drawers
+- in /security: tab or 1-8 switch tabs (queue, network, logs, secrets,
+  persistent, profiles, rules, calls); y approves, n rejects, enter opens
+
+Commands: `/update` swaps the client for the server's copy; `/sessions`
+switches chats; `/permissions`; `/vms`; `/security`; `/pull` prints the
+clone and pull commands for this chat's project; `/helper` loads this manual
+into the chat so you can answer questions about Jav3 itself.
+
+## boxes and images
+
+By default one shared box runs every project's turns. With `vm_boxes_enabled`
+(off by default) each project gets its own box, stopped after
+`vm_box_idle_stop_seconds` (600) idle. `vm_idle_scrub_seconds` (0 = off) wipes
+the shared box. Docker boxes need `docker_enabled`. Anything installed with
+`pip install` or `npm install` in `run_code` is wiped after each turn; package
+requests and an approved `/persist` disk survive. Images: `main` is the base;
+`desktop` adds a screen and browser. If a tool says it needs the desktop image
+(screenshot), call `environment_request(use="desktop", reason=...)`; it is
+filed for approval and nothing changes until the operator approves.
+`headless_browser` reads pages that need JavaScript. Egress is off by default
+(`vm_egress`): the box has no network until hosts are approved.
+
+## approvals
+
+Everything below waits on the operator and shows in the Review page (web) or the
+`/security` Queue (terminal):
+- egress hosts (Network tab), packages (`package_request`), environments and new
+  images (`environment_request`), skills (`skill_request`), services
+- git commits, remotes and pushes
+- memory proposals
+- permission asks (in ask or auto mode, a prompt in the chat: y, a, n)
+- schedule proposals (Schedules page; they start paused)
+Nothing applies before the answer. Say plainly what you filed and where.
+
+## when something looks stuck
+
+The terminal's live line says what is happening: `thinking 14s . 320 words .
+<tail>` while the model reasons, `waiting for the model . 35s` when nothing has
+arrived, `nothing for 2m . server up (beat 3s ago) . esc stops` after longer.
+If the connection drops it says whose side: your network is down, the server
+refuses connections, or the server or model provider returned an error, and it
+retries. The turn runs on the server, so closing the client does not stop it;
+`/sessions` finds the chat again and esc esc stops it. (This is the nov1
+behaviour, docs/nov1-contract.md section 7.)
 
 ## memory
 
