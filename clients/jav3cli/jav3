@@ -2052,7 +2052,8 @@ class _PerChat:
 CHAT_FIELDS = ("cid", "title_text", "project", "project_mode", "agent", "model", "shown_model",
                "ephemeral", "local", "info", "todos", "busy", "turn", "last_turn",
                "stop_requested", "reconnecting", "queue", "pending", "orchestrator", "child_of",
-               "attachments", "last_user", "last_reply", "tools_expanded", "perm_mode", "unseen")
+               "attachments", "last_user", "last_reply", "tools_expanded", "perm_mode", "unseen",
+               "helper_next")
 
 
 def _subsequence_gaps(q: str, t: str) -> int | None:
