@@ -81,6 +81,16 @@ def pull_info(slug: str | None, base: str) -> dict:
     out["uncommitted"] = len([x for x in (st or "").splitlines() if x.strip()])
     log = _git(repo, "log", "-1", "--format=%h %s")
     out["last_commit"] = (log.strip() or None) if log else None
+    if settings.gitea_enabled:
+        # the same project on Gitea (approved commits push main there): what a
+        # teammate with a Gitea account clones
+        try:
+            from . import gitea
+            out["gitea_clone"] = f"git clone {gitea.public_url()}/{gitea.owner()}/{slug}.git"
+        except Exception:  # noqa: BLE001 — the helper never fails on Gitea's account
+            pass
+    else:
+        out["gitea"] = "not set up on this server (python -m backend.cli gitea-setup)"
     if out["uncommitted"]:
         out["note"] = (out["note"] + " " if out["note"] else "") + (
             "only committed work is served; the uncommitted files land once a "

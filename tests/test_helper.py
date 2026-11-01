@@ -77,3 +77,19 @@ def test_long_manual_keeps_key_sections():
     out = helper.manual_for_prompt(text)
     assert "body getting your code" in out and "body terminal client" in out
     assert "body memory" not in out and out.startswith("Sections: architecture")
+
+
+def test_pull_info_counts_every_untracked_file_and_names_gitea(repo, monkeypatch):
+    # an untracked folder counts its files (the sidebar's git section does), not one line
+    (repo / "src").mkdir()
+    (repo / "src" / "x.js").write_text("x")
+    (repo / "src" / "y.js").write_text("y")
+    assert helper.pull_info("demo", "http://h:1")["uncommitted"] == 3
+    monkeypatch.setattr(settings, "gitea_enabled", False)
+    assert "not set up" in helper.pull_info("demo", "http://h:1")["gitea"]
+    from backend import gitea
+    monkeypatch.setattr(settings, "gitea_enabled", True)
+    monkeypatch.setattr(gitea, "public_url", lambda: "http://10.0.0.82:3000")
+    monkeypatch.setattr(gitea, "owner", lambda: "op")
+    i = helper.pull_info("demo", "http://h:1")
+    assert i["gitea_clone"] == "git clone http://10.0.0.82:3000/op/demo.git" and "gitea" not in i

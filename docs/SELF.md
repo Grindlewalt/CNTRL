@@ -49,13 +49,18 @@ returns the commands for a project plus the uncommitted count and last commit;
 the terminal's `/pull` prints them.
 
 With Gitea enabled (`python -m backend.cli gitea-setup`, see docs/gitea.md)
-the operator can browse and clone there too (port 3000 by default). They sign
-in with their Jav3 username and the Gitea password chosen at setup (setup
-offers to reuse the Jav3 password; without a terminal it wrote a random one to
-`~/.config/jarvis/gitea-admin.password` on the host and Gitea asks for a new
-one at first sign-in). `gitea-setup --access` gives other Gitea users read
-access. The admin and bot API tokens setup minted are the server's own and stay
-on the host.
+each project is also a private repo there (port 3000 by default): approved
+commits push main to it, and a helper turn's project info carries its clone
+command. The operator signs in with their Jav3 username and the Gitea password
+chosen at setup (setup offers to reuse the Jav3 password; without a terminal it
+wrote a random one to `~/.config/jarvis/gitea-admin.password` on the host and
+Gitea asks for a new one at first sign-in). This is how to give someone else
+read access without handing out the Jav3 password: create them an account on
+the web app's Git page (nav ⋯ menu, Accounts card; password session only), and
+every enabled account that is not an admin gets read on every repo at once
+(new repos and re-enabled accounts too; `gitea-setup --access` re-applies it).
+Write access per repo is the Git page's Access row. The admin and bot API tokens
+setup minted are the server's own and stay on the host.
 
 ## logins and tokens
 
