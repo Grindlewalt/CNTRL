@@ -1849,6 +1849,7 @@ class ChatState:
         self.queue: list[str] = []
         self.pending: list = []               # QueuedMsg posted mid-turn, not yet delivered
         self.orchestrator = False             # this chat is an orchestrator (/orchestration)
+        self.helper_next = False              # /helper: the next turn carries the manual
         self.child_of: int | None = None      # this view is an agent under that conversation
         self.attachments: list[str] = []
         self.last_user: str | None = None
@@ -11122,6 +11123,9 @@ def build_tui(base: str, token: str, **kw):
                 body["permission_mode"] = self.perm_mode
             if self.model:
                 body["model"] = self.model
+            if self.helper_next:
+                # /helper: this one turn carries the manual (an older server ignores it)
+                body["helper"], self.helper_next = True, False
             return body
 
         def send(self, text: str) -> None:
@@ -11856,6 +11860,10 @@ def build_tui(base: str, token: str, **kw):
                 return f"[$warning]▣[/] {' · '.join(bits)} · [$warning]interrupted[/]"
             if not turn.done:
                 return f"[$warning]▣[/] {' · '.join(bits)} · [$warning]stream lost[/]"
+            wrote = any(c.get("ok") and c.get("name") in ("write_file", "edit_file")
+                        for c in turn.tools)
+            if wrote and not turn.local and self._project_label() not in (None, "no project"):
+                bits.append("[$primary]/pull[/] gets the code")
             return f"[$primary]▣[/] {' · '.join(bits)}"
 
         async def _turn_footer(self, turn: TurnState) -> None:
@@ -12577,6 +12585,12 @@ def build_tui(base: str, token: str, **kw):
                                   "/stop-project)", "[project]",
                                   takes_arg=True, busy_ok=True),
                 "copy": Command(self.c_copy, "copy the last reply", busy_ok=True, leader="y"),
+                "pull": Command(self.c_pull, "the git commands that bring this chat's "
+                                "project onto this machine (the first one copied)",
+                                "[project]", takes_arg=True, busy_ok=True),
+                "helper": Command(self.c_helper, "ask about Jav3 itself: the next message "
+                                  "carries its manual (pulling code, logins and tokens, keys, "
+                                  "boxes, approvals)", "[question]", takes_arg=True),
                 "export": Command(self.c_export, "save this chat as markdown, here by "
                                   "default (default <location> sets where)", "[location|default <location>]",
                                   takes_arg=True, busy_ok=True, leader="x"),
@@ -13161,6 +13175,50 @@ def build_tui(base: str, token: str, **kw):
                 raise CliError("no reply to copy yet")
             how = copy_to_clipboard(self.last_reply, osc52=self.copy_to_clipboard)
             self.notify(f"copied the last reply ({how})")
+
+        async def c_pull(self, arg: str) -> None:
+            """/pull [project]: the commands that bring a project's code here. The server
+            adds what is not committed yet (only commits are served); a chat-only login or
+            an older server gets the commands alone, built from the address in use."""
+            slug = arg.strip() or self._project_label()
+            if not slug or slug == "no project":
+                raise CliError("this chat has no project: /pull <project>")
+            info: dict = {}
+            try:
+                info = await self.api("GET", "/api/helper/pull",
+                                      params={"project": slug, "base": self.base}) or {}
+            except CliError:
+                pass
+            clone = info.get("clone") or f"git clone {self.base.rstrip('/')}/git/{slug}"
+            pull = info.get("pull") or f"cd {slug} && git pull"
+            if info and not info.get("clone"):          # serving off, or no such project
+                raise CliError(info.get("note") or f"the server can't serve {slug}")
+            here = (Path.cwd() / slug / ".git").is_dir()
+            lines = [f"get {slug}" + (f" (last commit {info['last_commit']})"
+                                      if info.get("last_commit") else ""),
+                     f"  {clone}" + ("" if here else "      ← copied"),
+                     f"  {pull}" + ("      ← copied (it is already here)" if here else ""),
+                     "git asks for your Jav3 username and password. To keep it: "
+                     + ("git config --global credential.helper osxkeychain"
+                        if sys.platform == "darwin" else
+                        "git config --global credential.helper cache")]
+            n = info.get("uncommitted") or 0
+            if n:
+                lines.append(f"{_plural(n, 'file')} not committed yet: only commits are "
+                             "served, so they arrive once a commit is approved "
+                             "(ctrl+x v, Queue)")
+            copy_to_clipboard(pull if here else clone, osc52=self.copy_to_clipboard)
+            await self.say("\n".join(lines))
+
+        async def c_helper(self, arg: str) -> None:
+            """/helper [question]: the next message (this one, with a question) carries
+            Jav3's own manual, so the agent can help with Jav3 itself."""
+            self.helper_next = True
+            if arg.strip():
+                self.send(arg.strip())
+                return
+            await self.say("helper on for your next message: ask about Jav3 itself "
+                           "(getting your code, logins and tokens, keys, boxes, approvals)")
 
         def _export_default(self) -> str:
             loc = self._load_settings().get("export_dir")

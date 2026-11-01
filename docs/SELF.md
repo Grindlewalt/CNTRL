@@ -80,11 +80,14 @@ operator the steps; they do it.
 `jav3` is a keyboard-first copy of the web app. `/help` lists everything. Keys:
 - ctrl+t splits the tile with a new chat; ctrl+w closes the tile
 - ctrl+x then a key is the leader: arrows move between tiles, z zooms, t new
-  tab, w close tab, 1-9 jump to a tab, [ ] previous or next tab, v security,
+  tab, w close tab, 1-9 jump to a tab, [ ] previous or next tab, v security
+  (opens a Security tab, or jumps to the one open, so the chat stays in view),
   c boxes (/vms), b notifications
 - ctrl+o opens or folds every run of tool steps; tab picks a row (enter opens,
   right shows all of it, esc goes back)
-- ctrl+b notifications sidebar; ctrl+n new chat; ctrl+p palette; ctrl+g edits
+- ctrl+b shows or hides the sidebar (this turn and the chat: time, tokens,
+  cost; agents; git changes; todo; box; security waiting; notifications; the
+  connection), its x hides it too; ctrl+n new chat; ctrl+p palette; ctrl+g edits
   the prompt in $EDITOR; ctrl+j new line
 - esc esc interrupts the running turn; ctrl+c clears, interrupts, twice quits
 - shift+tab cycles permissions (yolo, auto, ask); left and right on an empty
