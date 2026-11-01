@@ -198,6 +198,8 @@ app.include_router(artifacts_api.router)
 app.include_router(vm_api.router)
 app.include_router(egress_api.router)
 app.include_router(egress_api.security_router)
+from . import security_glance  # noqa: E402
+app.include_router(security_glance.router)
 app.include_router(reviewer_api.router)
 app.include_router(gui.router)
 app.include_router(events_api.router)
