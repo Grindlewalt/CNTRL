@@ -1659,6 +1659,32 @@ def _fmt_tokens(n: int | None) -> str:
     return f"{n / 1000:.1f}k" if n >= 10_000 else f"{n:,}"
 
 
+class Link:
+    """The connection to the server, in words the operator can act on. One per app
+    (every panel talks to the same server). The live-line work (nov1 contract, L)
+    keeps it current; the sidebar foot and the status row read it.
+
+    state: "idle"         no stream open and nothing checked yet
+           "live"         bytes arrived recently (a keepalive counts)
+           "quiet"        a stream is open but nothing for LINK_QUIET_S
+           "reconnecting" lost; trying again (tries, why)
+           "down"         gave up, or the server can't be reached at all (why)"""
+
+    def __init__(self) -> None:
+        self.state = "idle"
+        self.why = ""                         # one line when not live, e.g. "your network is down"
+        self.where = "client"                 # whose side the fault is: client | server | provider
+        self.last_byte: float | None = None   # monotonic: last bytes from the server, keepalives too
+        self.tries = 0
+
+    def beat(self) -> None:
+        self.last_byte = time.monotonic()
+        self.state, self.why, self.tries = "live", "", 0
+
+    def beat_age(self) -> float | None:
+        return None if self.last_byte is None else time.monotonic() - self.last_byte
+
+
 class TurnState:
     """What one streaming turn has on screen so far."""
 
@@ -9740,6 +9766,7 @@ def build_tui(base: str, token: str, **kw):
             self.cramped = False                # the window is too small for the tiles
             self.local_execs: dict[int, LocalExecutor] = {}
             self.local_cids: set[int] = set()         # chats this client opened as /local
+            self.link = Link()                        # the connection, in words (Link)
             self.whoami = "?"
             self.logged_in: bool | None = None    # None = not checked yet
             self.notices: list[tuple[float, str, str]] = []   # (time, kind, text), newest first
