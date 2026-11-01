@@ -25,6 +25,7 @@ def test_summary_counts_thinking_as_time_not_a_step():
     steps = [("read_file", {"path": "a"}, True)]
     assert jav3.fold_summary(steps, 40) == "1 step · read · thought 40s"
     assert jav3.fold_summary([], 8) == "thought for 8s"
+    assert jav3.fold_summary([], 0.4) == "thought briefly"      # not "thought for 0s"
     assert jav3.fold_summary(steps) == "1 step · read"
 
 
@@ -62,7 +63,7 @@ async def test_thinking_row_live_line_summary_and_ctrl_o(cfg):
         assert summ.startswith("▸ 1 step · read · thought ")
         await pilot.press("ctrl+o")
         await pilot.pause(0.2)
-        assert tv.display and "above a speed" in _plain(tv) and "thought for" in _plain(tv)
+        assert tv.display and "above a speed" in _plain(tv) and ("thought for" in _plain(tv) or "thought briefly" in _plain(tv))
         feed.send({"type": "final", "content": "ok", "conversation_id": 9})
         assert await _until(pilot, lambda: not app.busy)
 
@@ -76,7 +77,7 @@ async def test_thinking_without_tools_still_gets_a_fold(cfg):
         feed.send({"type": "think", "text": "hmm"}, {"type": "token", "text": "Hi"})
         assert await _until(pilot, lambda: len(app.query("Reply")) == 1)
         await pilot.pause(0.2)
-        assert _plain(app.query("FoldLine").first()).startswith("▸ thought for ")
+        assert _plain(app.query("FoldLine").first()).startswith(("▸ thought for ", "▸ thought briefly"))
         feed.send({"type": "final", "content": "Hi", "conversation_id": 9})
         assert await _until(pilot, lambda: not app.busy)
 

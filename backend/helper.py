@@ -75,7 +75,9 @@ def pull_info(slug: str | None, base: str) -> dict:
     else:
         out["clone"] = f"git clone {base}/git/{slug}"
         out["pull"] = f"cd {slug} && git pull"
-    st = _git(repo, "status", "--porcelain")
+    # every untracked file, not one line per untracked folder: the same count the
+    # project's git status (gitgate) and the terminal's sidebar show
+    st = _git(repo, "status", "--porcelain", "--untracked-files=all")
     out["uncommitted"] = len([x for x in (st or "").splitlines() if x.strip()])
     log = _git(repo, "log", "-1", "--format=%h %s")
     out["last_commit"] = (log.strip() or None) if log else None

@@ -1164,11 +1164,16 @@ def fold_verb(name: str, args) -> str:
     return (title.split() or [name])[0].lower()
 
 
+def thought_words(secs: float) -> str:
+    """`thought for 14s`, or `thought briefly` under a second (not `thought for 0s`)."""
+    return f"thought for {_elapsed(secs)}" if secs >= 1 else "thought briefly"
+
+
 def fold_summary(steps: list[tuple[str, object, bool | None]], thought: float = 0.0) -> str:
     """`4 steps · grep, read, edit, run` for the finished steps (name, args, ok) of a
     fold; a failed one shows as `4 steps (1 failed)`. At most 5 verbs, then ..."""
     if not steps:
-        return f"thought for {_elapsed(thought)}" if thought else "no steps"
+        return thought_words(thought) if thought else "no steps"
     verbs: list[str] = []
     for name, args, _ok in steps:
         v = fold_verb(name, args)
@@ -1177,7 +1182,7 @@ def fold_summary(steps: list[tuple[str, object, bool | None]], thought: float = 
     failed = sum(1 for _n, _a, ok in steps if ok is False)
     head = _plural(len(steps), "step") + (f" ({failed} failed)" if failed else "")
     return (f"{head} · {', '.join(verbs[:5])}" + (", …" if len(verbs) > 5 else "")
-            + (f" · thought {_elapsed(thought)}" if thought else ""))
+            + (f" · {thought_words(thought).replace(' for ', ' ')}" if thought else ""))
 
 
 def _tok(n: int) -> str:
@@ -3442,7 +3447,7 @@ def build_tui(base: str, token: str, **kw):
             if len(body) > self.MAX_CHARS:
                 body = "…" + body[-self.MAX_CHARS:]
             if self.done:
-                head = f"[$text-muted]▾ thought for {_elapsed(self.secs())}[/]"
+                head = f"[$text-muted]▾ {thought_words(self.secs())}[/]"
             else:
                 head = f"[$warning]{frame or '~'}[/] [$text-muted]thinking…[/]"
             text = head + (f"\n[$text-muted]{_esc(body)}[/]" if body else "")
@@ -3507,7 +3512,9 @@ def build_tui(base: str, token: str, **kw):
             if self.live:
                 run = next((tv for tv in tools if not tv.done), None)
                 think = next((tv for tv in thinks if not tv.done), None)
-                title = tool_title(run.tname, run.args)[1] if run else "thinking"
+                # no tool running and no thought streaming: the next round has not
+                # started arriving yet. "thinking" here was a guess (2026-11-01)
+                title = tool_title(run.tname, run.args)[1] if run else "waiting for the model"
                 t = self.turn
                 tin, tout, toks = t.tokens() if t is not None else (None, 0, None)
                 step = t.ntools if t is not None else len(tools)
