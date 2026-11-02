@@ -5980,7 +5980,11 @@ def build_tui(base: str, token: str, **kw):
                 return
             width = drawer_width(total)
             self.styles.width = width
-            self.styles.height = "100%"
+            # it stops above the focused tile's prompt, which stays in sight under it
+            block = self.app.focused_chat.prompt_block
+            below = block.outer_size.height if block is not None and block.is_attached else 0
+            area = self.app.panel_area.size.height
+            self.styles.height = max(5, area - below) if area and below else "100%"
             self.styles.offset = (0 if self.kind == "agents" else total - width, 0)
             self._struct = None
             self.render_chrome()
@@ -9993,7 +9997,6 @@ def build_tui(base: str, token: str, **kw):
         /* an unfocused tile's prompt: its draft and meta, dimmed, no accent bar */
         .prompt.-idle { border-left: thick $surface; }
         .prompt.-idle Editor { color: $text-muted; }
-        .prompt.-idle .meta { text-opacity: 60%; }
         /* a page other than the chat is showing: the prompt is one line that runs
            /page commands (the chat's meta row has nothing to say there) */
         .pbottom.paged .prompt { margin-top: 0; padding: 0 2; }
@@ -10007,7 +10010,7 @@ def build_tui(base: str, token: str, **kw):
                  background: $surface; }
         Editor:focus { border: none; }
         .meta { height: 1; margin: 1 0 1 0; }
-        #status { height: 1; margin: 0 0 0 0; }
+        #status { height: 1; margin: 0 0 0 0; padding: 0 2; }
         #status-left { width: 1fr; color: $text-muted; }
         #status-right { width: auto; color: $text-muted; }
         Picker, Confirm, Ask, Help, LocalApprove, View, ServiceApprove, ProfileForm {

@@ -417,7 +417,8 @@ async def test_the_drawer_slides_from_its_own_edge_and_leaves_a_panel_visible_at
         d = await ready(pilot, app, "agents")
         area = app.panel_area.size
         assert d.region.x == 0 and d.region.width == jav3.drawer_width(80) == 36
-        assert d.region.height == area.height
+        below = app.focused_chat.prompt_block.outer_size.height   # the prompt stays in sight
+        assert d.region.height == area.height - below
         assert area.width - d.region.width >= jav3.PANEL_MIN_COLS    # a panel's worth stays
         await pilot.press("escape")
         d = await ready(pilot, app, "sessions", n=2)
