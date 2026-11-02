@@ -93,3 +93,22 @@ def test_pull_info_counts_every_untracked_file_and_names_gitea(repo, monkeypatch
     monkeypatch.setattr(gitea, "owner", lambda: "op")
     i = helper.pull_info("demo", "http://h:1")
     assert i["gitea_clone"] == "git clone http://10.0.0.82:3000/op/demo.git" and "gitea" not in i
+
+
+def test_pull_info_pr(repo, tmp_path, monkeypatch):
+    import sqlite3
+    db = tmp_path / "x.db"
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE git_requests (id INTEGER, project_slug TEXT, kind TEXT, "
+                "status TEXT, branch TEXT)")
+    con.execute("INSERT INTO git_requests VALUES (4, 'demo', 'merge', 'pending', "
+                "'agent/orch-7f3a2c')")
+    con.commit()
+    con.close()
+    monkeypatch.setattr(settings, "db_path", db)
+    pr = helper.pull_info("demo", "http://h:8000")["pr"]
+    assert pr["request_id"] == 4 and pr["branch"] == "agent/orch-7f3a2c"
+    assert pr["clone"] == ("git clone -b agent/orch-7f3a2c http://h:8000/git/demo "
+                           "demo-pr7f3a2c")
+    assert pr["fetch"].startswith("git fetch origin agent/orch-7f3a2c")
+    assert "pr" not in helper.pull_info("other", "http://h:8000")
