@@ -52,6 +52,23 @@ PROTECTED = {".staging", ".git", ".context.json"}
 # _migrate_secrules); the log's new_file flags remember what predates it.
 
 
+def _root(key: str) -> Path:
+    """Where <key>'s files are: the project dir, or an orchestrator item's copy."""
+    from . import worktrees
+    return worktrees.resolve(key).dir
+
+
+def _is_key(key: str) -> bool:
+    from . import worktrees
+    return worktrees.is_work_key(key)
+
+
+def _proj(key: str) -> str:
+    """The project policy (flags, taint, rules) belongs to."""
+    from . import worktrees
+    return worktrees.project_of(key) or key
+
+
 def _pkey(slug: str) -> str:
     """What the caches below are keyed by: the project's directory, so two
     state dirs (a test's, a restored backup) never share one."""
@@ -107,6 +124,7 @@ async def _in_head(slug: str, rel: str) -> bool | None:
     """Does the project's git HEAD hold <rel>? A project with no repo or no
     commit holds nothing. None when git could not answer: that never excuses
     a flag."""
+    slug = _proj(slug)
     if not (settings.projects_dir / slug / ".git").exists():
         return False
     try:
@@ -139,7 +157,7 @@ _seen_mods: dict[str, set[str]] = {}
 def _scan_project_modules(slug: str) -> set[str]:
     out: set[str] = set()
     n = 0
-    for dirpath, dirnames, filenames in os.walk(settings.projects_dir / slug):
+    for dirpath, dirnames, filenames in os.walk(_root(slug)):
         dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
         out.update(dirnames)                 # a package the project itself holds
         for fn in filenames:
@@ -204,7 +222,7 @@ class SecretLeakError(ValueError):
 def resolve(slug: str, rel: str) -> Path | None:
     """The canonical file, or None if it doesn't exist. (The guest shim's
     version overlays the turn's pending writes; host-side a write IS the file.)"""
-    p = safe_join(settings.projects_dir / slug, rel)
+    p = safe_join(_root(slug), rel)
     return p if p.is_file() else None
 
 
@@ -217,7 +235,7 @@ def pending_paths(slug: str) -> dict[str, str]:
 async def _check(slug: str, rel: str, content: bytes) -> Path:
     """The refusals every write gets, landing or held: the path (PROTECTED, no
     escape) and a real secret value. Returns the destination."""
-    project = settings.projects_dir / slug
+    project = _root(slug)
     dest = safe_join(project, rel)
     top = dest.relative_to(project.resolve()).parts[0]  # normalized: '../' resolved
     if top in PROTECTED or top.casefold() == ".context.json":
@@ -243,8 +261,8 @@ async def apply_write_gated(slug: str, rel: str, content: bytes, *,
     secret refusals, nothing written, the prompt keeps the file as it was.
     Everything else lands exactly as apply_write does. Returns (triggers, held)."""
     if tainted:
-        from . import alwaysloaded
-        if alwaysloaded.is_loaded(slug, rel):
+        from . import alwaysloaded, worktrees
+        if not worktrees.is_work_key(slug) and alwaysloaded.is_loaded(slug, rel):
             await _check(slug, rel, content)
             await alwaysloaded.hold(slug, rel, content)
             return [], True
@@ -304,7 +322,7 @@ async def apply_delete(slug: str, rel: str, *, tainted: bool = False) -> list[st
     dest = await _check(slug, rel, b"")
     if tainted:
         from . import alwaysloaded
-        if alwaysloaded.is_loaded(slug, rel):
+        if not _is_key(slug) and alwaysloaded.is_loaded(slug, rel):
             raise DeleteRefused("a file that rides every prompt cannot be deleted by a "
                                 "turn that read untrusted content")
     if not dest.is_file():
@@ -318,7 +336,7 @@ async def apply_delete(slug: str, rel: str, *, tainted: bool = False) -> list[st
     dest.unlink()
     # a directory the delete emptied goes too (git does not track it; an empty
     # folder left behind is only clutter), never past the project root
-    project = (settings.projects_dir / slug).resolve()
+    project = (_root(slug)).resolve()
     d = dest.parent
     while d != project and d.is_relative_to(project):
         try:
@@ -336,6 +354,7 @@ async def apply_delete(slug: str, rel: str, *, tainted: bool = False) -> list[st
 async def _raise_flag(slug: str, rel: str, trigger: str, detail: dict, *,
                       severity: str = "warn", refused: bool = False,
                       rule: str | None = None) -> None:
+    slug = _proj(slug)
     """One deduped security event per (project, path, trigger): an agent
     iterating on a flagged file must not drown the bell. Best-effort — an
     alerting failure never fails the write it annotates.
