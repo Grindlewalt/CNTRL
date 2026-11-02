@@ -31,6 +31,12 @@ async def require_project() -> str:
     return slug
 
 
+async def require_files() -> str:
+    """The host's require_files (nov2): where the file tools work. The host already sent
+    that as this turn's slug (an orchestrator item's copy, or the project itself)."""
+    return await require_project()
+
+
 async def active_slug() -> str | None:
     return turnctx.active_slug.get()
 
