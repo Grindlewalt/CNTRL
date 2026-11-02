@@ -14,6 +14,7 @@ dir given explicitly, onto agent/<job6>-<part> (agent/orch-<job6> for the merge 
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 from dataclasses import dataclass
@@ -80,24 +81,116 @@ def project_of(key: str | None) -> str | None:
     return m["slug"] if m else key
 
 
-# --- implemented by agent B (docs/nov2-contract.md) ------------------------------------
+# --- agent B (docs/nov2-contract.md) ---------------------------------------------------
+
+BASE_PREFIX = "refs/jav3/base/"
+last_dirty: dict[str, int] = {}     # job6 -> files uncommitted at the job's start
+
+
+def _pdir(slug: str) -> Path:
+    return settings.projects_dir / slug
+
 
 async def base_snapshot(slug: str, job_id: str | int) -> str:
     """The job's base: a commit of the project dir as it is now (uncommitted work
-    included) on top of HEAD, kept at refs/jav3/base/<job6>; HEAD itself if clean."""
-    raise NotImplementedError
+    included) on top of HEAD, kept at refs/jav3/base/<job6>; HEAD itself if clean.
+    The number of uncommitted files is left in `last_dirty[job6]`."""
+    from . import gitsafe, gitgate
+    await gitgate.ensure_repo(slug)
+    gd, wt = _pdir(slug) / ".git", _pdir(slug)
+    tag = job_tag(job_id)
+    ref = BASE_PREFIX + tag
+    head = await gitsafe.rev(gd, "HEAD")
+    sha = await gitsafe.rev(gd, ref)
+    if not sha:
+        sha = await gitsafe.snapshot(gd, wt, ref, "jav3 job base", start="HEAD")
+        if sha is None:
+            sha = head
+            if head:
+                await gitsafe.git(gd, "update-ref", ref, head, check=True)
+    if head and sha and sha != head:
+        _, o, _ = await gitsafe.git(gd, "diff-tree", "-r", "--name-only", head, sha)
+        last_dirty[tag] = len([x for x in o.split("\n") if x])
+    else:
+        last_dirty[tag] = 0
+    return sha
+
+
+async def _materialize(git_dir: Path, dest: Path, tree_ish: str) -> None:
+    import io
+    import tarfile
+    from . import gitsafe
+    proc = await asyncio.create_subprocess_exec(
+        "git", *gitsafe.HARDEN, f"--git-dir={git_dir}", "archive", "--format=tar", tree_ish,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        env=gitsafe._env(None))
+    out, err = await proc.communicate()
+    if proc.returncode != 0:
+        raise gitsafe.GitError(f"git archive failed: {err.decode()[:300]}")
+    dest.mkdir(parents=True, exist_ok=True)
+    root_ = dest.resolve()
+    with tarfile.open(fileobj=io.BytesIO(out)) as tf:
+        for m in tf.getmembers():
+            if not (m.isfile() or m.isdir()):
+                continue
+            target = (dest / m.name).resolve()
+            if root_ != target and root_ not in target.parents:
+                continue
+            tf.extract(m, dest)
 
 
 async def create(slug: str, job_id: str | int, part: str, base: str) -> Work:
     """Materialize the copy for `part` at `base` (agent/<job6>-<part> created there),
     or return the existing one (a retry of the same item reuses its copy)."""
-    raise NotImplementedError
+    from . import gitsafe
+    w = resolve(work_key(slug, job_id, part))
+    if not w.dir.exists() or not any(w.dir.iterdir()):
+        await _materialize(w.git_dir, w.dir, base)
+    if not await gitsafe.rev(w.git_dir, f"refs/heads/{w.branch}"):
+        await gitsafe.git(w.git_dir, "update-ref", f"refs/heads/{w.branch}", base,
+                          check=True)
+    return w
 
 
 async def remove(key: str, *, delete_branch: bool = True) -> None:
-    raise NotImplementedError
+    import shutil
+    from . import gitsafe
+    if not is_work_key(key):
+        return
+    w = resolve(key)
+    if w.dir.exists():
+        await asyncio.to_thread(shutil.rmtree, w.dir, True)
+    if delete_branch and w.branch and w.git_dir.exists():
+        await gitsafe.git(w.git_dir, "update-ref", "-d", f"refs/heads/{w.branch}")
+
+
+def _live_jobs() -> set[str]:
+    """job6 tags of jobs still running or awaiting a merge request."""
+    tags: set[str] = set()
+    try:
+        from . import plan as _plan
+        for p in settings.projects_dir.iterdir():
+            pl = _plan.load(p.name) if p.is_dir() else None
+            if not pl:
+                continue
+            if pl.get("status") in ("running", "pending") or \
+                    (pl.get("merge") or {}).get("state") in ("merging", "resolving", "filed"):
+                tags.add(job_tag(pl.get("job_id")))
+    except Exception:
+        pass
+    return tags
 
 
 async def reap() -> list[str]:
     """At startup and hourly: copies with no live or pending job. Returns removed keys."""
-    raise NotImplementedError
+    out: list[str] = []
+    r = root()
+    if not r.is_dir():
+        return out
+    live = _live_jobs()
+    for d in sorted(r.iterdir()):
+        m = KEY_RE.match(d.name)
+        if m and m["job"] not in live:
+            await remove(d.name)
+            out.append(d.name)
+    return out
