@@ -2046,6 +2046,16 @@ class ChatState:
         self.log = None                       # the ChatLog (the transcript)
         self.header = None
         self.new_hint = None
+        # this tile's own prompt (set when the panel is built) and what it is doing
+        self.editor = None                    # the Editor
+        self.prompt_block = None              # the popup + prompt + meta block
+        self.popup_list = None                # the OptionList under the transcript
+        self.prompt_box = None                # the coloured-bar container
+        self.meta_row = None                  # the Static under the editor
+        self.hist_pos: int | None = None      # ↑ ↓ history browsing position
+        self.hist_draft = ""                  # the text typed before browsing started
+        self.popup_items: list[tuple[str, str]] = []   # (kind, value)
+        self.arg_deliberate = False           # the argument menu was opened by Tab or ↑ ↓
 
     def settings_for_new(self, number: int) -> "ChatState":
         """A new panel's chat: nothing said yet, in the same project, as the same agent,
@@ -2072,7 +2082,7 @@ CHAT_FIELDS = ("cid", "title_text", "project", "project_mode", "agent", "model",
                "ephemeral", "local", "info", "todos", "busy", "turn", "last_turn",
                "stop_requested", "reconnecting", "queue", "pending", "orchestrator", "child_of",
                "attachments", "last_user", "last_reply", "tools_expanded", "perm_mode", "unseen",
-               "helper_next")
+               "helper_next", "hist_pos", "hist_draft", "popup_items", "arg_deliberate")
 
 
 def _subsequence_gaps(q: str, t: str) -> int | None:
@@ -2215,9 +2225,9 @@ def parse_page_args(arg: str) -> tuple[list[str], bool]:
 
 MAX_PANELS = 4
 PANEL_MIN_COLS = 28          # a panel's frame, border included: the narrowest that reads
-PANEL_MIN_ROWS = 8           # ...and the shortest (6 inside the border)
+PANEL_MIN_ROWS = 10          # ...and the shortest (8 inside the border: header, 5 of transcript, prompt + meta)
 PANEL_HARD_COLS = 20         # under this a panel is unusable: the tiles give way to one panel
-PANEL_HARD_ROWS = 5          # ...alone (a window shrunk after the panels were made)
+PANEL_HARD_ROWS = 7          # ...alone (a window shrunk after the panels were made)
 
 
 class PanelSplit:
@@ -3702,9 +3712,14 @@ def build_tui(base: str, token: str, **kw):
         trailing backslash) add a line; ↑ on the first line walks history."""
 
         class Submitted(Message):
-            def __init__(self, text: str) -> None:
+            def __init__(self, text: str, chat=None) -> None:
                 super().__init__()
                 self.text = text
+                self.chat = chat
+
+        def __init__(self, chat=None, **kw) -> None:
+            super().__init__(**kw)
+            self.chat = chat            # the tile this prompt belongs to
 
         async def _on_key(self, event) -> None:
             app = self.app
@@ -3749,7 +3764,7 @@ def build_tui(base: str, token: str, **kw):
                     self.text = self.text[:-1] + "\n"
                     self.move_cursor(self.document.end)
                 else:
-                    self.post_message(self.Submitted(self.text))
+                    self.post_message(self.Submitted(self.text, self.chat))
                 return
             if key in ("shift+enter", "ctrl+j", "alt+enter"):
                 event.stop()
@@ -5133,7 +5148,7 @@ def build_tui(base: str, token: str, **kw):
             return "Chat"
 
         def focus_target(self):
-            return self.app.editor
+            return self.chat.editor
 
         def leave(self) -> None:
             pass                # nothing is under the chat
@@ -5271,7 +5286,16 @@ def build_tui(base: str, token: str, **kw):
             return self.chat.number
 
         def compose(self) -> ComposeResult:
+            chat = self.chat
             yield self.host
+            chat.popup_list = OptionList(classes="popup")
+            chat.editor = Editor(chat, compact=True, show_line_numbers=False,
+                                 highlight_cursor_line=False, classes="prompt-editor",
+                                 placeholder=f'Ask anything… "{self.app.example}"')
+            chat.meta_row = Static(classes="meta")
+            chat.prompt_box = Vertical(chat.editor, chat.meta_row, classes="prompt")
+            chat.prompt_block = Vertical(chat.popup_list, chat.prompt_box, classes="pbottom")
+            yield chat.prompt_block
 
         @staticmethod
         def of(widget) -> "Panel | None":
@@ -5320,7 +5344,7 @@ def build_tui(base: str, token: str, **kw):
 
         def on_descendant_focus(self, event) -> None:
             # a page inside took the focus (a click on it, tab): this panel is the focused one
-            if event.widget is not self.app.editor:
+            if event.widget is not self.chat.editor or self.app.focused_chat is not self.chat:
                 self.app.focus_panel(self.number, refocus=False)
 
     class PanelArea(Widget):
@@ -9949,7 +9973,7 @@ def build_tui(base: str, token: str, **kw):
         Note { padding-left: 2; margin-top: 1; color: $text-muted; }
         Note.warn { color: $warning; }
         Note.error { color: $error; }
-        #bottom { height: auto; padding: 0 2; }
+        .pbottom { height: auto; padding: 0 2; }
         OptionList > .option-list--option-highlighted,
         OptionList:focus > .option-list--option-highlighted {
             /* solid, not a blend: Terminal.app has 256 colours and rounds a
@@ -9957,27 +9981,31 @@ def build_tui(base: str, token: str, **kw):
             background: $primary; color: auto 95%; text-style: bold;
         }
         OptionList > .option-list--option-hover { background: $panel; }
-        #popup { display: none; height: auto; max-height: 12; background: $surface;
+        .popup { display: none; height: auto; max-height: 12; background: $surface;
                  border: none; padding: 0 1; }
-        #popup:focus { border: none; }
-        #prompt { height: auto; border-left: thick $primary; background: $surface;
+        .popup:focus { border: none; }
+        .prompt { height: auto; border-left: thick $primary; background: $surface;
                   padding: 1 2 0 2; margin-top: 1; }
-        #prompt.agent { border-left: thick $secondary; }
-        #prompt.temp { border-left: thick $warning; }
-        #prompt.busy { border-left: thick $accent; }
+        .prompt.agent { border-left: thick $secondary; }
+        .prompt.temp { border-left: thick $warning; }
+        .prompt.busy { border-left: thick $accent; }
+        /* an unfocused tile's prompt: its draft and meta, dimmed, no accent bar */
+        .prompt.-idle { border-left: thick $surface; }
+        .prompt.-idle Editor { color: $text-muted; }
+        .prompt.-idle .meta { text-opacity: 60%; }
         /* a page other than the chat is showing: the prompt is one line that runs
            /page commands (the chat's meta row has nothing to say there) */
-        #bottom.paged #prompt { margin-top: 0; padding: 0 2; }
-        #bottom.paged #meta { display: none; }
-        /* two or more panels: the prompt is one line under them, its meta row kept (no
-           margins) while the focused panel shows a chat */
-        #bottom.multi #prompt { margin-top: 0; padding: 0 2; }
-        #bottom.multi #meta { margin: 0; }
-        #bottom.multi.paged #meta { display: none; }
+        .pbottom.paged .prompt { margin-top: 0; padding: 0 2; }
+        .pbottom.paged .meta { display: none; }
+        /* two or more panels: the compact prompt (no margins): editor row + meta row */
+        .pbottom.multi { padding: 0; }
+        .pbottom.multi .prompt { margin-top: 0; padding: 0 2; }
+        .pbottom.multi .meta { margin: 0; }
+        .pbottom.multi.paged .meta { display: none; }
         Editor { height: auto; max-height: 12; min-height: 1; border: none; padding: 0;
                  background: $surface; }
         Editor:focus { border: none; }
-        #meta { height: 1; margin: 1 0 1 0; }
+        .meta { height: 1; margin: 1 0 1 0; }
         #status { height: 1; margin: 0 0 0 0; }
         #status-left { width: 1fr; color: $text-muted; }
         #status-right { width: auto; color: $text-muted; }
@@ -10075,10 +10103,6 @@ def build_tui(base: str, token: str, **kw):
             self.sidebar_pref: bool | None = None     # None = follow the width
             self._yolo_armed = -100.0                 # when shift+tab last stopped short of yolo
             self.history: list[str] = []
-            self.hist_pos: int | None = None
-            self.hist_draft = ""
-            self.popup_items: list[tuple[str, str]] = []   # (kind, value)
-            self.arg_deliberate = False     # the argument menu was opened by Tab or ↑ ↓
             self.initial = (resume, cont, prompt)
             self.client = None
             self.page_classes = {"agents": AgentsPage, "security": SecurityPage,
@@ -10097,16 +10121,9 @@ def build_tui(base: str, token: str, **kw):
                 with Vertical(id="left"):
                     yield TabBar(id="tabbar")
                     yield PanelArea(id="panels")
-                    with Vertical(id="bottom"):
-                        yield OptionList(id="popup")
-                        with Vertical(id="prompt"):
-                            yield Editor(id="editor", compact=True, show_line_numbers=False,
-                                         highlight_cursor_line=False,
-                                         placeholder=f'Ask anything… "{self.example}"')
-                            yield Static(id="meta")
-                        with Horizontal(id="status"):
-                            yield Static(id="status-left")
-                            yield Static(id="status-right")
+                    with Horizontal(id="status"):
+                        yield Static(id="status-left")
+                        yield Static(id="status-right")
                 with VerticalScroll(id="sidebar", can_focus=False):
                     yield SbSection("title", id="sb-title")
                     yield SbSection("turn", id="sb-context")
@@ -10231,7 +10248,7 @@ def build_tui(base: str, token: str, **kw):
 
         @property
         def editor(self):
-            return self.query_one("#editor", Editor)
+            return self.chat.editor
 
         async def on_mount(self) -> None:
             # With 256 colours (Terminal.app) the three near-black greys all round
@@ -10641,7 +10658,7 @@ def build_tui(base: str, token: str, **kw):
             # text recalled from history must not open the slash menu, or the
             # next arrow key drives the menu instead of walking history; it
             # opens again as soon as the operator types (the text then differs)
-            self._hist_text = ed.text
+            self.chat._hist_text = ed.text
             self.hide_popup()
             ed.move_cursor(ed.document.end)
             return True
@@ -10801,6 +10818,10 @@ def build_tui(base: str, token: str, **kw):
             the FOCUSED chat's (a turn streaming into another panel calls this too)."""
             if not self.is_mounted:
                 return
+            for chat in self.chats.values():        # every tile of the tab has its own prompt
+                if chat is not self.focused_chat and chat.editor is not None:
+                    with self.in_chat(chat):
+                        self._prompt_chrome()
             with self.in_chat(self.focused_chat):
                 self._chrome()
             self._refresh_titles()
@@ -10811,30 +10832,38 @@ def build_tui(base: str, token: str, **kw):
                     chat.panel.refresh_title()
 
         def _placeholder(self) -> str:
-            """What the empty prompt says: with several panels, which one it types into."""
+            """What this tile's empty prompt says."""
             if len(self.chats) == 1:
                 return ("/ for a command · /work back to the chat" if self.paged
                         else f'Ask anything… "{self.example}"')
-            n = self.chat.number
             if self.paged:
-                return f"panel {n} · / for a command · /work back to its chat"
+                return "/ for a command · /work back to its chat"
             tail = _esc("/page [args] [panel]")
             return (f"ask #{self.cid}… or {tail}" if self.cid
-                    else f"ask a new chat (panel {n})… or {tail}")
+                    else f"ask a new chat… or {tail}")
 
         def _chrome(self) -> None:
-            try:
-                prompt = self.query_one("#prompt")
-            except Exception:  # noqa: BLE001 — a dialog is on top
+            if self._prompt_chrome() is False:
                 return
+            self._refresh_status()
+            self._refresh_sidebar()
+            self._chrome_rest()
+
+        def _prompt_chrome(self) -> bool:
+            """The chat in context's prompt: bar colour, look (focused or idle, compact or
+            not, paged), placeholder and the meta row."""
+            chat = self.chat
+            prompt, bottom = chat.prompt_box, chat.prompt_block
+            if prompt is None or not prompt.is_attached:
+                return False
             prompt.set_class(bool(self.agent), "agent")
             prompt.set_class(self.ephemeral, "temp")
             prompt.set_class(self.busy, "busy")
             paged = self.paged
             multi = len(self.chats) > 1
-            bottom = self.query_one("#bottom")
             bottom.set_class(paged, "paged")
             bottom.set_class(multi, "multi")
+            prompt.set_class(multi and chat is not self.focused_chat, "-idle")
             self.editor.placeholder = self._placeholder()
             who = f"[$secondary b]{_esc(self.agent)}[/]" if self.agent else "[$primary b]Jav3[/]"
             model = self._model_label()
@@ -10854,9 +10883,10 @@ def build_tui(base: str, token: str, **kw):
                 bits.append(f"[$success]local {_esc(here.get('cwd') or os.getcwd())}[/]")
             if self.attachments:
                 bits.append(f"[$accent]+{len(self.attachments)} attached[/]")
-            self.query_one("#meta", Static).update("  ".join(bits))
-            self._refresh_status()
-            self._refresh_sidebar()
+            chat.meta_row.update("  ".join(bits))
+            return True
+
+        def _chrome_rest(self) -> None:
             for chat in list(self.chats.values()):   # (a tab switch redoes this)
                 if chat.log is None or not chat.log.is_attached:
                     continue
@@ -12236,7 +12266,7 @@ def build_tui(base: str, token: str, **kw):
             base = [s for s in self.screen_stack if not isinstance(s, ModalScreen)]
             if base and base[-1] is self.screen_stack[0] and not self.paged:
                 with contextlib.suppress(Exception):
-                    base[-1].query_one("#editor", Editor).insert(text)
+                    self.focused_chat.editor.insert(text)
 
         async def local_approve(self, kind: str, summary: str):
             """yes / always / no (None: closed with ctrl+c) from the operator."""
@@ -12464,11 +12494,12 @@ def build_tui(base: str, token: str, **kw):
             text = ev.text
             if not text.strip():
                 return
-            self._remember(text)
-            self.hist_pos = None
-            self.editor.text = ""
-            self.hide_popup()
-            self.dispatch(text)
+            with self.in_chat(ev.chat or self.chat):
+                self._remember(text)
+                self.hist_pos = None
+                self.editor.text = ""
+                self.hide_popup()
+                self.dispatch(text)
 
         def dispatch(self, text: str) -> None:
             s = text.strip()
@@ -12543,14 +12574,18 @@ def build_tui(base: str, token: str, **kw):
         # -- completion popup ---------------------------------------------------------------------
 
         def popup_open(self) -> bool:
-            return self.query_one("#popup", OptionList).display
+            return self.chat.popup_list.display
 
         def hide_popup(self) -> None:
-            self.query_one("#popup", OptionList).display = False
+            self.chat.popup_list.display = False
 
-        @on(TextArea.Changed, "#editor")
+        @on(TextArea.Changed, ".prompt-editor")
         def _editor_changed(self, ev) -> None:
-            self.update_popup()
+            chat = getattr(ev.text_area, "chat", None)
+            if chat is not None and chat is not self.focused_chat:
+                return              # only the prompt being typed in has a popup
+            with self.in_chat(chat or self.chat):
+                self.update_popup()
 
         def _word_before_cursor(self) -> str:
             ed = self.editor
@@ -12561,8 +12596,8 @@ def build_tui(base: str, token: str, **kw):
         def update_popup(self) -> None:
             ed = self.editor
             text = ed.text
-            pop = self.query_one("#popup", OptionList)
-            if self.hist_pos is not None and text == getattr(self, "_hist_text", None):
+            pop = self.chat.popup_list
+            if self.hist_pos is not None and text == getattr(self.chat, "_hist_text", None):
                 pop.display = False
                 return
             items: list[tuple[str, str, str]] = []     # (kind, value, label markup)
@@ -12626,7 +12661,7 @@ def build_tui(base: str, token: str, **kw):
             return out
 
         def popup_key(self, key: str) -> None:
-            pop = self.query_one("#popup", OptionList)
+            pop = self.chat.popup_list
             if key == "escape":
                 self.hide_popup()
                 if self.paged:
@@ -14160,6 +14195,11 @@ def build_tui(base: str, token: str, **kw):
                 return False
             if number == self.focus_no and not refocus:
                 return True                 # a page inside the focused panel took the focus
+            old = self.chats.get(self.focus_no)
+            if old is not None and old.popup_list is not None and old.popup_list.display:
+                with self.in_chat(old):
+                    self.hide_popup()
+            self.esc_armed = 0.0
             self.focus_no = number
             self.panel_area.relayout()
             if refocus:
