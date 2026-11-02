@@ -237,7 +237,7 @@ def plain(app) -> str:
 
 
 def composer(app) -> str:
-    return app.screen_stack[0].query_one("#editor").text
+    return app.editor.text
 
 
 async def finish(srv, app, cid: int = 4) -> None:

@@ -142,10 +142,10 @@ async def test_a_page_opens_by_command_with_its_args_and_esc_goes_back_to_the_ch
         assert page.args == ["calls"] and page.tab == "calls" and app.paged
         assert page.page_title == "Security · Calls" and page.page_visible
         assert app.focused is page                                  # its keys work at once
-        assert app.query_one("#bottom").has_class("paged")
+        assert app.focused_chat.prompt_block.has_class("paged")
         await pilot.press("escape")
         assert await _until(pilot, lambda: _name(app) == "ChatPage" and app.focused is app.editor)
-        assert not app.query_one("#bottom").has_class("paged")
+        assert not app.focused_chat.prompt_block.has_class("paged")
         # the same with /vms images and /agents finished
         page = await _go(pilot, app, "/vms images", "VmsPage")
         assert page.tab == "images" and page.args == ["images"]
@@ -347,10 +347,10 @@ async def test_the_status_row_and_prompt_follow_the_page_showing():
                             in str(app.query_one("#status-left").render()))
         assert "esc back" in str(app.query_one("#status-left").render())
         assert app.editor.placeholder != chat_hint and "/work" in app.editor.placeholder
-        assert not app.query_one("#meta").display                     # the chat's meta row
+        assert not app.focused_chat.meta_row.display                     # the chat's meta row
         await pilot.press("escape")
         assert await _until(pilot, lambda: app.editor.placeholder == chat_hint)
-        assert app.query_one("#meta").display
+        assert app.focused_chat.meta_row.display
 
 
 async def test_chat_keys_are_the_chats_and_the_leader_works_on_a_page():

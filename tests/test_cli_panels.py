@@ -114,7 +114,7 @@ async def test_one_panel_looks_as_it_always_did():
         assert panel.region.size == app.panel_area.size          # fills the area, no frame
         assert not app.panel_area.has_class("-multi")
         assert str(panel.styles.border.top[0] if panel.styles.border.top else "") in ("", "none")
-        assert not app.query_one("#bottom").has_class("multi")
+        assert not app.focused_chat.prompt_block.has_class("multi")
         assert "Ask anything" in app.editor.placeholder
 
 
@@ -139,7 +139,7 @@ async def test_new_panel_splits_the_focused_one_with_a_new_chat_and_takes_the_fo
         app.refresh_chrome()
         assert not app.sidebar_shown() and not app.query_one("#sidebar").display
         assert all(not c.header.display for c in app.chats.values())
-        assert app.query_one("#bottom").has_class("multi")
+        assert app.focused_chat.prompt_block.has_class("multi")
         assert app.focused_panel.has_class("-focused") and not app.chats[1].panel.has_class("-focused")
 
 

@@ -877,7 +877,7 @@ async def test_the_sidebar_waits_for_room():
         app.refresh_chrome()
         await pilot.pause(0.1)
         assert app.query_one("#sidebar").display is False
-        assert app.query_one("#editor").region.width >= 70   # the whole width is the chat's
+        assert app.editor.region.width >= 70   # the whole width is the chat's
         seen: list = []
         app.notify = lambda msg, **kw: seen.append(msg)
         await pilot.press("ctrl+b")                     # says why, changes nothing

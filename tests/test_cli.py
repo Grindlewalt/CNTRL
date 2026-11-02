@@ -1009,7 +1009,7 @@ async def test_tui_orchestration_sends_mode_project_and_braindump(cfg):
         assert body["message"] == "fix the build\nand ship the docs"
         assert body["conversation_id"] is None and "agent" not in body
         assert app.orchestrator
-        assert "orchestrator" in str(app.query_one("#meta").render())
+        assert "orchestrator" in str(app.focused_chat.meta_row.render())
         srv.push({"type": "start", "conversation_id": 30})
         srv.push({"type": "final", "content": "sent 2 agents", "conversation_id": 30})
         assert await _until(pilot, lambda: not app.busy)
@@ -1690,7 +1690,7 @@ async def test_tui_local_chat_shows_local_during_its_first_turn(cfg, tmp_path, m
         await app.handle_event({"type": "start", "conversation_id": 12})
         await pilot.pause(0.1)
         assert app.cid == 12 and app._project_label() is None
-        assert "local" in _text(app.query_one("#meta"))
+        assert "local" in _text(app.focused_chat.meta_row)
 
 
 # --- boxes: services, packages, processes, profiles, /vms (docs/boxes-contract.md) ----
