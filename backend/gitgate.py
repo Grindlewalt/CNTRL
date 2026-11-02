@@ -686,10 +686,21 @@ async def _approve_merge(db, rid: int, row: dict) -> dict:
     rc, _, err = await gitsafe.git(gd, "update-ref", "-m", f"merge {branch}", "HEAD", new, M)
     if rc != 0:
         await _refuse(db, rid, f"main moved while approving; try again ({err.strip()[:120]})")
-    applied, deleted, skipped = [], [], []
+    applied, deleted, skipped, held = [], [], [], []
+    # a file that rides every prompt (alwaysloaded.py) keeps its gate through a PR: a
+    # change a turn that read untrusted content made is held for its own approval, as
+    # it would have been written straight into the project; a PR never deletes one
+    from . import alwaysloaded, taintpaths
+    tainted = set(taintpaths.paths(slug))
+    for key in _job_keys(slug, pl):
+        tainted |= set(taintpaths.paths(key))
     for st, mode, sha, rel in entries:
         dest = safe_join(project, rel)
+        loaded = alwaysloaded.is_loaded(slug, rel)
         if st == "D":
+            if loaded:
+                held.append(rel)
+                continue
             if dest.is_file() or dest.is_symlink():
                 dest.unlink()
             deleted.append(rel)
@@ -698,6 +709,13 @@ async def _approve_merge(db, rid: int, row: dict) -> dict:
             skipped.append(rel)
             continue
         data = await _read_blob(gd, sha)
+        if loaded and rel in tainted:
+            try:
+                await alwaysloaded.hold(slug, rel, data)
+            except Exception as e:                  # noqa: BLE001 — too large: not written
+                log.warning("PR change to always-loaded %s not held: %s", rel, e)
+            held.append(rel)
+            continue
         dest.parent.mkdir(parents=True, exist_ok=True)
         tmp = dest.with_name(f".{dest.name}.jav3-merge")
         tmp.write_bytes(data)
@@ -708,6 +726,9 @@ async def _approve_merge(db, rid: int, row: dict) -> dict:
     error = None
     if skipped:
         error = "not written (symlinks/submodules): " + ", ".join(skipped[:10])
+    if held:
+        note = ("held for your approval (they ride every prompt): " + ", ".join(held[:10]))
+        error = f"{error}; {note}" if error else note
     async with db.execute("SELECT github_remote FROM projects WHERE slug = ?", (slug,)) as cur:
         prow = await cur.fetchone()
     if prow and prow["github_remote"]:

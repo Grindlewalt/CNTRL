@@ -354,7 +354,6 @@ async def apply_delete(slug: str, rel: str, *, tainted: bool = False) -> list[st
 async def _raise_flag(slug: str, rel: str, trigger: str, detail: dict, *,
                       severity: str = "warn", refused: bool = False,
                       rule: str | None = None) -> None:
-    slug = _proj(slug)
     """One deduped security event per (project, path, trigger): an agent
     iterating on a flagged file must not drown the bell. Best-effort — an
     alerting failure never fails the write it annotates.
@@ -366,6 +365,7 @@ async def _raise_flag(slug: str, rel: str, trigger: str, detail: dict, *,
     `rule` is why diffgate.judge calls the flag normal work: it is recorded all
     the same (security.raise_event files it acknowledged, quiet='rule'), only it
     does not alert."""
+    slug = _proj(slug)
     try:
         from . import security
         from .db import get_db
