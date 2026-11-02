@@ -193,6 +193,8 @@ def normalise(plan: dict) -> dict:
         it["history"] = [h for h in (raw.get("history") or []) if isinstance(h, dict)][-HISTORY_KEEP:]
         it["guidance"] = [str(g) for g in (raw.get("guidance") or []) if g][-GUIDANCE_KEEP:]
         it["fixes"] = max(0, int(raw.get("fixes") or 0))
+        if isinstance(raw.get("work"), dict):      # nov2: the item's copy / branch record
+            it["work"] = raw["work"]
         it["continues"] = max(0, int(raw.get("continues") or 0))
         it["blocked_on"] = raw.get("blocked_on") if raw.get("blocked_on") in BLOCKED_ON else None
         it["trail"] = raw.get("trail") if isinstance(raw.get("trail"), dict) else None
@@ -556,7 +558,8 @@ def _assigned_model(raw: dict, allowed: set[str]) -> str | None:
 
 
 async def plan_from_dump(slug: str, dump: str, files=(), *, title: str = "",
-                         models=(), operator: bool = False) -> dict:
+                         models=(), operator: bool = False,
+                         isolation: str = "shared") -> dict:
     """One model call turns the dump into the checklist and persists it as the
     project's plan. Refuses to replace a plan that is running.
 
@@ -592,6 +595,7 @@ async def plan_from_dump(slug: str, dump: str, files=(), *, title: str = "",
         raise ValueError("the planner returned no checklist items")
     known = _known_agents()
     plan = empty_plan(title=title or _title_from(dump), dump=dump)
+    plan["isolation"] = "branches" if isolation == "branches" else "shared"
     items = []
     for raw in raws[:MAX_ITEMS]:
         assignee = str(raw.get("assignee") or "").strip() or None
@@ -1759,6 +1763,14 @@ job is to keep the work moving: a failure or a block is a problem for you to
 solve, not a result to report. Do not do the items' work yourself; you may make
 a small unblocking fix directly (a missing stub, a name clash, a wrong path).
 
+0. Section first: before you plan, call ask_user ONCE with your proposed split into
+   branches. Option 1 is your recommended split, its label ending " (Recommended)"
+   (e.g. "3 branches: physics · track · ui (Recommended)"); the others are a coarser
+   or finer split; the last is always "No branches: write into the project directly".
+   Each item then works in its own copy and ONE pull request comes at the end for
+   the operator; the project is unchanged until they approve it. Pass isolation
+   "branches" (any split) or "shared" (no branches) to orchestrate, and shape the
+   items to the split you were given.
 1. Plan and launch: call orchestrate with the operator's dump — verbatim, plus
    any facts from this conversation the agents need (they will not see it). It
    saves an explicit checklist and runs one agent per item in this project, on

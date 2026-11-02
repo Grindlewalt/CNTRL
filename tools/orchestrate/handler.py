@@ -6,7 +6,8 @@ from backend.writes import SecretLeakError
 
 
 async def run(dump: str, files: list[str] | None = None, run: bool = True,
-              models: list[dict] | None = None, title: str = "") -> str:
+              models: list[dict] | None = None, title: str = "",
+              isolation: str = "branches") -> str:
     if runtime.ephemeral.get():
         # a plan is a persisted file and a team of recorded runs: exactly what
         # an incognito turn promises not to leave behind
@@ -22,13 +23,19 @@ async def run(dump: str, files: list[str] | None = None, run: bool = True,
         return f"error: {e}. Nothing was planned."
     try:
         plan = await plan_mod.plan_from_dump(slug, dump, files or [], models=assigned,
-                                            title=" ".join((title or "").split())[:80])
+                                            title=" ".join((title or "").split())[:80],
+                                            isolation=isolation)
     except SecretLeakError as e:
         return f"error: refused — the dump contains a secret value ({e}). Remove it and retry."
     except (ValueError, RuntimeError) as e:
         return f"error: {e}"
+    out_note = ("Each item works in its own copy on its own branch; the project's files do "
+                "not change until the operator approves the one pull request filed at the end."
+                if plan.get("isolation") == "branches" else "")
     out = [f"Plan '{plan['title']}' — {len(plan['items'])} items saved to "
            f"{slug}/.plan.json:", plan_mod.render_checklist(plan)]
+    if out_note:
+        out.append(out_note)
     notes = await plan_mod.creation_notes(slug, plan)   # what this host can do + plan warnings
     if notes:
         out.append(notes)
