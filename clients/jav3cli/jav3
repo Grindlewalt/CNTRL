@@ -3742,7 +3742,7 @@ def build_tui(base: str, token: str, **kw):
             if key == "tab" and len(app.chats) > 1 and not app.paged:
                 event.stop()
                 event.prevent_default()
-                app.chat.log.focus()
+                (self.chat or app.chat).log.focus()
                 return
             if app.drawer is not None:
                 # the prompt has the keyboard (a click on it): the drawer is done; ← → esc
@@ -5340,11 +5340,12 @@ def build_tui(base: str, token: str, **kw):
             self.refresh_title()
 
         def on_click(self, event) -> None:
-            self.app.focus_panel(self.number, refocus=False)
+            # a click on another tile moves the keyboard there (its prompt, or its page's pick)
+            self.app.focus_panel(self.number, refocus=self.app.focused_chat is not self.chat)
 
         def on_descendant_focus(self, event) -> None:
             # a page inside took the focus (a click on it, tab): this panel is the focused one
-            if event.widget is not self.chat.editor or self.app.focused_chat is not self.chat:
+            if event.widget is not self.chat.editor:      # (a click on a prompt: on_click)
                 self.app.focus_panel(self.number, refocus=False)
 
     class PanelArea(Widget):
