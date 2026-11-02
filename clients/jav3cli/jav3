@@ -10341,8 +10341,10 @@ def build_tui(base: str, token: str, **kw):
 
         @property
         def page(self):
-            """The page showing in that host (the chat, unless another page is over it)."""
-            return self.host.current
+            """The page showing in that host (the chat, unless another page is over it).
+            None for a tile whose panel is not built yet (a tab being mounted)."""
+            panel = self.chat.panel
+            return panel.host.current if panel is not None else None
 
         @property
         def top(self):
@@ -10931,8 +10933,8 @@ def build_tui(base: str, token: str, **kw):
         def refresh_chrome(self) -> None:
             """The prompt's meta row, the status row, the sidebar and the panel titles. Always
             the FOCUSED chat's (a turn streaming into another panel calls this too)."""
-            if not self.is_mounted:
-                return
+            if not self.is_mounted or self.focused_chat.panel is None:
+                return                              # (a tab still mounting)
             for chat in self.chats.values():        # every tile of the tab has its own prompt
                 if chat is not self.focused_chat and chat.editor is not None:
                     with self.in_chat(chat):
@@ -11488,6 +11490,8 @@ def build_tui(base: str, token: str, **kw):
                         with self.in_chat(chat):
                             self.run_worker(self._poll_cost(t), group=f"cost-{chat.number}",
                                             exclusive=True)
+                if self.focused_chat.panel is None:
+                    return        # a tab is mounting: its tile has no panel for a moment
                 self._refresh_titles()            # first: they sit on the base screen, a dialog
                 self._refresh_status()            # over it makes the queries below miss
                 self._refresh_new_hint()
@@ -14510,7 +14514,9 @@ def build_tui(base: str, token: str, **kw):
             """Mount the Panels of a tab just added to `ptabs` and wait for their transcripts."""
             area = self.panel_area
             for chat in tab.chats.values():
-                await area.mount(Panel(chat))
+                panel = Panel(chat)
+                panel.display = tab is self.ptab      # a tab mounting behind the one showing
+                await area.mount(panel)
             for chat in tab.chats.values():
                 for _ in range(100):        # its transcript composes just after it mounts
                     if chat.log is not None and chat.log.is_attached \
@@ -14530,8 +14536,10 @@ def build_tui(base: str, token: str, **kw):
             self.ptabs.append(tab)
             if self.drawer is not None:
                 self.close_drawer()
-            self.ptab_i = len(self.ptabs) - 1
+            # mount first, then show it: the clock ticks while a tile mounts, and a focused
+            # tile with no panel yet crashed the status row (2026-11-02, on the Pi)
             await self._mount_tab(tab)
+            self.ptab_i = len(self.ptabs) - 1
             self.panel_area.relayout()
             self.focus_panel(1)
             return chat
@@ -14631,8 +14639,7 @@ def build_tui(base: str, token: str, **kw):
                 chats = {n: base.settings_for_new(n) for n in tree_leaves(s["tree"])}
                 fresh.append(PanelTab(chats, s["tree"], s["focus"], s["zoomed"]))
             self.ptabs.extend(fresh)
-            self.ptab_i = len(self.ptabs) - 1
-            for tab in fresh:
+            for tab in fresh:                    # mounted while the blank first tab shows
                 await self._mount_tab(tab)
             self.ptabs.remove(first)             # the blank tab the client started with
             self.ptab_i = current

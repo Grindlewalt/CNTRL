@@ -282,3 +282,28 @@ async def test_a_short_terminal_shows_a_lone_tabs_bar_only_with_a_second_tab():
         await pilot.press("ctrl+x", "t")
         await settle(pilot, app, 2)
         assert app.query_one("#tabbar").display
+
+
+async def test_the_clock_never_trips_on_a_tile_that_is_still_mounting():
+    # on the Pi a saved 2-tab layout crashed the client at start: the tab being mounted
+    # was already the focused one, and the status row asked its panel-less tile for its page
+    srv, app = make()
+    async with app.run_test(size=(120, 36)) as pilot:
+        await pilot.pause(0.3)
+        app.ptabs.append(jav3.PanelTab({1: jav3.ChatState(1)}))
+        app.ptab_i = len(app.ptabs) - 1                 # as if shown before it mounted
+        app._tick()                                     # must not raise
+        assert app.page is None
+        app.ptabs.pop()
+        app.ptab_i = 0
+        n = 0
+        real = app._tick
+
+        def counting():
+            nonlocal n
+            n += 1
+            real()
+        app._tick = counting
+        await pilot.press("ctrl+x", "t")                # a new tab mounts under the clock
+        assert await wait_for(lambda: len(app.ptabs) == 2 and app.ptab_i == 1)
+        assert app.focused_chat.panel is not None and app.page is not None
