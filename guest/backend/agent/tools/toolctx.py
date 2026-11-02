@@ -37,6 +37,12 @@ async def require_files() -> str:
     return await require_project()
 
 
+def files_dir(key: str):
+    """The host's files_dir: in the guest every key's files are projects_dir/<key>."""
+    from ...config import settings
+    return settings.projects_dir / key
+
+
 async def active_slug() -> str | None:
     return turnctx.active_slug.get()
 

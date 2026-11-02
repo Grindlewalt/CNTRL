@@ -1,12 +1,7 @@
 from backend.fsutil import list_tree
 from backend.writes import pending_paths
+from backend.agent.tools.toolctx import files_dir as _files_dir
 from backend.agent.tools.toolctx import require_files as require_project
-
-
-
-def _files_dir(key):
-    from backend.worktrees import resolve
-    return resolve(key).dir
 
 
 async def run() -> str:

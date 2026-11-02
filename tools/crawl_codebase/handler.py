@@ -1,13 +1,8 @@
 from backend import writes
 from backend.codeindex import NOTES_SUBDIR, build_index
 from backend.config import settings
+from backend.agent.tools.toolctx import files_dir as _files_dir
 from backend.agent.tools.toolctx import require_files as require_project
-
-
-
-def _files_dir(key):
-    from backend.worktrees import resolve
-    return resolve(key).dir
 
 
 async def run(subdir: str = "code") -> str:

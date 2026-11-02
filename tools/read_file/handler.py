@@ -1,6 +1,7 @@
 from backend.config import settings
 from backend.fsutil import find_file, list_tree
 from backend.writes import resolve
+from backend.agent.tools.toolctx import files_dir as _files_dir
 from backend.agent.tools.toolctx import require_files as require_project
 
 
@@ -23,12 +24,6 @@ def _missing(slug: str, path: str) -> str:
         # answer, since picking one would be a guess
         return f"{base} Did you mean: {', '.join(near[:6])}?"
     return f"{base} Use list_files to see what exists."
-
-
-
-def _files_dir(key):
-    from backend.worktrees import resolve
-    return resolve(key).dir
 
 
 async def run(path: str, offset=None, limit=None) -> str:

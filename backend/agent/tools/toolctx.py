@@ -143,3 +143,10 @@ async def require_files() -> str:
         if worktrees.project_of(key) == slug:
             return key
     return slug
+
+
+def files_dir(key: str):
+    """The directory a file tool works in for `key` (require_files' answer): the
+    project's, or an orchestrator item's copy (backend/worktrees.py)."""
+    from ... import worktrees
+    return worktrees.resolve(key).dir

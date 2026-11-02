@@ -33,3 +33,31 @@ def test_the_guest_toolctx_has_what_in_guest_tools_import():
             if lack:
                 missing[tool] = sorted(lack)
     assert not missing, missing
+
+
+def _backend_modules(handler: Path) -> set[str]:
+    mods = set()
+    for node in ast.walk(ast.parse(handler.read_text())):
+        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("backend"):
+            mods.add(node.module)
+        elif isinstance(node, ast.Import):
+            mods |= {a.name for a in node.names if a.name.startswith("backend")}
+    return mods
+
+
+def test_in_guest_tools_import_only_what_the_guest_package_holds():
+    # list_files imported backend.worktrees (host only): ModuleNotFoundError in every box
+    from backend.vm.guest_pkg import _COPY_MODULES
+    shipped = set(_COPY_MODULES)
+    for p in (ROOT / "guest").rglob("*.py"):
+        shipped.add(p.relative_to(ROOT / "guest").as_posix())
+    missing = {}
+    for tool in set(IN_GUEST_TOOLS) | set(BOX_ONLY_TOOLS):
+        h = ROOT / "tools" / tool / "handler.py"
+        if not h.exists():
+            continue
+        for mod in _backend_modules(h):
+            rel = mod.replace(".", "/")
+            if f"{rel}.py" not in shipped and f"{rel}/__init__.py" not in shipped:
+                missing.setdefault(tool, []).append(mod)
+    assert not missing, missing
