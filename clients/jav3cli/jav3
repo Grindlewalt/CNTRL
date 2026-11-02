@@ -7579,7 +7579,9 @@ def build_tui(base: str, token: str, **kw):
             if t == "git" and r.get("kind") == "merge":
                 pl = _merge_payload(r)
                 n = len(pl.get("parts") or [])
-                files = sum(int(p.get("files") or 0) for p in pl.get("parts") or [])
+                files = pl.get("files_total")       # all approval commits (base dirty too)
+                if files is None:
+                    files = sum(int(p.get("files") or 0) for p in pl.get("parts") or [])
                 err = " [$error]not applied yet[/]" if r.get("error") else ""
                 return (f"[$warning b]PR  [/] [$text-muted]{ts}[/] "
                         f"{_esc(pl.get('branch') or '?')} → main "
@@ -7665,8 +7667,8 @@ def build_tui(base: str, token: str, **kw):
                 if dirty:
                     lines += ["", "[$warning]base dirty:[/] "
                               f"{len(dirty)} files were uncommitted when the job started "
-                              "(" + _esc(", ".join(dirty[:6])) + "); the PR commits the ones "
-                              "it changes."]
+                              "(" + _esc(", ".join(dirty[:6])) + "); approving commits "
+                              "them with the PR."]
                 lines += ["", "try it first: [b]/pull[/] prints the clone/fetch commands"]
                 if r.get("error"):
                     lines.append(f"[$error]last attempt: {_esc(r['error'])}[/]")

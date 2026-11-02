@@ -315,8 +315,8 @@ parts (one per item and its branch), the files and the diffstat against the job'
   move your edits and approve again. Files only you changed stay as they are,
   uncommitted.
 - Uncommitted work: whatever was uncommitted when the job started is part of the job's
-  base. If the PR also changes those files they get committed with it, and the detail
-  says "base dirty" with their names.
+  base, so approving the PR commits it too. The detail lists those files as "base
+  dirty", and its file list and diff include them.
 - Reject: the copies and branches are removed; the project is untouched.
 - With Gitea on, the PR branch is also pushed as the bot and a read-only Gitea PR
   mirrors the summary; it is closed when you decide in Jav3.

@@ -475,8 +475,15 @@ async def create_merge_request(slug: str, *, job_id: str, branch: str, base_sha:
             dirty = sorted(await _names(slug, f"{base_sha}^", base_sha))
         except Exception:                           # noqa: BLE001
             dirty = []
+    # what approval puts on main: everything from main as the job found it (the base's
+    # parent when the base is a snapshot of uncommitted work) to the PR tip
+    start = f"{base_sha}^" if dirty else base_sha
+    try:
+        total = len(await _names(slug, start, tip))
+    except Exception:                               # noqa: BLE001
+        total = None
     payload = {"job_id": str(job_id), "branch": branch, "base_sha": base_sha,
-               "parts": clean, "sha": tip, "base_dirty": dirty}
+               "parts": clean, "sha": tip, "base_dirty": dirty, "files_total": total}
     db = await get_db()
     try:
         async with db.execute(
@@ -544,12 +551,15 @@ async def merge_detail(slug: str, rid: int) -> dict:
     if not (base and await gitsafe.rev(gd, ref)):
         out["gone"] = True              # decided and cleaned up
         return out
-    names = await _names(slug, base, ref)
+    # everything approval commits: from main as the job found it, so files that were
+    # uncommitted when the job started (base_dirty) are in the list and the diff too
+    start = f"{base}^" if pl.get("base_dirty") else base
+    names = await _names(slug, start, ref)
     out["files"] = [f"{st} {p}" for p, st in sorted(names.items())]
-    out["base_dirty"] = [p for p in pl.get("base_dirty", []) if p in names]
-    _, stat, _ = await gitsafe.git(gd, "diff", "--stat", "--no-color", base, ref)
+    out["base_dirty"] = list(pl.get("base_dirty", []))
+    _, stat, _ = await gitsafe.git(gd, "diff", "--stat", "--no-color", start, ref)
     out["diffstat"] = stat.strip()[-4000:]
-    _, diff, _ = await gitsafe.git(gd, "diff", "--no-color", "--no-ext-diff", base, ref)
+    _, diff, _ = await gitsafe.git(gd, "diff", "--no-color", "--no-ext-diff", start, ref)
     out["diff"] = diff[:DETAIL_CAP] + ("\n... (diff cut)" if len(diff) > DETAIL_CAP else "")
     return out
 
@@ -746,7 +756,8 @@ async def _approve_merge(db, rid: int, row: dict) -> dict:
             error = f"{error}; {gerr}" if error else gerr
     try:
         from . import edithistory
-        await edithistory.after_apply(slug, None, {"applied": applied, "deleted": deleted})
+        await edithistory.after_apply(slug, None, {"applied": applied, "deleted": deleted},
+                                      note=f"PR #{rid} approved")
     except Exception as e:                          # noqa: BLE001
         log.warning("edit history after merge: %s", e)
     await _cleanup_merge(slug, pl)

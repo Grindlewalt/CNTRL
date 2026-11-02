@@ -98,6 +98,7 @@ function mergeNote(a) {
   let pl = {}
   try { pl = JSON.parse(a.payload || '{}') } catch { /* keep {} */ }
   const parts = pl.parts || []
-  const files = parts.reduce((n, p) => n + (p.files || 0), 0)
+  // files_total: everything approval commits (uncommitted work the job started with too)
+  const files = pl.files_total ?? parts.reduce((n, p) => n + (p.files || 0), 0)
   return `${pl.branch || a.branch} → main · ${parts.length} agent${parts.length === 1 ? '' : 's'} · ${files} files`
 }

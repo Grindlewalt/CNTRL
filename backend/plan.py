@@ -1768,7 +1768,9 @@ a small unblocking fix directly (a missing stub, a name clash, a wrong path).
    (e.g. "3 branches: physics · track · ui (Recommended)"); the others are a coarser
    or finer split; the last is always "No branches: write into the project directly".
    Each item then works in its own copy and ONE pull request comes at the end for
-   the operator; the project is unchanged until they approve it. Pass isolation
+   the operator; the project is unchanged until they approve it, so your own file
+   tools will not show the items' work: plan_status lists each item's copy as
+   `files: ../<copy>/`, readable from run_code. Pass isolation
    "branches" (any split) or "shared" (no branches) to orchestrate, and shape the
    items to the split you were given.
 1. Plan and launch: call orchestrate with the operator's dump — verbatim, plus
@@ -2096,6 +2098,11 @@ def _status_text(plan: dict, running: bool, rollup: str | None, why: str,
             lines.append(f"    result: {_clip(it['result_summary'])}")
         if it.get("last_error") and it["status"] != "done":
             lines.append(f"    error: {_clip(it['last_error'])}")
+        work = it.get("work") or {}
+        if work.get("key"):
+            # a branches run: the item's files are in its copy, not in the project
+            lines.append(f"    files: ../{work['key']}/ (branch {work.get('branch')}, "
+                         f"{work.get('files', 0)} changed)")
     if notes:
         lines.append("\n" + _warning_text(list(notes)))
     stuck = [it["id"] for it in plan["items"] if it["status"] == "blocked"

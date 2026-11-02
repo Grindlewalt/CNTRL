@@ -78,7 +78,7 @@ def removed(monkeypatch):
 def hist(monkeypatch):
     calls = []
 
-    async def aa(key, op, res):
+    async def aa(key, op, res, **kw):
         calls.append((key, res))
     from backend import edithistory
     monkeypatch.setattr(edithistory, "after_apply", aa)
@@ -243,3 +243,20 @@ async def test_a_clean_change_to_an_always_loaded_file_lands_but_never_a_delete(
                 "state": "done"}], summary="drop it")
     out = await gitgate.approve_request(row["id"], "demo")
     assert (proj / "project.md").exists() and "project.md" in (out["error"] or "")
+
+
+async def test_the_detail_shows_everything_approval_commits(proj, removed, hist):
+    # notes.txt was uncommitted when the job started: approving commits it too, so the
+    # PR's file list, count and diff must say so (the Pi e2e listed only the PR's own 2)
+    (proj / "notes.txt").write_text("mine\n")
+    base = await __import__("backend.gitsafe", fromlist=["x"]).snapshot(
+        proj / ".git", proj, "refs/jav3/base/" + JOB, "base")
+    _branch(proj, base, {"c.txt": "c\n"})
+    row = await _file(proj, base)
+    pl = json.loads(row["payload"])
+    assert pl["base_dirty"] == ["notes.txt"] and pl["files_total"] == 2
+    d = await gitgate.merge_detail("demo", row["id"])
+    assert d["base_dirty"] == ["notes.txt"]
+    assert sorted(d["files"]) == ["A c.txt", "A notes.txt"] and "+mine" in d["diff"]
+    await gitgate.approve_request(row["id"], "demo")
+    assert hist[-1][1]["applied"] == ["c.txt"]
