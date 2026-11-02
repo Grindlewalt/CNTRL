@@ -10,6 +10,7 @@ import base64
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -416,14 +417,318 @@ def _requesting_turn() -> int | None:
     return runtime.conversation_id.get()
 
 
+_BRANCH_RE = re.compile(r"agent/orch-([0-9a-f]{6})")
+_HEX40 = re.compile(r"[0-9a-f]{40}")
+DETAIL_CAP = 40000
+
+
+def _gd(slug: str) -> Path:
+    return _project_dir(slug) / ".git"
+
+
+async def _names(slug: str, a: str, b: str) -> dict[str, str]:
+    """path -> status letter between two trees/commits."""
+    from . import gitsafe
+    _, out, _ = await gitsafe.git(_gd(slug), "diff-tree", "-r", "-z", "--name-status",
+                                  "--no-renames", a, b, check=True)
+    parts = out.split("\0")
+    return {parts[i + 1]: parts[i] for i in range(0, len(parts) - 1, 2) if parts[i]}
+
+
 async def create_merge_request(slug: str, *, job_id: str, branch: str, base_sha: str,
                                parts: list[dict], summary: str,
                                conversation_id: int | None = None) -> dict:
     """An orchestrator job's one PR (nov2, docs/nov2-contract.md): `branch`
     (agent/orch-<job6>) into main, approved in the same queue as commits. `base_sha` is
     the job's base (worktrees.base_snapshot); `parts` one dict per item:
-    {item, title, branch, sha, files, state}. Returns the request row. Agent C."""
-    raise NotImplementedError
+    {item, title, branch, sha, files, state}. Returns the request row."""
+    from . import gitsafe
+    if not _BRANCH_RE.fullmatch(branch or ""):
+        raise ValueError(f"not an orchestrator branch: {branch!r}")
+    if not _HEX40.fullmatch(base_sha or ""):
+        raise ValueError("bad base commit id")
+    if not isinstance(parts, list):
+        raise ValueError("parts must be a list")
+    clean = []
+    for p in parts:
+        if not isinstance(p, dict) or not str(p.get("title", "")).strip():
+            raise ValueError("each part needs a title")
+        if p.get("sha") and not _HEX40.fullmatch(str(p["sha"])):
+            raise ValueError("bad part commit id")
+        if p.get("branch") and not re.fullmatch(r"agent/[0-9a-f]{6}-i\d{1,3}", str(p["branch"])):
+            raise ValueError(f"bad part branch {p.get('branch')!r}")
+        clean.append({"item": p.get("item"), "title": str(p["title"]).strip()[:200],
+                      "branch": p.get("branch"), "sha": p.get("sha"),
+                      "files": int(p.get("files") or 0), "state": p.get("state")})
+    if not (summary or "").strip():
+        raise ValueError("summary must not be empty")
+    await ensure_repo(slug)
+    gd = _gd(slug)
+    tip = await gitsafe.rev(gd, f"refs/heads/{branch}")
+    if not tip:
+        raise ValueError(f"branch {branch} does not exist in {slug}")
+    # uncommitted files the job started with: the base is a snapshot commit off main
+    dirty: list[str] = []
+    rc, _, _ = await gitsafe.git(gd, "merge-base", "--is-ancestor", base_sha, "HEAD")
+    if rc != 0:
+        try:
+            dirty = sorted(await _names(slug, f"{base_sha}^", base_sha))
+        except Exception:                           # noqa: BLE001
+            dirty = []
+    payload = {"job_id": str(job_id), "branch": branch, "base_sha": base_sha,
+               "parts": clean, "sha": tip, "base_dirty": dirty}
+    db = await get_db()
+    try:
+        async with db.execute(
+                "SELECT id FROM git_requests WHERE project_slug = ? AND kind = 'merge' "
+                "AND status = 'pending' AND json_extract(payload, '$.job_id') = ?",
+                (slug, str(job_id))) as cur:
+            if await cur.fetchone():
+                raise ValueError(f"job {job_id} already has a pending merge request")
+        cur = await db.execute(
+            "INSERT INTO git_requests (project_slug, kind, message, payload, branch, "
+            "commit_sha, conversation_id) VALUES (?, 'merge', ?, ?, ?, ?, ?)",
+            (slug, summary.strip(), json.dumps(payload), branch, tip,
+             conversation_id if conversation_id is not None else _requesting_turn()))
+        await db.commit()
+        rid = cur.lastrowid
+        row = await _fetch_request(db, rid)
+    finally:
+        await db.close()
+    from . import gitea
+    if gitea.enabled():
+        try:
+            number = await gitea.mirror_merge_request(slug, branch, tip, summary.strip())
+            if number:
+                payload["pr_number"] = number
+                db = await get_db()
+                try:
+                    await db.execute("UPDATE git_requests SET payload = ?, pr_number = ?, "
+                                     "pr_url = ? WHERE id = ?",
+                                     (json.dumps(payload), number,
+                                      f"{gitea.web_url(slug)}/pulls/{number}", rid))
+                    await db.commit()
+                    row = await _fetch_request(db, rid)
+                finally:
+                    await db.close()
+        except Exception as e:                      # noqa: BLE001
+            log.warning("Gitea mirror of merge request #%s failed: %s", rid, e)
+    return row
+
+
+def _payload(row: dict) -> dict:
+    try:
+        return json.loads(row.get("payload") or "{}")
+    except ValueError:
+        return {}
+
+
+async def merge_detail(slug: str, rid: int) -> dict:
+    """What the operator reads before approving: parts, the PR's diffstat against its
+    base, what was uncommitted at job start that the PR also commits, and a capped
+    plain-text diff."""
+    from . import gitsafe
+    db = await get_db()
+    try:
+        row = await _own_request(db, rid, slug)
+    finally:
+        await db.close()
+    if row.get("kind") != "merge":
+        raise ValueError(f"request #{rid} is not a merge request")
+    pl = _payload(row)
+    gd = _gd(slug)
+    out = {"id": rid, "status": row["status"], "branch": pl.get("branch"),
+           "message": row["message"], "parts": pl.get("parts", []),
+           "files": [], "diffstat": "", "diff": "", "base_dirty": [], "error": row.get("error")}
+    ref, base = f"refs/heads/{pl.get('branch')}", pl.get("base_sha")
+    if not (base and await gitsafe.rev(gd, ref)):
+        out["gone"] = True              # decided and cleaned up
+        return out
+    names = await _names(slug, base, ref)
+    out["files"] = [f"{st} {p}" for p, st in sorted(names.items())]
+    out["base_dirty"] = [p for p in pl.get("base_dirty", []) if p in names]
+    _, stat, _ = await gitsafe.git(gd, "diff", "--stat", "--no-color", base, ref)
+    out["diffstat"] = stat.strip()[-4000:]
+    _, diff, _ = await gitsafe.git(gd, "diff", "--no-color", "--no-ext-diff", base, ref)
+    out["diff"] = diff[:DETAIL_CAP] + ("\n... (diff cut)" if len(diff) > DETAIL_CAP else "")
+    return out
+
+
+def _job_keys(slug: str, pl: dict) -> list[str]:
+    job6 = _BRANCH_RE.fullmatch(pl.get("branch", "")).group(1)
+    keys = [f"{slug}--{job6}-merge"]
+    for p in pl.get("parts", []):
+        m = re.fullmatch(r"agent/[0-9a-f]{6}-(i\d{1,3})", p.get("branch") or "")
+        if m:
+            keys.append(f"{slug}--{job6}-{m.group(1)}")
+    return keys
+
+
+async def _cleanup_merge(slug: str, pl: dict) -> None:
+    """Remove the job's copies, base ref and branches. Failures log, never raise."""
+    from . import gitsafe, worktrees
+    job6 = _BRANCH_RE.fullmatch(pl.get("branch", "")).group(1)
+    for key in _job_keys(slug, pl):
+        try:
+            await worktrees.remove(key)
+        except Exception as e:                      # noqa: BLE001
+            log.warning("could not remove work copy %s: %s", key, e)
+    gd = _gd(slug)
+    try:
+        await gitsafe.git(gd, "update-ref", "-d", f"refs/jav3/base/{job6}")
+        for b in [pl.get("branch")] + [p.get("branch") for p in pl.get("parts", [])]:
+            if b and re.fullmatch(r"agent/[a-z0-9-]+", b):
+                await gitsafe.git(gd, "branch", "-D", "-q", b)
+    except Exception as e:                          # noqa: BLE001
+        log.warning("merge cleanup of %s in %s: %s", job6, slug, e)
+
+
+async def _read_blob(gd: Path, sha: str) -> bytes:
+    from . import gitsafe
+    proc = await asyncio.create_subprocess_exec(
+        "git", *gitsafe.HARDEN, f"--git-dir={gd}", "cat-file", "blob", sha,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        env=gitsafe._env(None))
+    out, err = await asyncio.wait_for(proc.communicate(), timeout=GIT_TIMEOUT)
+    if proc.returncode != 0:
+        raise RuntimeError(f"cannot read blob {sha}: {err.decode(errors='replace')[:200]}")
+    return out
+
+
+async def _record_error(db, rid: int, msg: str) -> None:
+    await db.execute("UPDATE git_requests SET error = ? WHERE id = ?", (msg, rid))
+    await db.commit()
+
+
+async def _refuse(db, rid: int, msg: str):
+    await _record_error(db, rid, msg)
+    raise ValueError(msg)
+
+
+async def _approve_merge(db, rid: int, row: dict) -> dict:
+    from . import gitea, gitsafe, writes
+    from .fsutil import safe_join
+    slug = row["project_slug"]
+    pl = _payload(row)
+    branch, base = pl.get("branch", ""), pl.get("base_sha", "")
+    if not _BRANCH_RE.fullmatch(branch) or not _HEX40.fullmatch(base):
+        raise ValueError("this merge request is malformed")
+    await ensure_repo(slug)
+    gd, project = _gd(slug), _project_dir(slug)
+    if gitea.enabled():
+        try:
+            await gitea.reconcile(slug)
+            await gitea.sync_main(slug)
+        except (RuntimeError, ValueError):
+            pass
+    M = await gitsafe.rev(gd, "HEAD")
+    P = await gitsafe.rev(gd, f"refs/heads/{branch}")
+    if not P:
+        await _refuse(db, rid, "the PR branch is gone")
+    if not M:
+        await _refuse(db, rid, "the project has no commits yet")
+    base_tree = (await gitsafe.git(gd, "rev-parse", f"{base}^{{tree}}", check=True))[1].strip()
+    # the base's first parent is main as the job saw it (the base itself when clean)
+    rc, _, _ = await gitsafe.git(gd, "merge-base", "--is-ancestor", base, M)
+    h0 = base
+    if rc != 0:
+        h0 = (await gitsafe.git(gd, "rev-parse", f"{base}^", check=True))[1].strip()
+    # 1. main moved: merge it in (no files touched)
+    if M == h0:
+        T = (await gitsafe.git(gd, "rev-parse", f"{P}^{{tree}}", check=True))[1].strip()
+    else:
+        rc, out, _ = await gitsafe.git(gd, "merge-tree", "--write-tree", "--name-only", M, P)
+        lines = out.splitlines()
+        if rc != 0:
+            files = []
+            for l in lines[1:]:
+                if not l.strip():
+                    break
+                files.append(l.strip())
+            await _refuse(db, rid, "main has moved since the job started and conflicts with "
+                          "the PR in: " + (", ".join(files[:20]) or "(unknown)"))
+        T = lines[0].strip()
+    # what lands in the project dir: base -> T
+    raw = (await gitsafe.git(gd, "diff-tree", "-r", "-z", "--raw", "--no-renames",
+                             "--no-abbrev", base_tree, T, check=True))[1]
+    toks = raw.split("\0")
+    entries = []     # (status, new mode, new sha, path)
+    i = 0
+    while i + 1 < len(toks) and toks[i].startswith(":"):
+        _om, nm, _osha, nsha, st = toks[i][1:].split()[:5]
+        entries.append((st[0], nm, nsha, toks[i + 1]))
+        i += 2
+    paths = [e[3] for e in entries]
+    for rel in paths:
+        top = rel.split("/", 1)[0]
+        if top in writes.PROTECTED or top.casefold() == ".context.json":
+            await _refuse(db, rid, f"the PR changes {rel}, a protected path; it cannot be applied")
+    # 2. the dir moved on the same paths: refuse, nothing is overwritten
+    dir_tree = await gitsafe.tree_of(gd, project, base)
+    moved = set(await _names(slug, base_tree, dir_tree)) if dir_tree != base_tree else set()
+    clash = sorted(moved & set(paths))
+    if clash:
+        await _refuse(db, rid, "files in the project changed since the job started and the "
+                      "PR changes them too: " + ", ".join(clash[:20]) +
+                      ". Commit or move your edits, then approve again.")
+    # 3. main = merge commit (CAS on M), then the files
+    title = (row["message"].strip().splitlines() or ["orchestrator job"])[0][:120]
+    _, new, _ = await gitsafe.git(
+        gd, "commit-tree", T, "-p", M, "-p", P, "-m", f"Merge {branch}: {title}",
+        env=gitsafe._who(), check=True)
+    new = new.strip()
+    rc, _, err = await gitsafe.git(gd, "update-ref", "-m", f"merge {branch}", "HEAD", new, M)
+    if rc != 0:
+        await _refuse(db, rid, f"main moved while approving; try again ({err.strip()[:120]})")
+    applied, deleted, skipped = [], [], []
+    for st, mode, sha, rel in entries:
+        dest = safe_join(project, rel)
+        if st == "D":
+            if dest.is_file() or dest.is_symlink():
+                dest.unlink()
+            deleted.append(rel)
+            continue
+        if mode not in ("100644", "100755"):
+            skipped.append(rel)
+            continue
+        data = await _read_blob(gd, sha)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dest.with_name(f".{dest.name}.jav3-merge")
+        tmp.write_bytes(data)
+        os.chmod(tmp, 0o755 if mode == "100755" else 0o644)
+        os.replace(tmp, dest)
+        applied.append(rel)
+    await gitsafe.git(gd, "reset", "-q", work_tree=project)     # index = HEAD, files stay
+    error = None
+    if skipped:
+        error = "not written (symlinks/submodules): " + ", ".join(skipped[:10])
+    async with db.execute("SELECT github_remote FROM projects WHERE slug = ?", (slug,)) as cur:
+        prow = await cur.fetchone()
+    if prow and prow["github_remote"]:
+        try:
+            await push_to_remote(slug)
+        except (RuntimeError, ValueError) as e:
+            error = f"push failed: {e}"
+    if gitea.enabled():
+        try:
+            await gitea.ensure_remote_repo(slug)
+            gerr = await gitea.push_main(slug)
+        except (RuntimeError, ValueError) as e:
+            gerr = f"committed; main not pushed to Gitea: {gitea.scrub(str(e))}"
+        if gerr:
+            error = f"{error}; {gerr}" if error else gerr
+    try:
+        from . import edithistory
+        await edithistory.after_apply(slug, None, {"applied": applied, "deleted": deleted})
+    except Exception as e:                          # noqa: BLE001
+        log.warning("edit history after merge: %s", e)
+    await _cleanup_merge(slug, pl)
+    if gitea.enabled():
+        await gitea.close_merge_mirror(slug, pl, merged=True)
+    await db.execute("UPDATE git_requests SET status = 'approved', commit_sha = ?, error = ?, "
+                     "decided_at = datetime('now') WHERE id = ?", (new, error, rid))
+    await db.commit()
+    return await _fetch_request(db, rid)
 
 
 async def create_request(slug: str, message: str, paths: list[str] | None = None) -> dict:
@@ -539,6 +844,8 @@ async def approve_request(rid: int, slug: str | None = None) -> dict:
         if row.get("kind") == "push":
             from . import gitea
             return await gitea.approve_push(db, rid, row)
+        if row.get("kind") == "merge":
+            return await _approve_merge(db, rid, row)
         slug, message = row["project_slug"], row["message"]
         paths = json.loads(row["paths"]) if row["paths"] else None
         await ensure_repo(slug)
@@ -615,6 +922,12 @@ async def reject_request(rid: int, slug: str | None = None) -> dict:
         if row.get("kind") == "push":
             from . import gitea
             return await gitea.reject_push(db, rid, row)
+        if row.get("kind") == "merge":
+            from . import gitea
+            pl = _payload(row)
+            await _cleanup_merge(row["project_slug"], pl)
+            if gitea.enabled():
+                await gitea.close_merge_mirror(row["project_slug"], pl, merged=False)
         await db.execute(
             "UPDATE git_requests SET status = 'rejected', decided_at = datetime('now') "
             "WHERE id = ?", (rid,))

@@ -101,6 +101,18 @@ async def requests(slug: str):
     return {"requests": await gitgate.list_requests(slug)}
 
 
+@router.get("/requests/{rid}/merge")
+async def merge_detail(slug: str, rid: int):
+    """The orchestrator PR's detail: parts, files, diffstat, base-dirty note, a capped diff."""
+    _check_project(slug)
+    try:
+        return await gitgate.merge_detail(slug, rid)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=e.args[0])
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
 def _gitea_failure(e: Exception, verb: str) -> HTTPException | None:
     """A Gitea-side failure of an approve/reject, as an HTTP answer that says
     what happened and that the request is untouched. None = not a Gitea one."""

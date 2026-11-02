@@ -1151,3 +1151,37 @@ def token_file_ok(p: Path) -> bool:
         return (os.stat(p).st_mode & 0o077) == 0
     except OSError:
         return False
+
+
+# --- the orchestrator's PR mirror (nov2): read-only, failures never block Jav3 --------
+
+async def mirror_merge_request(slug: str, branch: str, sha: str, summary: str) -> int | None:
+    """Push the PR branch as the bot and open a Gitea PR with the summary. The number."""
+    await ensure_remote_repo(slug)
+    await push_agent_branch(slug, sha, branch)
+    title = (summary.strip().splitlines() or ["Orchestrator job"])[0][:200]
+    r = await api("POST", f"/repos/{owner()}/{slug}/pulls", token=bot_token(),
+                  json_body={"head": branch, "base": "main", "title": title,
+                             "body": summary[:8000] + "\n\nFiled by the Jav3 orchestrator. "
+                             "Approve or reject it in Jav3; this PR is a read-only mirror."})
+    return r.json().get("number")
+
+
+async def close_merge_mirror(slug: str, payload: dict, *, merged: bool) -> None:
+    """Close the mirror PR once Jav3 decided (Gitea marks it merged by itself when main
+    holds its head). Never raises."""
+    number = payload.get("pr_number")
+    try:
+        if number:
+            pr = await _pull(slug, number)
+            if pr and not pr.get("merged") and pr.get("state") != "closed":
+                note = ("Approved in Jav3; main now holds these changes." if merged
+                        else "Rejected in Jav3.")
+                await api("POST", f"/repos/{owner()}/{slug}/issues/{number}/comments",
+                          json_body={"body": note})
+                await _close_pr_quietly(slug, number)
+        if payload.get("branch"):
+            await _delete_branch(slug, payload["branch"])
+    except Exception as e:                          # noqa: BLE001
+        log.warning("could not close the Gitea mirror of %s in %s: %s",
+                    payload.get("branch"), slug, e)
