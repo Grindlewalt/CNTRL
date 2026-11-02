@@ -286,3 +286,14 @@ conversation.
 `schedule_update` proposes cron-style runs of you or an agent; proposals start
 PAUSED until the operator approves them on the Schedules page. Scheduled runs
 execute headless against a pinned project.
+
+## edit history
+
+Every batch of your writes the host applies becomes a commit on a hidden ref
+(`refs/jav3/history` in the project's repo), and a box turn hands its edits home
+about every minute, not only at the end. So an overwritten or deleted file is
+never lost: the operator can list entries (`/history [path]`), see one's diff, and
+put a file or a whole edit back (`/undo` undoes this chat's latest edit; it asks
+first and refuses if the file changed since). It is not the operator's git: these
+commits are never on main, never pushed and never served by `/git`. Files that
+`.gitignore` excludes are not versioned.

@@ -2205,7 +2205,7 @@ PAGE_SPECS = (
              options=SECURITY_TAB_BLURB),
     PageSpec("vms", "boxes, images and the package catalogue (full access)",
              "[" + "|".join(VMS_TABS) + "]", leader="c", options=VMS_TAB_BLURB),
-    PageSpec("sessions", "switch to another chat", "[id]", kind="chat", aliases=("history",),
+    PageSpec("sessions", "switch to another chat", "[id]", kind="chat",
              leader="l"),
     # the web app has these; the terminal answers where to find them (the next steps fill them)
     PageSpec("memory", "in the web app only for now (/web memory opens it)", kind="web"),
@@ -13084,6 +13084,11 @@ def build_tui(base: str, token: str, **kw):
                 "helper": Command(self.c_helper, "ask about Jav3 itself: the next message "
                                   "carries its manual (pulling code, logins and tokens, keys, "
                                   "boxes, approvals)", "[question]", takes_arg=True),
+                "history": Command(self.c_history, "what agents wrote in this project "
+                                   "(the edit history), newest first", "[path]",
+                                   takes_arg=True, busy_ok=True),
+                "undo": Command(self.c_undo, "put back this chat's most recent edit in its "
+                                "project (asks first)"),
                 "export": Command(self.c_export, "save this chat as markdown, here by "
                                   "default (default <location> sets where)", "[location|default <location>]",
                                   takes_arg=True, busy_ok=True, leader="x"),
@@ -13712,6 +13717,59 @@ def build_tui(base: str, token: str, **kw):
                 return
             await self.say("helper on for your next message: ask about Jav3 itself "
                            "(getting your code, logins and tokens, keys, boxes, approvals)")
+
+        async def c_history(self, arg: str) -> None:
+            """/history [path]: what agents wrote in this chat's project (the edit
+            history: when, which chat, which files). Not your commits."""
+            self._need_full("/history")
+            slug = self._project_label()
+            if not slug or slug == "no project":
+                raise CliError("this chat has no project")
+            params = {"limit": 15}
+            if arg.strip():
+                params["path"] = arg.strip()
+            data = await self.api("GET", f"/api/projects/{slug}/history", params=params) or {}
+            rows = data.get("entries") or []
+            if not rows:
+                await self.say(f"no edit history yet in {slug}")
+                return
+            lines = [f"edit history of {slug}, newest first"]
+            for e in rows:
+                f = e.get("files") or {}
+                names = (f.get("applied") or []) + [x + " (deleted)" for x in f.get("deleted") or []]
+                chat = f"#{e['conversation_id']}" if e.get("conversation_id") is not None else "-"
+                when = time.strftime("%m-%d %H:%M", time.localtime(e.get("when") or 0))
+                lines.append(f"  {e['sha'][:8]}  {when}  {chat:>5}  " + ", ".join(names[:4])
+                             + (" ..." if len(names) > 4 else ""))
+            lines.append("/history <path> filters; /undo puts this chat's last edit back")
+            await self.say("\n".join(lines))
+
+        async def c_undo(self, arg: str) -> None:
+            """/undo: put back the most recent edit this chat made in its project."""
+            self._need_full("/undo")
+            slug = self._project_label()
+            if not slug or slug == "no project":
+                raise CliError("this chat has no project")
+            if self.cid is None:
+                raise CliError("nothing to undo: this chat has not started")
+            data = await self.api("GET", f"/api/projects/{slug}/history",
+                                  params={"limit": 200}) or {}
+            mine = [e for e in data.get("entries") or []
+                    if e.get("conversation_id") == self.cid]
+            if not mine:
+                raise CliError("this chat has no edits to undo in " + slug)
+            e = mine[0]
+            f = e.get("files") or {}
+            names = (f.get("applied") or []) + (f.get("deleted") or [])
+            if not await self.push_screen_wait(Confirm(
+                    f"Undo the last edit of chat #{self.cid}?",
+                    "These files go back to how they were before:\n  " + "\n  ".join(names[:12]),
+                    strict=True)):
+                return
+            r = await self.api("POST", f"/api/projects/{slug}/history/{e['sha']}/restore",
+                               json={}) or {}
+            await self.say(f"undone: {len(r.get('restored') or [])} restored, "
+                           f"{len(r.get('deleted') or [])} removed")
 
         def _export_default(self) -> str:
             loc = self._load_settings().get("export_dir")
