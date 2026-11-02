@@ -114,7 +114,7 @@ async def test_one_panel_looks_as_it_always_did():
         assert panel.region.size == app.panel_area.size          # fills the area, no frame
         assert not app.panel_area.has_class("-multi")
         assert str(panel.styles.border.top[0] if panel.styles.border.top else "") in ("", "none")
-        assert not app.query_one("#bottom").has_class("multi")
+        assert not app.focused_chat.prompt_block.has_class("multi")
         assert "Ask anything" in app.editor.placeholder
 
 
@@ -130,7 +130,7 @@ async def test_new_panel_splits_the_focused_one_with_a_new_chat_and_takes_the_fo
         assert app.panel_area.has_class("-multi")
         r1, r2 = app.chats[1].panel.region, app.chats[2].panel.region
         assert r1.width + r2.width == app.panel_area.size.width and r1.x == 0 and r2.x == r1.width
-        assert "ask a new chat (panel 2)" in app.editor.placeholder
+        assert "ask a new chat" in app.editor.placeholder
         assert "/page" in app.editor.placeholder and "panel]" in app.editor.placeholder   # (markup-escaped)
         t = titles(app)
         assert t[1].startswith("1 chat #512") and t[2].startswith("2 chat (new)")
@@ -139,7 +139,7 @@ async def test_new_panel_splits_the_focused_one_with_a_new_chat_and_takes_the_fo
         app.refresh_chrome()
         assert not app.sidebar_shown() and not app.query_one("#sidebar").display
         assert all(not c.header.display for c in app.chats.values())
-        assert app.query_one("#bottom").has_class("multi")
+        assert app.focused_chat.prompt_block.has_class("multi")
         assert app.focused_panel.has_class("-focused") and not app.chats[1].panel.has_class("-focused")
 
 
@@ -367,7 +367,7 @@ async def test_a_page_in_another_panel_does_not_steal_the_keyboard():
         app.focus_panel(1)
         await pilot.pause(0.2)
         assert app.focused is host1.current                    # its page has the keys now
-        assert app.paged and "panel 1" in app.editor.placeholder
+        assert app.paged and "/work back to its chat" in app.editor.placeholder
 
 
 async def test_a_small_terminal_still_splits_and_refuses_when_there_is_no_room():
@@ -428,7 +428,7 @@ async def test_a_click_in_a_panel_focuses_it_and_the_prompt_follows():
         await pilot.click(app.chats[1].log, offset=(3, 3))
         await pilot.pause(0.2)
         assert app.focus_no == 1 and app.focused is app.editor
-        assert "panel" in app.editor.placeholder and "(panel 1)" in app.editor.placeholder
+        assert "ask a new chat" in app.editor.placeholder and "panel]" in app.editor.placeholder
 
 
 async def test_ctrl_c_interrupts_only_the_focused_panels_turn():

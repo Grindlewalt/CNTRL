@@ -121,11 +121,12 @@ async def test_ctrl_w_in_the_prompt_closes_the_tile_instead_of_deleting_a_word()
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.pause(0.3)
         await tiles(pilot, app, 2)
-        app.editor.text = "hello brave world"
-        app.editor.move_cursor(app.editor.document.end)
+        closing = app.editor
+        closing.text = "hello brave world"
+        closing.move_cursor(closing.document.end)
         await pilot.press("ctrl+w")
         assert await wait_for(lambda: len(app.chats) == 1)
-        assert "world" in app.editor.text            # nothing was deleted from the prompt
+        assert closing.text == "hello brave world"   # nothing was deleted from the prompt
         # the other way to delete a word still works
         app.editor.text = "hello brave world"
         app.editor.move_cursor(app.editor.document.end)
