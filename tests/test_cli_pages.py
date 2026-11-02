@@ -119,7 +119,9 @@ def test_the_commands_table_carries_the_pages_with_their_hints():
     assert cmds["agents"].usage == "[finished]" and cmds["sessions"].usage == "[id]"
     # the old spellings are aliases of the same command
     assert cmds["review"] is cmds["security"] and cmds["agents-view"] is cmds["agents"]
-    assert cmds["history"] is cmds["sessions"] and cmds["chat"] is cmds["work"]
+    assert cmds["chat"] is cmds["work"]
+    # /history was a sessions alias until nov2: it is the edit history now
+    assert cmds["history"] is not cmds["sessions"] and not cmds["history"].page
     # leader keys are kept
     assert (cmds["agents"].leader, cmds["security"].leader, cmds["vms"].leader,
             cmds["sessions"].leader) == ("g", "v", "c", "l")

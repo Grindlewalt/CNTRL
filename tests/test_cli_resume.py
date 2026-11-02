@@ -129,4 +129,4 @@ async def test_resume_is_listed_in_the_commands():
         await pilot.pause(0.3)
         cmds = app.commands
         assert "resume" in cmds and cmds["resume"].fn == app.c_resume
-        assert cmds["history"].fn == app.c_sessions         # the other alias is untouched
+        assert cmds["sessions"].fn == app.c_sessions        # (/history is the edit history since nov2)
