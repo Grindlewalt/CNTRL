@@ -557,6 +557,34 @@ PULSE_EVERY_S = 15.0
 HEALTH_EVERY_S = 30.0     # idle link check
 
 
+def _daemon_executor():
+    """asyncio's default executor (to_thread, and every DNS lookup httpx makes) on daemon
+    threads. Quitting must not wait on a lookup that hangs or a long /local grep: asyncio
+    waits up to 300 s for its executor and Python then joins those threads with no timeout,
+    so the client sat after the screen was gone. A thread per job; there are few."""
+    import concurrent.futures
+    import threading
+
+    class DaemonExecutor(concurrent.futures.ThreadPoolExecutor):  # asyncio wants this type
+        def submit(self, fn, /, *args, **kwargs):
+            fut: concurrent.futures.Future = concurrent.futures.Future()
+
+            def run() -> None:
+                if not fut.set_running_or_notify_cancel():
+                    return
+                try:
+                    fut.set_result(fn(*args, **kwargs))
+                except BaseException as e:  # noqa: BLE001 — handed to the awaiting side
+                    fut.set_exception(e)
+            threading.Thread(target=run, name="jav3-bg", daemon=True).start()
+            return fut
+
+        def shutdown(self, wait=True, *, cancel_futures=False) -> None:
+            pass                        # nothing to wait for: abandoned jobs die with us
+
+    return DaemonExecutor(max_workers=1)
+
+
 def probe_route(host: str, port: int) -> str | None:
     """No traffic: does this machine have a way to `host` at all? A UDP connect() sends
     nothing but asks the kernel for a route. "dns" (the name does not resolve), "route"
@@ -10234,6 +10262,7 @@ def build_tui(base: str, token: str, **kw):
             return self.query_one("#editor", Editor)
 
         async def on_mount(self) -> None:
+            asyncio.get_running_loop().set_default_executor(_daemon_executor())
             # With 256 colours (Terminal.app) the three near-black greys all round
             # to the same black: dialogs, the prompt box and the input fields
             # vanished into the background. There they are greys from the
@@ -15164,7 +15193,7 @@ def cmd_tui(args) -> int:
                     model=getattr(args, "model", None), resume=getattr(args, "resume", None),
                     cont=getattr(args, "cont", False), prompt=prompt)
     app.run()
-    for chat in list(getattr(app, "chats", {}).values()) or [app]:      # one per panel
+    for chat in app.all_chats() if hasattr(app, "all_chats") else [app]:   # every tab's tiles
         if chat.busy and chat.cid:
             print(f"the turn keeps running on the server — `jav3 -r {chat.cid}` re-attaches")
     if getattr(app, "return_code", 0):
