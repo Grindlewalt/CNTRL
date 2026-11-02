@@ -327,6 +327,22 @@ def _ended_status(r: dict, plans: Plans) -> str:
     return "failed"
 
 
+def _branch_fields(r: dict, plans: Plans) -> None:
+    """nov2: an item's branch/state/files (item["work"]) and the head's PR
+    (plan["merge"]) ride the node, when the job runs on branches."""
+    it = plans.items.get(r["id"])
+    w = (it or {}).get("work")
+    if w:
+        r["branch"] = w.get("branch")
+        r["work_state"] = w.get("state")
+        r["files"] = w.get("files")
+    pl = plans.heads.get(r["id"])
+    m = (pl or {}).get("merge")
+    if m:
+        r["pr"] = {"state": m.get("state"), "request_id": m.get("request_id"),
+                   "files": m.get("files"), "branch": m.get("branch")}
+
+
 def decorate(rows: list[dict], live: set[int], needs: dict[int, str],
              plans: Plans) -> None:
     """Add title/role/status/needs/ended_at to each row, in place. ended_at is
@@ -356,6 +372,7 @@ def decorate(rows: list[dict], live: set[int], needs: dict[int, str],
         visit(r)
         r["role"] = role_of(r, plans)
         r["clean_title"] = title_of(r, plans)
+        _branch_fields(r, plans)
 
 
 # --- the naming pass ------------------------------------------------------------

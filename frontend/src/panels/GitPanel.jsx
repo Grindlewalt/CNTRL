@@ -137,11 +137,13 @@ export default function GitPanel({ slug }) {
           <li key={r.id}>
             <span className="tag new">#{r.id}</span>
             {r.kind === 'remote' && <span className="tag">remote</span>}
+            {r.kind === 'merge' && <span className="tag" title={mergeTitle(r)}>PR</span>}
             <span className="grow ellipsis" title={r.message}>{r.message}</span>
             {r.error && <span className="tag error" title={r.error}>retry</span>}
             <button className="win-btn ok" disabled={busy}
                     title={r.kind === 'remote'
                       ? 'approve: verify + connect + push existing commits'
+                      : r.kind === 'merge' ? 'approve: merge the PR into main and write its files'
                       : 'approve: commit + push'}
                     onClick={() => act(r.id, 'approve')}>✓</button>
             <button className="win-btn" title="reject" disabled={busy}
@@ -159,4 +161,17 @@ export default function GitPanel({ slug }) {
       </ul>
     </div>
   )
+}
+
+// a merge request's parts as a tooltip: one line per agent, then the base-dirty note
+function mergeTitle(r) {
+  let pl = {}
+  try { pl = JSON.parse(r.payload || '{}') } catch { /* keep {} */ }
+  const lines = [`${pl.branch} → main`]
+  for (const p of pl.parts || []) lines.push(`${p.title}  ${p.branch || ''}  ${p.files || 0} files ${p.state || ''}`)
+  if ((pl.base_dirty || []).length) {
+    lines.push(`base dirty: ${pl.base_dirty.length} files were uncommitted when the job started; the PR commits the ones it changes`)
+  }
+  lines.push('try it first: /pull in a terminal client')
+  return lines.join('\n')
 }

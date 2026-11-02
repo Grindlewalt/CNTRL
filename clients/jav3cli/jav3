@@ -3219,6 +3219,37 @@ def calls_context_markup(payload: dict, cap: int = 6000, total: int = 120_000) -
     return "\n".join(out)
 
 
+_WORK_GLYPH = {"done": "✓ done", "merged": "✓ merged", "running": "running",
+               "conflict": "⚠ conflict", "resolved": "✓ resolved", "failed": "✗ failed"}
+
+
+def _branch_meta(nd: dict) -> list[str]:
+    """nov2: an item's branch and state, or the head's PR, for agent rows."""
+    out: list[str] = []
+    if nd.get("branch"):
+        st = _WORK_GLYPH.get(nd.get("work_state") or "", nd.get("work_state") or "")
+        n = nd.get("files")
+        out.append(nd["branch"])
+        out.append(" · ".join(x for x in (st, f"{n} files" if n else "") if x))
+    pr = nd.get("pr")
+    if isinstance(pr, dict):
+        n = pr.get("files")
+        out.append(" · ".join(x for x in (f"PR {pr.get('state') or ''}".strip(),
+                                          f"{n} files" if n else "") if x))
+    return [x for x in out if x]
+
+
+def _merge_payload(r: dict) -> dict:
+    """A merge request's payload (the queue returns it as JSON text)."""
+    pl = r.get("payload")
+    if isinstance(pl, str):
+        try:
+            pl = json.loads(pl)
+        except ValueError:
+            pl = {}
+    return pl if isinstance(pl, dict) else {}
+
+
 def build_tui(base: str, token: str, **kw):
     """Define the Textual app (imported only when the TUI actually runs, so the
     plain commands work without Textual) and return an instance."""
@@ -5676,6 +5707,7 @@ def build_tui(base: str, token: str, **kw):
             if root and nd.get("project") and not (self.mode == "finished"
                                                    and self.group_by == "project"):
                 meta.append(f"⌂ {nd['project']}")
+            meta += _branch_meta(nd)
             if nd.get("model"):
                 meta.append(str(nd["model"]).split("/")[-1])
             if nk:
@@ -7515,6 +7547,15 @@ def build_tui(base: str, token: str, **kw):
                         f"[b]{_esc(r.get('host') or '?')}[/] [$text-muted]for "
                         f"{_esc(_slug_says(r.get('project_slug')))} · "
                         f"{r.get('hit_count') or 0}×[/]{flag}")
+            if t == "git" and r.get("kind") == "merge":
+                pl = _merge_payload(r)
+                n = len(pl.get("parts") or [])
+                files = sum(int(p.get("files") or 0) for p in pl.get("parts") or [])
+                err = " [$error]not applied yet[/]" if r.get("error") else ""
+                return (f"[$warning b]PR  [/] [$text-muted]{ts}[/] "
+                        f"{_esc(pl.get('branch') or '?')} → main "
+                        f"[$text-muted]· {n} agent{'s' if n != 1 else ''} · {files} files "
+                        f"in {_esc(r.get('project_slug') or '?')}[/]{err}")
             if t == "git":
                 what = ("connect remote " + str(r.get("message") or "")
                         if r.get("kind") == "remote"
@@ -7578,6 +7619,28 @@ def build_tui(base: str, token: str, **kw):
                 if r.get("auto_verdict"):
                     lines.append(f"auto: {_esc(r['auto_verdict'])} "
                                  f"{_esc(r.get('auto_reason') or '')}")
+                return "\n".join(lines)
+            if t == "git" and r.get("kind") == "merge":
+                pl = _merge_payload(r)
+                lines = ["[$primary]y[/] approve   [$primary]n[/] reject", "",
+                         f"[b]PR {_esc(pl.get('branch') or '?')} → main[/] "
+                         f"(request #{r.get('id')}) in {_esc(r.get('project_slug') or '?')}  "
+                         f"[$text-muted]{_esc(full_ts(r.get('created_at')))}[/]", "",
+                         _esc(r.get("message") or ""), ""]
+                for part in pl.get("parts") or []:
+                    lines.append(f"  {_esc(str(part.get('title') or '?'))}  "
+                                 f"[$text-muted]{_esc(str(part.get('branch') or ''))}  "
+                                 f"{part.get('files') or 0} files "
+                                 f"{_esc(str(part.get('state') or ''))}[/]")
+                dirty = pl.get("base_dirty") or []
+                if dirty:
+                    lines += ["", "[$warning]base dirty:[/] "
+                              f"{len(dirty)} files were uncommitted when the job started "
+                              "(" + _esc(", ".join(dirty[:6])) + "); the PR commits the ones "
+                              "it changes."]
+                lines += ["", "try it first: [b]/pull[/] prints the clone/fetch commands"]
+                if r.get("error"):
+                    lines.append(f"[$error]last attempt: {_esc(r['error'])}[/]")
                 return "\n".join(lines)
             if t == "git":
                 remote = r.get("kind") == "remote"
@@ -8477,6 +8540,23 @@ def build_tui(base: str, token: str, **kw):
                 return
             slug, rid = r.get("project_slug") or "?", r.get("id")
             remote = r.get("kind") == "remote"
+            if r.get("kind") == "merge":
+                br = _merge_payload(r).get("branch") or "the PR"
+                if yes:
+                    q = f"Merge {br} into {slug}'s main?"
+                    detail = ("Makes a merge commit on main and writes the PR's files into "
+                              "the project. Refused, and left pending, if main conflicts or "
+                              "your own files changed on a path the PR changes.")
+                else:
+                    q = f"Reject {br} in {slug}?"
+                    detail = ("Removes the job's copies and branches. The project's files "
+                              "stay exactly as they are.")
+                if await self._confirm(q, detail):
+                    await self._send(
+                        "POST", f"/api/projects/{slug}/git/requests/{rid}/"
+                        f"{'approve' if yes else 'reject'}",
+                        f"{'merged' if yes else 'rejected'} {br}")
+                return
             if yes and remote:
                 q = f"Connect {slug} to {r.get('message')}?"
                 detail = ("Verifies the remote is reachable with the stored git token, sets "
@@ -13705,7 +13785,15 @@ def build_tui(base: str, token: str, **kw):
                 lines.append(f"{_plural(n, 'file')} not committed yet: only commits are "
                              "served, so they arrive once a commit is approved "
                              "(ctrl+x v, Queue)")
-            copy_to_clipboard(pull if here else clone, osc52=self.copy_to_clipboard)
+            pr = info.get("pr") or None
+            if pr:
+                lines += ["", f"a PR waits for you (request #{pr.get('request_id')}, "
+                          f"{pr.get('branch')}): try it before approving",
+                          f"  {pr.get('clone')}" + ("" if here else "      ← copied"),
+                          f"  {pr.get('fetch')}" + ("      ← copied (it is already here)"
+                                                    if here else "")]
+            copy_to_clipboard((pr.get("fetch") if here else pr.get("clone")) if pr else
+                              (pull if here else clone), osc52=self.copy_to_clipboard)
             await self.say("\n".join(lines))
 
         async def c_helper(self, arg: str) -> None:

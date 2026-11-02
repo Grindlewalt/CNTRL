@@ -297,3 +297,26 @@ put a file or a whole edit back (`/undo` undoes this chat's latest edit; it asks
 first and refuses if the file changed since). It is not the operator's git: these
 commits are never on main, never pushed and never served by `/git`. Files that
 `.gitignore` excludes are not versioned.
+
+## orchestrator PRs
+
+When an orchestrator job runs on branches, the project's files do not change until the
+operator approves the job's one PR. It shows in the queue (Security > Queue in the
+terminal, the git queue in the web app) as `PR agent/orch-<job6> -> main`, with the
+parts (one per item and its branch), the files and the diffstat against the job's base.
+
+- Try it first: `/pull` prints `pr.clone` (a fresh checkout of the PR branch) or
+  `pr.fetch` (inside an existing checkout: `git fetch origin <branch> && git switch
+  <branch>`). Nothing changes in the project by trying.
+- Approve: main gets a merge commit and the PR's files are written into the project.
+  If main moved since the job started it is merged in first; a conflict leaves the
+  request pending and names the files. If the project's own files changed since the job
+  started on a path the PR also changes, approval is refused and names them: commit or
+  move your edits and approve again. Files only you changed stay as they are,
+  uncommitted.
+- Uncommitted work: whatever was uncommitted when the job started is part of the job's
+  base. If the PR also changes those files they get committed with it, and the detail
+  says "base dirty" with their names.
+- Reject: the copies and branches are removed; the project is untouched.
+- With Gitea on, the PR branch is also pushed as the bot and a read-only Gitea PR
+  mirrors the summary; it is closed when you decide in Jav3.

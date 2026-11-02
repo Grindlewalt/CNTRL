@@ -55,6 +55,22 @@ def _git(repo: Path, *args: str) -> str | None:
     return r.stdout if r.returncode == 0 else None
 
 
+def _pending_pr(slug: str) -> dict | None:
+    """The project's pending orchestrator PR (queue rows of kind merge), if any."""
+    import sqlite3
+    try:
+        con = sqlite3.connect(f"file:{settings.db_path}?mode=ro", uri=True, timeout=2)
+        try:
+            r = con.execute("SELECT id, branch FROM git_requests WHERE project_slug = ? "
+                            "AND kind = 'merge' AND status = 'pending' ORDER BY id DESC "
+                            "LIMIT 1", (slug,)).fetchone()
+        finally:
+            con.close()
+    except Exception:  # noqa: BLE001 - /pull never fails on the queue's account
+        return None
+    return {"id": r[0], "branch": r[1]} if r and r[1] else None
+
+
 def pull_info(slug: str | None, base: str) -> dict:
     base = clean_base(base) or ""
     out = {"project": slug, "clone": None, "pull": None,
@@ -91,6 +107,12 @@ def pull_info(slug: str | None, base: str) -> dict:
             pass
     else:
         out["gitea"] = "not set up on this server (python -m backend.cli gitea-setup)"
+    pr = _pending_pr(slug)
+    if pr and settings.git_serve_enabled:
+        job6 = pr["branch"].rsplit("-", 1)[-1]
+        out["pr"] = {"branch": pr["branch"], "request_id": pr["id"],
+                     "clone": f"git clone -b {pr['branch']} {base}/git/{slug} {slug}-pr{job6}",
+                     "fetch": f"git fetch origin {pr['branch']} && git switch {pr['branch']}"}
     if out["uncommitted"]:
         out["note"] = (out["note"] + " " if out["note"] else "") + (
             "only committed work is served; the uncommitted files land once a "
