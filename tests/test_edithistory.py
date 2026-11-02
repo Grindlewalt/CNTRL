@@ -143,3 +143,23 @@ async def test_checkpoint_task(monkeypatch):
     assert n >= 2 and calls[0] == ("demo", "o")
     await asyncio.sleep(0.05)
     assert len(calls) == n                      # cancelled: no more pulls
+
+
+async def test_a_pull_in_flight_is_stopped_before_the_final_apply(monkeypatch):
+    # the turn's own `staged` buffer is the newest: an older checkpoint pull still landing
+    # must be cancelled first, or its bytes could finish last and win
+    from backend.vm import guest_turn
+    started, finished = asyncio.Event(), []
+
+    async def slow_pull(slug, op=None):
+        started.set()
+        await asyncio.sleep(30)
+        finished.append(slug)
+
+    monkeypatch.setattr(guest_turn, "pull_writes", slow_pull)
+    monkeypatch.setattr(settings, "turn_flush_seconds", 0.01)
+    t = asyncio.create_task(guest_turn._checkpoints("demo", "o"))
+    await asyncio.wait_for(started.wait(), 2)
+    assert await asyncio.wait_for(guest_turn._stop_checkpoints(t), 2) is None
+    assert t.cancelled() and finished == []
+    assert await guest_turn._stop_checkpoints(None) is None

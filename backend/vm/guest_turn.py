@@ -274,6 +274,9 @@ async def guest_turn(conversation_id, system_prompt, history, *, rules="",
                 # buffer. The stream ends when the guest closes.
                 if owns_ws:
                     staged_done = True
+                    # a checkpoint pull still landing an OLDER buffer must not finish
+                    # after this one and put stale bytes back: stop it first
+                    ckpt = await _stop_checkpoints(ckpt)
                     note = await _apply_staged(active_slug, ev, op_id)
                     if note and held_final is not None:
                         held_final = {**held_final,
@@ -317,9 +320,7 @@ async def guest_turn(conversation_id, system_prompt, history, *, rules="",
         if s is not None:
             s.close()
         last_out = False
-        if ckpt is not None:
-            ckpt.cancel()                 # before the rescue: no pull races it
-            await asyncio.gather(ckpt, return_exceptions=True)
+        ckpt = await _stop_checkpoints(ckpt)      # before the rescue: no pull races it
         try:
             if owns_ws and not staged_done:
                 # stopped (or failed) before the edits came home: bring them now,
@@ -401,6 +402,13 @@ async def _apply_staged(slug: str, ev: dict, op_id: str | None) -> str:
                     slug, type(e).__name__, e)
         return workspace_xfer.LOST_NOTE
     return workspace_xfer.describe_unapplied(res)
+
+
+async def _stop_checkpoints(task: asyncio.Task | None) -> None:
+    if task is not None:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    return None
 
 
 async def _checkpoints(slug: str, op_id: str | None) -> None:
