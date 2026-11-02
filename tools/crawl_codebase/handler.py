@@ -1,7 +1,13 @@
 from backend import writes
 from backend.codeindex import NOTES_SUBDIR, build_index
 from backend.config import settings
-from backend.agent.tools.toolctx import require_project
+from backend.agent.tools.toolctx import require_files as require_project
+
+
+
+def _files_dir(key):
+    from backend.worktrees import resolve
+    return resolve(key).dir
 
 
 async def run(subdir: str = "code") -> str:
@@ -14,7 +20,7 @@ async def run(subdir: str = "code") -> str:
     # files through the writes buffer or the whole index evaporates with the
     # disposable workspace while the tool reports success
     if getattr(settings, "in_guest", False):
-        base = settings.projects_dir / slug
+        base = _files_dir(slug)
         for rel in info["notes"]:
             p = base / rel
             if p.is_file():

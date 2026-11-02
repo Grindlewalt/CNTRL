@@ -33,6 +33,10 @@ parameters:
             type: string
             description: The model id (provider/model) the operator named.
         required: [task, model]
+    isolation:
+      type: string
+      enum: [branches, shared]
+      description: "branches (default): each item works in its own copy on its own branch and ONE pull request comes at the end for the operator; the project is untouched until approved. shared: items write straight into the project. Set it from the operator's answer to your sectioning question."
     title:
       type: string
       description: A short name for the plan (under ~8 words) — what it is for, not how the dump starts. Shown in the agents tree and the Jobs view.

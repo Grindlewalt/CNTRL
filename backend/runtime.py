@@ -92,3 +92,9 @@ tool_call_id = contextvars.ContextVar("jav3_tool_call_id", default=None)
 # and to nothing else. Their handler refuses any conversation that is not
 # local anyway; this only keeps the schemas off every other turn.
 local_turn = contextvars.ContextVar("jav3_local_turn", default=False)
+
+# nov2: the WORK KEY of the copy this operation's files live in (an orchestrator
+# item on a branch: worktrees.work_key). None = the project itself. Policy, the box,
+# taint and names stay the project's (active_project); only the files and the
+# guest's workspace dir follow the key (docs/nov2-contract.md, "The rule").
+work_key = contextvars.ContextVar("jav3_work_key", default=None)

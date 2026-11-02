@@ -95,6 +95,11 @@ async def lifespan(app: FastAPI):
     await providers.migrate_legacy_override()   # the old nav switch slot -> default
     await schedules.ensure_default_schedules()
     await orchestrator.settle_lost_heads()      # heads a restart cut off
+    try:
+        from . import worktrees
+        await worktrees.reap()                  # nov2: copies of jobs that are over
+    except Exception as e:  # noqa: BLE001
+        print(f"[worktrees] reap skipped: {e}")
     compile_registry()
     _warn_missing_guest_devices()
     await _announce_setup_link()

@@ -32,6 +32,7 @@ from .. import secrets as secrets_mod
 from .. import taintpaths, writes
 from ..config import settings
 from ..fsutil import list_tree
+from ..worktrees import project_of, resolve as _resolve_key
 
 log = logging.getLogger("jav3.workspace_xfer")
 
@@ -143,7 +144,7 @@ def workspace_note(slug: str) -> str:
 
 def build_workspace(slug: str) -> tuple[bytes, str]:
     """(the tarball build_merged_tar describes, a note for the turn or "")."""
-    proj = settings.projects_dir / slug
+    proj = _resolve_key(slug).dir      # a work key's files are its own copy
     buf = io.BytesIO()
     shipped: dict[str, str] = {}
     entries = [e for e in sorted(list_tree(proj, dotfiles=True), key=lambda e: e["path"])
@@ -280,7 +281,7 @@ async def apply_guest_writes(slug: str, tar_bytes: bytes, op_id: str | None = No
     if not tar_bytes:
         return res
     from . import broker
-    tainted = bool(broker.project_tainted(slug, consume=True)
+    tainted = bool(broker.project_tainted(project_of(slug), consume=True)
                    or (op_id and broker.op_tainted(op_id)))
     known = _shipped.setdefault(slug, {})
     applied_sha: dict[str, str] = {}
@@ -366,6 +367,8 @@ async def apply_guest_writes(slug: str, tar_bytes: bytes, op_id: str | None = No
     ledger = set(taintpaths.paths(slug)) if deleted else set()
     moved = {old_sha[r] for r in deleted if r in ledger and r in old_sha}
     taintpaths.record(slug, applied, tainted)
+    if project_of(slug) != slug:       # a copy's tainted files are the project's after the PR
+        taintpaths.record(project_of(slug), applied, tainted)
     if deleted:
         taintpaths.record(slug, deleted, False)
         taintpaths.record(slug, [r for r, h in applied_sha.items() if h in moved], True)
@@ -384,6 +387,7 @@ async def _owned_home_dirs(slug: str, homes: set[str], known: dict[str, str]) ->
     user dir) and stay out of the project."""
     from .. import gitgate
     owned: set[str] = set()
+    slug = project_of(slug)     # the project's repo answers, even for a copy
     has_git = (settings.projects_dir / slug / ".git").exists()
     for home in sorted(homes)[:50]:
         if any(k.startswith(home + "/") for k in known):

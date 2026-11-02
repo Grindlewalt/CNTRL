@@ -1,12 +1,17 @@
-from backend.config import settings
 from backend.fsutil import list_tree
 from backend.writes import pending_paths
-from backend.agent.tools.toolctx import require_project
+from backend.agent.tools.toolctx import require_files as require_project
+
+
+
+def _files_dir(key):
+    from backend.worktrees import resolve
+    return resolve(key).dir
 
 
 async def run() -> str:
     slug = await require_project()
-    files = list_tree(settings.projects_dir / slug)
+    files = list_tree(_files_dir(slug))
     # in-guest: files this turn wrote that haven't synced back to the host yet;
     # host-side writes apply immediately, so this is empty there
     pending = pending_paths(slug)

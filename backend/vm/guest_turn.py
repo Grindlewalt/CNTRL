@@ -19,7 +19,9 @@ import socket  # noqa: F401 -- tests patch gt.socket.socket
 
 from ..agent import budget as budget_mod
 from ..agent.budget import Budget
+from .. import runtime as _rt
 from .. import taintpaths
+from ..worktrees import project_of
 from .. import turnstats
 from ..config import settings
 from . import boxes, broker, deathnote, workspace_xfer
@@ -125,14 +127,19 @@ async def guest_turn(conversation_id, system_prompt, history, *, rules="",
     top-level turn's op_id is fresh, and it inherits the operation's Budget if one
     is in scope (contextvar) so every turn in one operation meters into one Budget."""
     op_id = op_id or f"guest:{conversation_id}"
+    # nov2: an orchestrator item on a branch works in its own copy: the workspace key
+    # (the guest's dir name, the host files) is the work key; the box, persist and
+    # every policy stay the project's.
+    active_slug = _rt.work_key.get() or active_slug
+    proj = project_of(active_slug)
     # which box runs this turn: the shared box unless boxes are enabled and
     # the project's profile gives it its own. Resolved BEFORE anything is
     # registered, so a refusal (BoxCapError) leaks no budget or token.
-    box = await boxes.for_project(active_slug)
+    box = await boxes.for_project(proj)
     # a joined box (placement "join") runs one project's turns at a time so its
     # egress is attributed to the right project; nothing awaits between here
     # and bind_op below, so the slot cannot be taken in between
-    box = await boxes.wait_turn_slot(box, active_slug)
+    box = await boxes.wait_turn_slot(box, proj)
     guest_vm = boxes.controller(box)  # the shared box: lifecycle.vm, as before
     holds_ws = bool(push_workspace and active_slug)
     # What this turn has registered, so the ONE finally below undoes exactly that
@@ -171,11 +178,11 @@ async def guest_turn(conversation_id, system_prompt, history, *, rules="",
         broker.register_token(op_id, op_token)
         if boxes.enabled():
             bound = True
-            boxes.bind_op(op_id, box, active_slug)      # the gateway refuses it from any other box
+            boxes.bind_op(op_id, box, proj)      # the gateway refuses it from any other box
         # /persist is a shared-box mechanism (retired in favour of service boxes)
         want_persist = bool(persist and holds_ws and box.is_shared
                             and not (envelope is not None and envelope.ephemeral)
-                            and await persist_mod.approved(active_slug))
+                            and await persist_mod.approved(proj))
         spec = {
             "conversation_id": conversation_id,
             "system_prompt": system_prompt,
@@ -207,7 +214,8 @@ async def guest_turn(conversation_id, system_prompt, history, *, rules="",
             "inbox": inbox,
             # the project's files a tainted turn wrote (backend/taintpaths.py): the
             # guest reports a read of one, so the turn is tainted like a web_read
-            "tainted_paths": taintpaths.paths(active_slug) if active_slug else [],
+            "tainted_paths": (sorted(set(taintpaths.paths(active_slug)) | set(taintpaths.paths(proj)))
+                              if active_slug else []),
         }
         await guest_vm.acquire()      # boot + pin the guest for this turn's life
         pinned = True                 # (a failed acquire took no pin: release would steal one)
@@ -233,7 +241,7 @@ async def guest_turn(conversation_id, system_prompt, history, *, rules="",
             # reaper can't scrub between here and the release in finally). The
             # guest reads this to tell the agent /persist exists; absent, the
             # agent is told nothing.
-            persist_fact = await persist_mod.attach_for_turn(active_slug)
+            persist_fact = await persist_mod.attach_for_turn(proj)
             if persist_fact:
                 persist_gen = persist_mod.generation()   # no await since attach
                 spec["persist"] = persist_fact
@@ -344,7 +352,7 @@ async def guest_turn(conversation_id, system_prompt, history, *, rules="",
                     # last one out unmounts + unplugs, while the guest is still pinned
                     try:
                         await asyncio.wait_for(
-                            persist_mod.release_for_turn(active_slug, persist_gen), RPC_TIMEOUT)
+                            persist_mod.release_for_turn(proj, persist_gen), RPC_TIMEOUT)
                     except Exception as e:  # noqa: BLE001 — the unwind must reach the pin
                         log.warning("persist release for %s failed: %s: %s",
                                     active_slug, type(e).__name__, e)
@@ -499,7 +507,7 @@ async def prime_workspace(slug: str) -> None:
     Callers hold the slug via acquire_workspace and prime only when first in."""
     tar_b64 = _workspace_b64(slug)
     await _pinned_rpc({"mode": "prime", "active_slug": slug,
-                       "workspace_tar_b64": tar_b64}, await boxes.for_project(slug))
+                       "workspace_tar_b64": tar_b64}, await boxes.for_project(project_of(slug)))
 
 
 async def pull_writes(slug: str, op_id: str | None = None) -> dict | None:
@@ -507,7 +515,7 @@ async def pull_writes(slug: str, op_id: str | None = None) -> dict | None:
     (secret refusal + advisory diff gate) — the counterpart to prime_workspace.
     Returns what apply_guest_writes did, or None when the guest had nothing."""
     ev = await _pinned_rpc({"mode": "pull", "active_slug": slug},
-                           await boxes.for_project(slug))
+                           await boxes.for_project(project_of(slug)))
     if ev and ev.get("type") == "staged":
         return await workspace_xfer.apply_guest_writes(
             slug, base64.b64decode(ev.get("tar_b64") or ""), op_id)
@@ -540,7 +548,7 @@ async def push_files(slug: str, files: dict[str, bytes]) -> bool | None:
         ev = await _pinned_rpc(
             {"mode": "put_files", "active_slug": slug,
              "files": {rel: base64.b64encode(b).decode() for rel, b in files.items()}},
-            await boxes.for_project(slug))
+            await boxes.for_project(project_of(slug)))
     except Exception as e:  # noqa: BLE001 — the caller still has the file's head to show
         log.warning("could not put %d file(s) into the guest's %s: %s: %s",
                     len(files), slug, type(e).__name__, e)

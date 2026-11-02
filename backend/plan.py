@@ -40,11 +40,12 @@ import asyncio
 import contextlib
 import json
 import re
+import sys
 import time
 import uuid
 from datetime import datetime, timezone
 
-from . import bus, capabilities, orchestrator, runtime, writes
+from . import bus, capabilities, orchestrator, plan_branches, runtime, worktrees, writes
 from .agent import budget as budget_mod
 from .agent.budget import BudgetExceeded
 from .agent.model import complete_text
@@ -120,7 +121,7 @@ def empty_plan(*, title: str = "", dump: str = "") -> dict:
             "job_id": None, "root_id": None, "next_id": 1,
             "attempts_max": settings.plan_attempts_max,
             "max_concurrent": settings.plan_max_concurrent,
-            "max_iterations": 0, "items": [],
+            "max_iterations": 0, "items": [], "isolation": "shared",
             "tokens_used": 0, "pause_at": settings.plan_pause_tokens, "paused_reason": None}
 
 
@@ -192,6 +193,8 @@ def normalise(plan: dict) -> dict:
         it["history"] = [h for h in (raw.get("history") or []) if isinstance(h, dict)][-HISTORY_KEEP:]
         it["guidance"] = [str(g) for g in (raw.get("guidance") or []) if g][-GUIDANCE_KEEP:]
         it["fixes"] = max(0, int(raw.get("fixes") or 0))
+        if isinstance(raw.get("work"), dict):      # nov2: the item's copy / branch record
+            it["work"] = raw["work"]
         it["continues"] = max(0, int(raw.get("continues") or 0))
         it["blocked_on"] = raw.get("blocked_on") if raw.get("blocked_on") in BLOCKED_ON else None
         it["trail"] = raw.get("trail") if isinstance(raw.get("trail"), dict) else None
@@ -555,7 +558,8 @@ def _assigned_model(raw: dict, allowed: set[str]) -> str | None:
 
 
 async def plan_from_dump(slug: str, dump: str, files=(), *, title: str = "",
-                         models=(), operator: bool = False) -> dict:
+                         models=(), operator: bool = False,
+                         isolation: str = "shared") -> dict:
     """One model call turns the dump into the checklist and persists it as the
     project's plan. Refuses to replace a plan that is running.
 
@@ -591,6 +595,7 @@ async def plan_from_dump(slug: str, dump: str, files=(), *, title: str = "",
         raise ValueError("the planner returned no checklist items")
     known = _known_agents()
     plan = empty_plan(title=title or _title_from(dump), dump=dump)
+    plan["isolation"] = "branches" if isolation == "branches" else "shared"
     items = []
     for raw in raws[:MAX_ITEMS]:
         assignee = str(raw.get("assignee") or "").strip() or None
@@ -1093,8 +1098,17 @@ async def run_plan(slug: str, *, job_id: str, root_id: int,
     bus.announce_job(job_id, root_id, f"Plan: {title}")
     status, rollup = "failed", ""
     try:
-        async with orchestrator.job_workspace(slug, top_level=True):
+        _p0 = load(slug) or {}
+        _ws = (plan_branches.nothing() if plan_branches.on(_p0)
+               else orchestrator.job_workspace(slug, top_level=True))
+        async with _ws:
             status = await _drive(slug, job_id, root_id, budget)
+            if status in ("done", "failed") and plan_branches.on(load(slug) or {}):
+                try:
+                    await plan_branches.integrate(slug, job_id, root_id, sys.modules[__name__])
+                except Exception as e:  # noqa: BLE001 — the rollup still says what happened
+                    bus.publish(job_id, {"type": "error", "node_id": root_id,
+                                         "message": f"merging the branches failed: {e}"})
         bus.publish(job_id, {"type": "node_status", "node_id": root_id,
                              "status": "summarizing"})
         if status == "paused":
@@ -1161,11 +1175,13 @@ async def _drive(slug: str, job_id: str, root_id: int, budget=None) -> str:
     # and every plan_flush_seconds (orchestrator.flush_workspace), and once more
     # on the way out; `flush_cid` is the item whose flags the pull should name
     need_flush, flush_cid, last_flush = False, None, time.monotonic()
+    keys: set[str] = set()          # nov2: the work keys whose guest copies to pull
     async with edit(slug) as plan:
         base_tokens = plan.get("tokens_used", 0)     # earlier runs of this plan
         _driving.add(slug)
         _drive_began.add(slug)
         plan["status"], plan["job_id"], plan["root_id"] = "running", job_id, root_id
+        await plan_branches.ensure_base(slug, plan, job_id)
         for it in plan["items"]:
             if it["status"] == "running":          # a previous run's leftovers
                 it["status"] = "todo"
@@ -1187,7 +1203,9 @@ async def _drive(slug: str, job_id: str, root_id: int, budget=None) -> str:
                         tasks.pop(iid)
                         m_done = meta.pop(iid)
                         need_flush, flush_cid = True, m_done.get("cid")
-                        if await _settle(plan, idx[iid], t, m_done, job_id) and not pausing:
+                        _paused = await _settle(plan, idx[iid], t, m_done, job_id)
+                        await plan_branches.mark(plan, idx[iid])
+                        if _paused and not pausing:
                             pausing = True
                             from . import provider_balance
                             plan["paused_reason"] = (
@@ -1271,6 +1289,8 @@ async def _drive(slug: str, job_id: str, root_id: int, budget=None) -> str:
                     m = {"cid": None, "last_activity": time.monotonic(),
                          "nudged": False}
                     meta[nxt["id"]] = m
+                    if plan_branches.on(plan):
+                        keys.add(plan_branches.key_for(slug, plan, nxt["id"]))
                     tasks[nxt["id"]] = asyncio.create_task(
                         _run_item(slug, job_id, root_id, plan, nxt, deps, m))
                     spawned += 1
@@ -1288,7 +1308,8 @@ async def _drive(slug: str, job_id: str, root_id: int, budget=None) -> str:
                 need_flush = True
             if need_flush:
                 need_flush, last_flush = False, time.monotonic()
-                await orchestrator.flush_workspace(slug, flush_cid)
+                for _k in (keys or {slug}):
+                    await orchestrator.flush_workspace(_k, flush_cid)
                 flush_cid = None
             if tasks:
                 await asyncio.wait(list(tasks.values()), timeout=settings.plan_tick_seconds,
@@ -1304,7 +1325,8 @@ async def _drive(slug: str, job_id: str, root_id: int, budget=None) -> str:
         if tasks:
             await asyncio.gather(*tasks.values(), return_exceptions=True)
         if need_flush:              # the last settle before a return / a stop
-            await orchestrator.flush_workspace(slug, flush_cid)
+            for _k in (keys or {slug}):
+                await orchestrator.flush_workspace(_k, flush_cid)
 
 
 async def _notify_paused(slug: str, plan: dict) -> None:
@@ -1467,14 +1489,21 @@ async def _run_item(slug: str, job_id: str, root_id: int, plan: dict, it: dict,
     """One attempt of one item, as a headless agent run under the plan's head."""
     from . import agents_run
     handoff = ""
+    wk, wnote, wdir = None, "", None
+    if plan_branches.on(plan) and plan.get("base"):
+        start, wnote = await plan_branches.start_commit(slug, plan, deps)
+        wdir = await worktrees.create(slug, plan["work_job"], it["id"], start)
+        wk = wdir.key
     if it.get("history"):
         # a retry: the last attempt's writes (and its handoff note) are still in
         # the guest's buffer until the settle's pull has run; pull now, so the
         # note is there to read (a no-op without a held guest workspace)
         prev = it["history"][-1].get("conversation_id")
-        await orchestrator.flush_workspace(slug, prev)
-        handoff = read_handoff(slug, it["id"])
+        await orchestrator.flush_workspace(wk or slug, prev)
+        handoff = read_handoff(wk or slug, it["id"])
     task = _item_task(plan, it, deps, item_ports(slug, it["id"]), handoff=handoff)
+    if wdir is not None:
+        task += plan_branches.task_note(wdir, wnote)
     item_id, title = it["id"], it["title"]
     agent = _item_agent(plan, it)
     m["rounds_cap"] = agent.get("max_iterations") or 0
@@ -1509,10 +1538,12 @@ async def _run_item(slug: str, job_id: str, root_id: int, plan: dict, it: dict,
             bus.publish(job_id, {"type": "tool", "name": ev.get("name"), "node_id": m["cid"]})
 
     try:
-        res = await agents_run._run_headless(
-            agent, task, active=slug, job_id=job_id,
-            title=f"[item {item_id}] {title[:50]}", on_open=on_open, on_event=on_event,
-            extra_tools=("plan_report",))
+        _ws = (orchestrator.job_workspace(wk, top_level=True) if wk else plan_branches.nothing())
+        async with _ws:
+            res = await agents_run._run_headless(
+                agent, task, active=slug, job_id=job_id,
+                title=f"[item {item_id}] {title[:50]}", on_open=on_open, on_event=on_event,
+                extra_tools=("plan_report",), work_key=wk)
         if isinstance(res, dict) and res.get("stop") not in ("budget", "cap", "dead_end"):
             # how the loop ended, for _settle (the final event names only a budget stop)
             res = {**res, **dict(zip(("stop", "rounds"), await _turn_stop(
@@ -1520,6 +1551,15 @@ async def _run_item(slug: str, job_id: str, root_id: int, plan: dict, it: dict,
         return res
     finally:
         _live_items.pop(m.get("cid"), None)
+        if wk:
+            try:
+                rec = await plan_branches.finish_item(slug, plan["work_job"], wk)
+                async with edit(slug) as p:
+                    cur = index(p).get(item_id)
+                    if cur is not None:
+                        cur["work"] = {**(cur.get("work") or {}), **rec}
+            except Exception:  # noqa: BLE001 — the branch still has what the edit history saved
+                pass
 
 
 def _budget_stop(it: dict, plan: dict, final: str, cid, job_id: str) -> None:
@@ -1687,7 +1727,7 @@ async def _synthesize(slug: str, status: str) -> str:
     plan = load(slug)
     if plan is None:
         return f"Plan run {status}."
-    listing = _listing(plan)
+    listing = _listing(plan) + plan_branches._pr_note(plan)
     if status != "stopped":
         try:
             text = await complete_text(
@@ -1723,6 +1763,14 @@ job is to keep the work moving: a failure or a block is a problem for you to
 solve, not a result to report. Do not do the items' work yourself; you may make
 a small unblocking fix directly (a missing stub, a name clash, a wrong path).
 
+0. Section first: before you plan, call ask_user ONCE with your proposed split into
+   branches. Option 1 is your recommended split, its label ending " (Recommended)"
+   (e.g. "3 branches: physics · track · ui (Recommended)"); the others are a coarser
+   or finer split; the last is always "No branches: write into the project directly".
+   Each item then works in its own copy and ONE pull request comes at the end for
+   the operator; the project is unchanged until they approve it. Pass isolation
+   "branches" (any split) or "shared" (no branches) to orchestrate, and shape the
+   items to the split you were given.
 1. Plan and launch: call orchestrate with the operator's dump — verbatim, plus
    any facts from this conversation the agents need (they will not see it). It
    saves an explicit checklist and runs one agent per item in this project, on

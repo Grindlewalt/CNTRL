@@ -1,7 +1,7 @@
 import posixpath
 
 from backend.writes import SecretLeakError, apply_write
-from backend.agent.tools.toolctx import require_project
+from backend.agent.tools.toolctx import require_files as require_project
 
 
 async def run(path: str, content: str) -> str:
