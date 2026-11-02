@@ -186,6 +186,8 @@ app.include_router(git_api.router)
 app.include_router(git_serve_api.router)
 from . import helper as _helper
 app.include_router(_helper.router)
+from . import history_api as _history_api
+app.include_router(_history_api.router)
 app.include_router(gitea_api.router)
 app.include_router(notifications_api.router)
 app.include_router(harness_api.router)
