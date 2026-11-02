@@ -369,6 +369,11 @@ async def apply_guest_writes(slug: str, tar_bytes: bytes, op_id: str | None = No
     if deleted:
         taintpaths.record(slug, deleted, False)
         taintpaths.record(slug, [r for r, h in applied_sha.items() if h in moved], True)
+    if applied or deleted:
+        # the edit history (backend/edithistory.py): this batch as a commit on a hidden
+        # ref (or on the item's own branch, for an orchestrator copy). Never raises.
+        from .. import edithistory
+        await edithistory.after_apply(slug, op_id, res)
     return res
 
 

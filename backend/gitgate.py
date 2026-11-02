@@ -416,6 +416,16 @@ def _requesting_turn() -> int | None:
     return runtime.conversation_id.get()
 
 
+async def create_merge_request(slug: str, *, job_id: str, branch: str, base_sha: str,
+                               parts: list[dict], summary: str,
+                               conversation_id: int | None = None) -> dict:
+    """An orchestrator job's one PR (nov2, docs/nov2-contract.md): `branch`
+    (agent/orch-<job6>) into main, approved in the same queue as commits. `base_sha` is
+    the job's base (worktrees.base_snapshot); `parts` one dict per item:
+    {item, title, branch, sha, files, state}. Returns the request row. Agent C."""
+    raise NotImplementedError
+
+
 async def create_request(slug: str, message: str, paths: list[str] | None = None) -> dict:
     if not message or not message.strip():
         raise ValueError("commit message must not be empty")
