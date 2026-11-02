@@ -42,6 +42,8 @@ class TurnEnvelope:
     # (vm.turn.run_agent_turn), never from the guest. release_turn hands this
     # turn's taint up to it: the parent is about to read the child's report.
     parent_op: str | None = None
+    # nov2: the work key of the item's copy on a branch (None = the project itself)
+    work_key: str | None = None
 
 
 _envelopes: dict[str, TurnEnvelope] = {}
@@ -450,9 +452,9 @@ async def broker_dispatch(op_id: str, name: str, args: dict,
                 "taint": "trusted"}
     vars_ = (runtime.web_session, runtime.ephemeral, runtime.artifact_slug,
              runtime.event_chan, runtime.active_project, runtime.conversation_id,
-             runtime.agent_memory)
+             runtime.agent_memory, runtime.work_key)
     vals = (env.web_session, env.ephemeral, env.artifact_slug, env.event_chan,
-            env.active_project, env.conversation_id, env.memory_slug)
+            env.active_project, env.conversation_id, env.memory_slug, env.work_key)
     tokens = [v.set(val) for v, val in zip(vars_, vals)]
     ok_id = (isinstance(call_id, str) and 0 < len(call_id) <= 128
              and call_id.isprintable())

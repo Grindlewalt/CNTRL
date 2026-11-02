@@ -1,5 +1,5 @@
 from backend.writes import SecretLeakError, apply_write, resolve
-from backend.agent.tools.toolctx import require_project
+from backend.agent.tools.toolctx import require_files as require_project
 
 
 async def run(path: str, find: str, replace: str, all: bool = False) -> str:

@@ -128,3 +128,18 @@ async def web_session() -> str:
     if op:
         return op
     return (await active_slug()) or "global"
+
+
+async def require_files() -> str:
+    """Like require_project(), for a tool that reads or writes the project's FILES: an
+    orchestrator item on a branch (runtime.work_key) works in its own copy, so this
+    returns the work key (writes.py resolves it to the copy's directory). Policy, rows
+    and names stay the project's: use require_project() for those."""
+    from ... import runtime
+    slug = await require_project()
+    key = runtime.work_key.get()
+    if key:
+        from ... import worktrees
+        if worktrees.project_of(key) == slug:
+            return key
+    return slug

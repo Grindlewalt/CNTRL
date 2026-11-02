@@ -1,7 +1,7 @@
 from backend.config import settings
 from backend.fsutil import find_file, list_tree
 from backend.writes import resolve
-from backend.agent.tools.toolctx import require_project
+from backend.agent.tools.toolctx import require_files as require_project
 
 
 def _coerce(name: str, value):
@@ -16,13 +16,19 @@ def _coerce(name: str, value):
 def _missing(slug: str, path: str) -> str:
     base = f"error: no such file '{path}' in project '{slug}'."
     name = path.rsplit("/", 1)[-1]
-    near = [e["path"] for e in list_tree(settings.projects_dir / slug)
+    near = [e["path"] for e in list_tree(_files_dir(slug))
             if e["path"].rsplit("/", 1)[-1] == name and e["path"] != path]
     if near:
         # several files share the name — naming them all is the only useful
         # answer, since picking one would be a guess
         return f"{base} Did you mean: {', '.join(near[:6])}?"
     return f"{base} Use list_files to see what exists."
+
+
+
+def _files_dir(key):
+    from backend.worktrees import resolve
+    return resolve(key).dir
 
 
 async def run(path: str, offset=None, limit=None) -> str:
@@ -44,7 +50,7 @@ async def run(path: str, offset=None, limit=None) -> str:
         # "dashboards/weather.html" asked for as "weather.html" is the same
         # file, and answering "no such file" spends a whole turn re-deriving a
         # path this tool can just find. Only when it is unambiguous.
-        found, _ = find_file(settings.projects_dir / slug, path)
+        found, _ = find_file(_files_dir(slug), path)
         if found is None:
             return _missing(slug, path)
         note = f"(read '{found}' — the only file matching '{path}')\n"
