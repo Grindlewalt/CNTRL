@@ -359,7 +359,8 @@ def _internal_specs(names: tuple[str, ...]) -> list[dict]:
 async def _run_headless(agent: dict, task: str, active=_USE_DB, *,
                         job_id: str | None = None, title: str | None = None,
                         on_open=None, on_event=None,
-                        extra_tools: tuple[str, ...] = ()) -> dict:
+                        extra_tools: tuple[str, ...] = (),
+                        work_key: str | None = None) -> dict:
     """Shared engine for named and temp headless runs. `active` pins the project context without disturbing the
     operator's live session.
 
@@ -389,6 +390,9 @@ async def _run_headless(agent: dict, task: str, active=_USE_DB, *,
         wtoken = runtime.web_session.set(f"run:{conversation_id}")
         # pin the run's project for its tools (host loop path) + its own children
         ptoken = runtime.active_project.set(active)
+        # nov2: an orchestrator item on a branch: files and the guest's workspace dir
+        # follow the work key, everything else stays the project's
+        wktoken = runtime.work_key.set(work_key)
         cidtoken = runtime.conversation_id.set(conversation_id)
         system_prompt = await _agent_system_prompt(db, agent, active=active)
         system_prompt = f"{system_prompt}\n\n{DELEGATED_DRIVE}"
@@ -417,6 +421,7 @@ async def _run_headless(agent: dict, task: str, active=_USE_DB, *,
                     stop = event.get("stop")
         finally:
             runtime.conversation_id.reset(cidtoken)
+            runtime.work_key.reset(wktoken)
             runtime.active_project.reset(ptoken)
             runtime.web_session.reset(wtoken)
         cur = await db.execute(

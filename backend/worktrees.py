@@ -173,9 +173,11 @@ def _live_jobs() -> set[str]:
             pl = _plan.load(p.name) if p.is_dir() else None
             if not pl:
                 continue
-            if pl.get("status") in ("running", "pending") or \
-                    (pl.get("merge") or {}).get("state") in ("merging", "resolving", "filed"):
-                tags.add(job_tag(pl.get("job_id")))
+            # a branches job is live until its PR is decided (approve/reject removes the
+            # copies); a plan that was only stopped or paused can still be resumed
+            if pl.get("isolation") == "branches" and pl.get("work_job") and \
+                    (pl.get("merge") or {}).get("state") not in ("approved", "rejected"):
+                tags.add(job_tag(pl["work_job"]))
     except Exception:
         pass
     return tags
@@ -194,3 +196,62 @@ async def reap() -> list[str]:
             await remove(d.name)
             out.append(d.name)
     return out
+
+
+# --- merging (plan.py's integration step) ---------------------------------------------
+
+async def merge_tree(git_dir: Path, a: str, b: str) -> tuple[str, list[str]]:
+    """`git merge-tree --write-tree a b` -> (tree, conflicted paths). A clean merge has
+    no paths. A conflicted tree holds the conflict markers in the files. The merge base
+    is found from history, so both must descend from the job's base."""
+    from . import gitsafe
+    rc, out, err = await gitsafe.git(git_dir, "merge-tree", "--write-tree", "--name-only",
+                                     a, b)
+    lines = out.split("\n")
+    tree = lines[0].strip()
+    if rc not in (0, 1) or len(tree) < 40:
+        raise gitsafe.GitError(f"git merge-tree failed: {(err or out).strip()[:300]}")
+    paths: list[str] = []
+    if rc == 1:
+        for ln in lines[1:]:
+            if not ln.strip():
+                break
+            paths.append(ln.strip())
+    return tree, paths
+
+
+async def commit_tree(git_dir: Path, tree: str, parents: list[str], message: str) -> str:
+    from . import gitsafe
+    args = ["commit-tree", tree]
+    for p in parents:
+        args += ["-p", p]
+    _, sha, _ = await gitsafe.git(git_dir, *args, env=gitsafe._who(),
+                                  stdin=message.encode(), check=True)
+    return sha.strip()
+
+
+async def is_ancestor(git_dir: Path, anc: str, desc: str) -> bool:
+    from . import gitsafe
+    rc, _, _ = await gitsafe.git(git_dir, "merge-base", "--is-ancestor", anc, desc)
+    return rc == 0
+
+
+async def changed_files(git_dir: Path, a: str, b: str) -> list[str]:
+    from . import gitsafe
+    _, out, _ = await gitsafe.git(git_dir, "diff-tree", "-r", "--name-only", "--no-renames",
+                                  a, b)
+    return [x for x in out.split("\n") if x]
+
+
+async def set_ref(git_dir: Path, ref: str, sha: str) -> None:
+    from . import gitsafe
+    await gitsafe.git(git_dir, "update-ref", ref, sha, check=True)
+
+
+async def reset_copy(key: str, tree_ish: str) -> None:
+    """Replace the copy's files with `tree_ish` (a commit or tree)."""
+    import shutil
+    w = resolve(key)
+    if w.dir.exists():
+        await asyncio.to_thread(shutil.rmtree, w.dir, True)
+    await _materialize(w.git_dir, w.dir, tree_ish)
