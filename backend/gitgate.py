@@ -666,7 +666,13 @@ async def _approve_merge(db, rid: int, row: dict) -> dict:
     # 2. the dir moved on the same paths: refuse, nothing is overwritten
     dir_tree = await gitsafe.tree_of(gd, project, base)
     moved = set(await _names(slug, base_tree, dir_tree)) if dir_tree != base_tree else set()
-    clash = sorted(moved & set(paths))
+    clash = []
+    for rel in sorted(moved & set(paths)):
+        # the dir already holds exactly what T has (main moved there first): not a clash
+        _, ds, _ = await gitsafe.git(gd, "rev-parse", "-q", "--verify", f"{dir_tree}:{rel}")
+        _, ts, _ = await gitsafe.git(gd, "rev-parse", "-q", "--verify", f"{T}:{rel}")
+        if ds.strip() != ts.strip():
+            clash.append(rel)
     if clash:
         await _refuse(db, rid, "files in the project changed since the job started and the "
                       "PR changes them too: " + ", ".join(clash[:20]) +
