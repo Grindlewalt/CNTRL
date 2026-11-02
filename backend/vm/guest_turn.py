@@ -143,6 +143,7 @@ async def guest_turn(conversation_id, system_prompt, history, *, rules="",
     # behind, and every later turn on the project then lost its workspace push.
     owns_budget = registered_env = registered_token = bound = pinned = False
     ws_held = owns_ws = staged_done = saw_final = False
+    ckpt = None                       # the mid-turn checkpoint task (owner only)
     persist_fact, persist_gen = None, 0
     held_final = None       # the owner's `final`, held until its edits are applied
     lost = None             # how the stream broke, when it broke with an error
@@ -241,6 +242,8 @@ async def guest_turn(conversation_id, system_prompt, history, *, rules="",
         # socket. Either way a connected non-blocking socket.
         s = await box.transport.connect(GUEST_RUNTURN_PORT)
         await loop.sock_sendall(s, (json.dumps(spec) + "\n").encode())
+        if owns_ws and settings.turn_flush_seconds > 0:
+            ckpt = asyncio.create_task(_checkpoints(active_slug, op_id))
         buf = bytearray()
         while True:
             # once the answer is held the write buffer is due within seconds: a
@@ -314,6 +317,9 @@ async def guest_turn(conversation_id, system_prompt, history, *, rules="",
         if s is not None:
             s.close()
         last_out = False
+        if ckpt is not None:
+            ckpt.cancel()                 # before the rescue: no pull races it
+            await asyncio.gather(ckpt, return_exceptions=True)
         try:
             if owns_ws and not staged_done:
                 # stopped (or failed) before the edits came home: bring them now,
@@ -395,6 +401,20 @@ async def _apply_staged(slug: str, ev: dict, op_id: str | None) -> str:
                     slug, type(e).__name__, e)
         return workspace_xfer.LOST_NOTE
     return workspace_xfer.describe_unapplied(res)
+
+
+async def _checkpoints(slug: str, op_id: str | None) -> None:
+    """Mid-turn: every settings.turn_flush_seconds hand the guest's write buffer home
+    (pull_writes is idempotent), so a box that dies loses a minute, not the turn. A
+    failed pull is logged and tried again next round."""
+    while True:
+        await asyncio.sleep(settings.turn_flush_seconds)
+        try:
+            await asyncio.wait_for(pull_writes(slug, op_id), RESCUE_TIMEOUT)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            log.warning("mid-turn checkpoint for %s failed: %s", slug, e)
 
 
 async def _rescue(slug: str, op_id: str | None) -> dict | None:

@@ -118,7 +118,7 @@ async def info_refs(slug: str, service: str, request: Request):
             detail="read-only: only clone/fetch (git-upload-pack) is served here")
     repo = _repo_dir(slug)
     proc = await asyncio.create_subprocess_exec(
-        "git", "upload-pack", "--stateless-rpc", "--advertise-refs", str(repo),
+        "git", "-c", "uploadpack.hideRefs=refs/jav3", "upload-pack", "--stateless-rpc", "--advertise-refs", str(repo),
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         env=_git_env(request))
     try:
@@ -148,7 +148,7 @@ async def upload_pack(slug: str, request: Request):
         except OSError:
             raise HTTPException(status_code=400, detail="bad gzip body")
     proc = await asyncio.create_subprocess_exec(
-        "git", "upload-pack", "--stateless-rpc", str(repo),
+        "git", "-c", "uploadpack.hideRefs=refs/jav3", "upload-pack", "--stateless-rpc", str(repo),
         stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE, env=_git_env(request))
     try:

@@ -118,6 +118,9 @@ class Settings(BaseSettings):
 
     jwt_secret: str = ""
     jwt_ttl_hours: int = 24 * 7
+    # a box turn that owns its workspace hands its edits home this often (s; 0 = only
+    # at the end): a box that dies mid-turn loses this much, not the turn
+    turn_flush_seconds: int = 60
     # A `jav3 login` device token dies this many days after it was minted, or
     # after this many days without being used, whichever comes first. The CLI
     # answers either with "run: jav3 login".
