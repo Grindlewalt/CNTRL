@@ -85,7 +85,8 @@ async def history(slug: str, limit: int = 50, path: str | None = None):
     limit = max(1, min(int(limit), 500))
     if await gitsafe.rev(g, worktrees.HISTORY_REF) is None:
         return {"entries": []}
-    args = ["log", worktrees.HISTORY_REF, f"-n{limit}", "--format=%H%x1f%ct%x1f%B%x1e"]
+    args = ["log", worktrees.HISTORY_REF, f"-n{limit}", "--grep=^Applied: ", "--grep=^Deleted: ",
+            "--format=%H%x1f%ct%x1f%B%x1e"]  # the base commit under the first entry is HEAD, not an entry
     if path:
         args += ["--", path]
     _, out, _ = await gitsafe.git(g, *args, check=True)
