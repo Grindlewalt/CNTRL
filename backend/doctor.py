@@ -194,7 +194,28 @@ def stages() -> list[dict]:
     out.append(_stage("gitea", "Gitea (agent pull requests)",
                       gitea_ok if settings.gitea_enabled else False,
                       gitea_detail, gitea_fix, optional=True))
+    out.append(_search_stage())
     return out
+
+
+def _search_stage() -> dict:
+    """One canary query: how many engines answer and whether the results are on topic."""
+    from . import webtools
+    title = "web search (SearXNG)"
+    fix = ("SearXNG is struggling (engines blocked or rate-limited): try again later, "
+           f"change searxng_engines in the config, or check {settings.searxng_url}")
+    r = asyncio.run(webtools.search_probe())
+    if not r["ok"]:
+        return _stage("search", title, False, r["error"], fix, optional=True)
+    if r["results"] and r["relevant"] * 2 < r["results"]:
+        return _stage("search", title, False,
+                      f"results do not match the query ({r['relevant']} of {r['results']} "
+                      f"relevant). {r['health'] or ''}".strip(), fix, optional=True)
+    if r["health"] or not r["results"]:
+        return _stage("search", title, False,
+                      r["health"] or "no results for the canary query", fix, optional=True)
+    return _stage("search", title, True,
+                  f"all engines answered, {r['relevant']} relevant results", optional=True)
 
 
 def _gitea_gaps() -> list[dict]:
