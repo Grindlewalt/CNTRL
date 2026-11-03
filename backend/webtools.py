@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 import httpx
 
 from . import pdftext
+from .agent import imageresult
 from .config import settings
 from .db import get_db
 from .websec import UnsafeURL, html_to_text, is_safe_url
@@ -293,8 +294,10 @@ async def read(url: str, session: str) -> str:
     doc_url, frag, frag_value = pdftext.split_fragment(url)
     doc = pdftext.cached(doc_url) if frag else None
     if doc is not None:
-        out = _out(pdftext.render(doc_url, doc, frag, frag_value, settings.web_pdf_max_chars))
-        _cache_put(_page_cache, url, out)
+        out = _out(await pdftext.answer(doc_url, doc, frag, frag_value,
+                                        settings.web_pdf_max_chars))
+        if imageresult.MARKER not in out:   # a result with an image is rebuilt, not cached
+            _cache_put(_page_cache, url, out)
         return out
     fetch_url = pdftext.split_fragment(fetch_url)[0]
     if not claimed:
@@ -351,10 +354,11 @@ async def read(url: str, session: str) -> str:
                 doc = await pdftext.load(doc_url, raw)
             except pdftext.PdfError as e:
                 return _out(f"error: {e}")
-            out = _out(pdftext.render(doc_url, doc, frag, frag_value,
-                                      settings.web_pdf_max_chars))
+            out = _out(await pdftext.answer(doc_url, doc, frag, frag_value,
+                                            settings.web_pdf_max_chars))
             ok = True
-            _cache_put(_page_cache, url, out)
+            if imageresult.MARKER not in out:
+                _cache_put(_page_cache, url, out)
             return out
         if b"\x00" in raw[:4096] and "html" not in ctype and "text" not in ctype:
             # images, archives, office files: decoded as text they were pages
