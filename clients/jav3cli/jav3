@@ -6688,6 +6688,12 @@ def build_tui(base: str, token: str, **kw):
             return f"{_esc(str(r['min_mem_mb']))} MB"
         return f"as `{_esc(r.get('from_variant') or 'main')}`"
 
+    def _row_journal(e) -> str:
+        r, ts = e["raw"], row_ts(e.get("ts"))
+        return (f"[$warning b]JOURNAL [/] [$text-muted]{ts}[/] "
+                f"[b]{_esc(_short(r.get('text') or '?', 70))}[/] "
+                f"[$text-muted]for {_esc(r.get('project') or '?')} · unverified[/]")
+
     def _row_skillreq(e) -> str:
         r, ts = e["raw"], row_ts(e.get("ts"))
         st = r.get("status") or "pending"
@@ -6827,7 +6833,7 @@ def build_tui(base: str, token: str, **kw):
                 + f" · {len(projects)} project{'s' * (len(projects) != 1)}[/]")
 
     _ROWS = {"service": _row_service, "package": _row_package, "envreq": _row_envreq,
-             "skillreq": _row_skillreq, "policy": _row_policy,
+             "skillreq": _row_skillreq, "journal": _row_journal, "policy": _row_policy,
              "group": _row_group, "pbox": _row_pbox, "proc": _row_proc, "svc": _row_svc,
              "orphan": _row_orphan,
              "call": calls_row, "refusal": calls_row,
@@ -7063,7 +7069,9 @@ def build_tui(base: str, token: str, **kw):
                           quiet404=True, params={"status": "pending"}),
                 self._get("queue", "skill requests", "/api/skill-requests", "requests",
                           quiet404=True))
-            self._queue_extra = (envs or [], skills or [])
+            held = await self._get("queue", "journal", "/api/memory/held-journal", "items",
+                                   quiet404=True)
+            self._queue_extra = (envs or [], skills or [], held or [])
             alerts = None
             if runs is None:                          # the flat list, as before the cards
                 alerts = await self._get("queue", "alerts", "/api/security/events", "events",
@@ -7085,9 +7093,10 @@ def build_tui(base: str, token: str, **kw):
             """The Queue from what was last loaded, with the cards opened or closed as
             they are now (no request)."""
             pending, git, alerts, services, packages, runs = self._queue_src
-            envs, skills = getattr(self, "_queue_extra", ((), ()))
+            envs, skills, journal = getattr(self, "_queue_extra", ((), (), ()))
             return self.queue_entries(pending, git, alerts, services, packages, runs=runs,
-                                      open_runs=self.open_runs, envs=envs, skills=skills)
+                                      open_runs=self.open_runs, envs=envs, skills=skills,
+                                      journal=journal)
 
         def _lan(self, svcs) -> None:
             """GET /api/services' LAN fields: services_lan_ip is "" unless a
@@ -7109,7 +7118,7 @@ def build_tui(base: str, token: str, **kw):
 
         @staticmethod
         def queue_entries(pending, git: dict, alerts, services=(), packages=(), runs=None,
-                          open_runs=(), envs=(), skills=()) -> list[dict]:
+                          open_runs=(), envs=(), skills=(), journal=()) -> list[dict]:
             asks = [{"type": "egress", "key": f"p{e.get('id')}", "raw": e,
                      "ts": e.get("last_seen") or ""} for e in pending]
             asks += [{"type": "service", "key": f"v{q.get('id')}", "raw": q,
@@ -7124,6 +7133,9 @@ def build_tui(base: str, token: str, **kw):
             asks += [{"type": "skillreq", "key": f"sk{q.get('id')}", "raw": q,
                       "ts": q.get("created_at") or ""}
                      for q in skills if q.get("status") in ("pending", "fetched")]
+            # journal lines held [unverified]: no timestamp of their own, the line's date
+            asks += [{"type": "journal", "key": f"j{q.get('project')}:{q.get('id')}", "raw": q,
+                      "ts": q.get("date") or ""} for q in journal]
             for slug, reqs in git.items():
                 for q in reqs or []:
                     if q.get("status", "pending") == "pending":
@@ -7800,6 +7812,17 @@ def build_tui(base: str, token: str, **kw):
                              "package has a version (the server resolves them; r reloads)[/]")
             return "\n".join(lines)
 
+        def _detail_journal(self, e) -> str:
+            r = e["raw"]
+            return "\n".join([
+                "[$primary]y[/] approve (the entry rides prompts)   [$primary]n[/] drop (removes the line)",
+                "",
+                f"[b]journal entry held[/] [$text-muted]{_esc(r.get('project') or '?')} · "
+                f"{_esc(r.get('date') or '')}[/]",
+                f"entry: {_esc(r.get('text') or '')}", "",
+                "[$text-muted]An agent wrote this after reading untrusted content. It is in "
+                "project.md tagged [unverified] and stays out of every prompt until you approve it.[/]"])
+
         def _detail_skillreq(self, e) -> str:
             r = e["raw"]
             st = r.get("status") or "pending"
@@ -8064,6 +8087,8 @@ def build_tui(base: str, token: str, **kw):
                         return "[$primary]y[/] fetch  [$primary]n[/] reject"
                     return ("[$primary]y[/] install & grant  [$primary]f[/] fetch again  "
                             "[$primary]n[/] reject")
+                if e is not None and e["type"] == "journal":
+                    return "[$primary]y[/] approve  [$primary]n[/] drop"
                 if e is not None:
                     return "[$primary]y[/] approve  [$primary]n[/] deny"
             return self.FOOT[self.tab]
@@ -8136,6 +8161,9 @@ def build_tui(base: str, token: str, **kw):
                              f"{'s' * (pk != 1)} · ")
                 ne = sum(e["type"] == "envreq" for e in es)
                 nk = sum(e["type"] == "skillreq" for e in es)
+                nj = sum(e["type"] == "journal" for e in es)
+                if nj:
+                    extra += f"{nj} journal entr{'ies' if nj != 1 else 'y'} · "
                 if ne or nk:
                     extra += (f"{ne} environment{'s' * (ne != 1)} · {nk} skill "
                               f"request{'s' * (nk != 1)} · ")
@@ -8542,6 +8570,9 @@ def build_tui(base: str, token: str, **kw):
                 return
             if e is not None and e["type"] == "envreq":
                 await (self._approve_env(e["raw"]) if yes else self._reject("envreq", e["raw"]))
+                return
+            if e is not None and e["type"] == "journal":
+                await self._decide_journal(e["raw"], yes)
                 return
             if e is not None and e["type"] == "skillreq":
                 if not yes:
@@ -9007,6 +9038,17 @@ def build_tui(base: str, token: str, **kw):
                 await self._send("POST", f"/api/environments/{eid}/approve",
                                  f"approved environment {name}",
                                  json={"acknowledge": True, "build": True})
+
+        async def _decide_journal(self, r: dict, yes: bool) -> None:
+            verb, what = ("approve", "Approve") if yes else ("drop", "Drop")
+            detail = ("Removes the [unverified] tag from this line of project.md and nothing "
+                      "else; it rides prompts from the next turn." if yes else
+                      "Removes this line from project.md.")
+            if await self._confirm(f"{what} this journal entry?",
+                                   f"{r.get('text') or ''}\n\n{detail}"):
+                await self._send(
+                    "POST", f"/api/memory/held-journal/{r.get('project')}/{r.get('id')}/{verb}",
+                    f"{'approved' if yes else 'dropped'} the journal entry")
 
         async def _fetch_skill(self, r: dict) -> None:
             sid = r.get("id")
