@@ -433,11 +433,14 @@ async def test_reject_and_cookie_only(client):
     r = await client.post(f"/api/services/{sid}/reject", json={"reason": "no"})
     assert r.status_code == 200 and r.json()["status"] == "rejected"
     assert (await client.get("/api/services?project=demo")).json()["services"][0]["status"] == "rejected"
+    # the request's alert is answered with it (it left the Queue and the notices)
+    assert [e["acknowledged"] for e in await _events("service_requested")] == [1]
 
 
 async def test_supersede_diff_and_replace(client):
     sid = (await services.file_request("demo", _req()))["id"]
     await services.approve(sid, placement="per_project", expose_ports=[])
+    assert [e["acknowledged"] for e in await _events("service_requested")] == [1]
     with pytest.raises(services.ServiceError, match="exactly this definition"):
         await services.file_request("demo", _req())
     (settings.projects_dir / "demo" / "app" / "util.py").write_text("X = 2\n")

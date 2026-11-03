@@ -304,6 +304,7 @@ async def approve(slug: str, item_id: str, *, sha256: str | None = None,
     await writes.apply_write(slug, item["path"], content)
     taintpaths.record(slug, [item["path"]], False)
     _drop(slug, item_id)
+    await _settle(item_id)
     await _audit("always_loaded_approved", "info", slug,
                  f"held change to always-loaded file {item['path']} approved",
                  {"path": item["path"], "by": "operator"}, by_operator=by_operator)
@@ -314,6 +315,7 @@ async def reject(slug: str, item_id: str, *, by_operator: bool = False) -> str |
     item = _read(slug, item_id)
     if item is None or not _drop(slug, item_id):
         return None
+    await _settle(item_id)
     await _audit("always_loaded_rejected", "info", slug,
                  f"held change to always-loaded file {item['path']} rejected",
                  {"path": item["path"], "by": "operator"}, by_operator=by_operator)
@@ -351,6 +353,20 @@ async def _audit(kind: str, severity: str, slug: str, summary: str,
                 db, kind=kind, severity=severity, project=slug, summary=summary,
                 detail={**(detail or {}), "conversation_id": runtime.conversation_id.get()},
                 cause=cause, actor=security.OPERATOR if by_operator else None)
+        finally:
+            await db.close()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+async def _settle(item_id: str) -> None:
+    """The hold's alert is answered with the hold. Best-effort, like _audit."""
+    try:
+        from . import security
+        from .db import get_db
+        db = await get_db()
+        try:
+            await security.settle(db, "always_loaded_held", "id", item_id)
         finally:
             await db.close()
     except Exception:  # noqa: BLE001

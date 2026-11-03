@@ -76,7 +76,7 @@ LOG = [{"id": 9, "kind": "unexpected_process", "severity": "warn", "project_slug
         "last_seen": "2026-09-28 13:00:00", "tier": "alert"}]
 
 
-def _server(seen, live=LIVE, events_route=True):
+def _server(seen, live=LIVE, events_route=True, log=LOG):
     state = {"streams": 0}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -106,7 +106,7 @@ def _server(seen, live=LIVE, events_route=True):
             return httpx.Response(200, text='data: {"type": "stream_open"}\n\n',
                                   headers={"content-type": "text/event-stream"})
         if path == "/api/security/events":
-            return httpx.Response(200, json={"events": LOG})
+            return httpx.Response(200, json={"events": log})
         if path == "/api/projects":
             return httpx.Response(200, json={"projects": [], "active": None})
         if path == "/api/egress/pending":
@@ -180,6 +180,88 @@ async def test_a_critical_alert_during_this_chats_turn_prints_in_the_chat(cfg):
         texts = [t for _, _, t in app.notices]
         assert not any("old warn" in t for t in texts) and any("old crit" in t for t in texts)
         assert len(lines()) == 3                                   # the old crit, no project
+
+
+# --- resolved notices leave (2026-11-03) ---------------------------------------------
+
+PENDING = [
+    _sec(3, "package_requested", "info", "agent requested pip package left-pad",
+         ping=True, tier="approval", project="demo"),
+    _sec(4, "egress_anomaly", "critical", "volume spike to up.example (50000000 bytes)",
+         ping=True, tier="critical", project="homelab"),
+    _sec(5, "harness_fault", "info", "list_files failed", ping=True, tier="alert"),
+    {"type": "agent_run_done", "conversation_id": 44, "agent": "Coder", "ok": True,
+     "took": "1m", "summary": "done"},
+]
+
+
+def _texts(app) -> list[str]:
+    return [t for _, _, t in app.notices]
+
+
+async def test_an_acknowledged_alert_leaves_the_sidebar_and_its_badges(cfg):
+    pytest.importorskip("textual")
+    live = PENDING + [{"type": "security_acked", "ids": [3, 4]}]
+    app = jav3.build_tui("http://h:1", "session:sess", transport=_server([], live=live))
+    async with app.run_test(size=(140, 40)) as pilot:
+        assert await _until(pilot, lambda: any("Coder" in t for t in _texts(app)))
+        await pilot.pause(0.1)
+        assert not any(t.startswith(("package_requested", "egress_anomaly")) for t in _texts(app))
+        assert any(t.startswith("harness_fault") for t in _texts(app))
+        assert app.crit_unread == 0 and app.unread == 2
+        status = _text(app.query_one("#status-right"))
+        assert "✗" not in status and "● 2" in status
+
+
+async def test_a_bulk_clear_takes_off_what_it_cleared_only(cfg):
+    pytest.importorskip("textual")
+    live = PENDING + [{"type": "security_acked", "all": True, "only": None,
+                       "exclude": "harness_fault"}]
+    app = jav3.build_tui("http://h:1", "session:sess", transport=_server([], live=live))
+    async with app.run_test(size=(140, 40)) as pilot:
+        assert await _until(pilot, lambda: any("Coder" in t for t in _texts(app)))
+        await pilot.pause(0.1)
+        kept = sorted(t.split(" ")[0] for t in _texts(app))
+        assert kept == ["harness_fault", "◆"]                 # the agent's run is no alert
+
+
+async def test_a_repeat_of_an_alert_replaces_its_notice(cfg):
+    pytest.importorskip("textual")
+    again = _sec(3, "package_requested", "info", "agent requested pip package left-pad",
+                 ping=True, tier="approval", project="demo", count=2, repeat=True)
+    app = jav3.build_tui("http://h:1", "session:sess",
+                         transport=_server([], live=PENDING[:1] + [again]))
+    async with app.run_test(size=(140, 40)) as pilot:
+        assert await _until(pilot, lambda: any("(×2)" in t for t in _texts(app)))
+        assert len(app.notices) == 1 and app.unread == 1
+
+
+async def test_alerts_acknowledged_while_the_stream_was_down_leave_on_reconnecting(cfg):
+    pytest.importorskip("textual")
+    seen: list = []
+    still = [{**LOG[0], "id": 4, "kind": "egress_anomaly"}]     # only #4 is still open
+    app = jav3.build_tui("http://h:1", "session:sess",
+                         transport=_server(seen, live=PENDING[:2], log=still))
+    async with app.run_test(size=(140, 40)) as pilot:
+        assert await _until(pilot, lambda: any(t.startswith("package_requested")
+                                               for t in _texts(app)))
+        # the first stream ends; the client reconnects (2 s backoff) and asks what is open
+        assert await _until(pilot, lambda: ("GET", "/api/security/events",
+                                            "unacknowledged=true&limit=500") in seen, tries=120)
+        assert await _until(pilot, lambda: not any(t.startswith("package_requested")
+                                                   for t in _texts(app)))
+        assert any(t.startswith("egress_anomaly") for t in _texts(app))
+
+
+async def test_a_chats_notices_go_once_that_chat_is_on_screen(cfg):
+    pytest.importorskip("textual")
+    app = jav3.build_tui("http://h:1", "session:sess", transport=_server([], live=PENDING[3:]))
+    async with app.run_test(size=(140, 40)) as pilot:
+        assert await _until(pilot, lambda: any("Coder" in t for t in _texts(app)))
+        assert app.unread == 1
+        app.cid = 44                     # the agent's chat is opened in the focused tile
+        assert await _until(pilot, lambda: not any("Coder" in t for t in _texts(app)))
+        assert app.unread == 0
 
 
 async def test_an_older_server_falls_back_to_the_notices_stream(cfg):

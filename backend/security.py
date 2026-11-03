@@ -875,10 +875,18 @@ async def get_event(db: aiosqlite.Connection, event_id: int) -> dict | None:
     return _row(r) if r is not None else None
 
 
+def _acked(**what) -> None:
+    """Tell the live clients which alerts are acknowledged now (`ids`, or `all` with
+    the bulk clear's `only` / `exclude`), so a notice of one leaves their lists: the
+    terminal's sidebar kept every notice it ever got, answered or not."""
+    bus.publish(SECURITY_CHAN, {"type": "security_acked", **what})
+
+
 async def acknowledge(db: aiosqlite.Connection, event_id: int) -> dict:
     await db.execute("UPDATE security_events SET acknowledged=1, "
                      "acknowledged_at=datetime('now') WHERE id = ?", (event_id,))
     await db.commit()
+    _acked(ids=[event_id])
     return {"ok": True}
 
 
@@ -886,12 +894,18 @@ async def settle(db: aiosqlite.Connection, kind: str, key: str, value) -> int:
     """Acknowledge the open `kind` events whose detail[key] == value: the
     request a queue card just decided, so the same request does not stay in
     the alerts as "needs you" after the operator answered it."""
-    cur = await db.execute(
-        "UPDATE security_events SET acknowledged=1, acknowledged_at=datetime('now') "
-        "WHERE acknowledged=0 AND kind = ? AND json_extract(detail, '$.' || ?) = ?",
-        (kind, key, value))
+    where = "acknowledged=0 AND kind = ? AND json_extract(detail, '$.' || ?) = ?"
+    async with db.execute(f"SELECT id FROM security_events WHERE {where}",
+                          (kind, key, value)) as cur:
+        ids = [r["id"] for r in await cur.fetchall()]
+    if not ids:
+        return 0
+    await db.execute("UPDATE security_events SET acknowledged=1, "
+                     "acknowledged_at=datetime('now') WHERE id IN "
+                     f"({','.join('?' * len(ids))})", ids)
     await db.commit()
-    return cur.rowcount
+    _acked(ids=ids)
+    return len(ids)
 
 
 async def acknowledge_all(db: aiosqlite.Connection, *, only: str | None = None,
@@ -909,6 +923,8 @@ async def acknowledge_all(db: aiosqlite.Connection, *, only: str | None = None,
     cur = await db.execute("UPDATE security_events SET acknowledged=1, "
                            f"acknowledged_at=datetime('now') WHERE {where}", args)
     await db.commit()
+    if cur.rowcount:
+        _acked(all=True, only=only, exclude=exclude)
     return {"ok": True, "done": cur.rowcount}
 
 

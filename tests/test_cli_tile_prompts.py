@@ -124,3 +124,54 @@ async def test_a_page_in_one_tile_leaves_the_others_meta_alone():
         assert not app.chats[2].meta_row.display
         assert app.chats[1].meta_row.display
         assert not app.chats[1].prompt_block.has_class("paged")
+
+
+async def _menu(pilot, app):
+    await pilot.press("slash")
+    pop = app.focused_chat.popup_list
+    assert await wait_for(lambda: pop.display and pop.option_count > 10)
+    return pop
+
+
+async def test_a_tile_opened_by_new_panel_scrolls_its_own_menu():
+    # /new-panel runs bound to the tile it was typed in: the new tile's widgets kept
+    # that tile as the chat in context, so ↓ asked tile 1's (closed) menu and tile 2's
+    # never moved (2026-11-03)
+    srv, app = make()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause(0.3)
+        await split(pilot, app)
+        pop = await _menu(pilot, app)
+        for _ in range(14):
+            await pilot.press("down")
+        await pilot.pause(0.1)
+        assert pop.highlighted == 14 and pop.scroll_y > 0
+        top = int(pop.scroll_y)
+        assert top <= 14 < top + pop.size.height            # the highlight is in view
+        assert not app.chats[1].popup_list.display
+
+
+async def test_the_menu_fits_a_short_tile_and_rows_stay_one_line():
+    # 80x24 in three (side by side, then the right one stacked): a 12-row menu pushed
+    # the prompt out of the short tile, and in a narrow tile every row wrapped over
+    # several lines
+    srv, app = make()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause(0.3)
+        await split(pilot, app)
+        await split(pilot, app, want=3)
+        pop = await _menu(pilot, app)
+        await pilot.pause(0.1)
+        chat = app.focused_chat
+        tile = chat.panel.region
+
+        def inside(r):
+            return r.y >= tile.y and r.bottom <= tile.bottom
+        assert inside(pop.region) and inside(chat.prompt_box.region)
+        assert pop.size.height < 12
+        assert pop.virtual_size.height == pop.option_count     # one line per row
+        for _ in range(10):
+            await pilot.press("down")
+        await pilot.pause(0.1)
+        top = int(pop.scroll_y)
+        assert top <= pop.highlighted < top + pop.size.height

@@ -470,6 +470,12 @@ async def list_services(project: str | None = None, *,
         await db.close()
 
 
+async def _settle_request(db, sid: int) -> None:
+    """The decided request's alert leaves the queue (and the notices) with it."""
+    from .. import security
+    await security.settle(db, "service_requested", "service_id", sid)
+
+
 async def _event(kind: str, summary: str, *, severity: str = "warn",
                  project: str | None = None, detail: dict | None = None,
                  by_operator: bool = False, conversation_id: int | None = None) -> None:
@@ -641,6 +647,7 @@ async def approve(sid: int, *, placement: str, expose_ports: list,
             else:
                 old = None
         await db.commit()
+        await _settle_request(db, sid)
         row = await _fetch(db, sid)
     finally:
         await db.close()
@@ -673,6 +680,8 @@ async def reject(sid: int, reason: str = "", by: str = "operator",
             " datetime('now'), decision_note = ?, updated_at = datetime('now')"
             " WHERE id = ? AND status = 'pending'", (by, (reason or "")[:500], sid))
         await db.commit()
+        if cur.rowcount == 1:
+            await _settle_request(db, sid)
         row = await _fetch(db, sid)
     finally:
         await db.close()

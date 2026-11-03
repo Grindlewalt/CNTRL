@@ -423,6 +423,7 @@ async def approve(db, pkg_id: int, *, target_variant: str | None,
         "decided_by = ?, decided_at = datetime('now') WHERE id = ?",
         (variant, decided_by, pkg_id))
     await db.commit()
+    await security.settle(db, "package_requested", "package_id", pkg_id)
     row = await get(db, pkg_id)
     used = await variant_used_by(db, variant)
     await security.raise_event(
@@ -448,6 +449,7 @@ async def reject(db, pkg_id: int, *, reason: str = "",
         "UPDATE package_catalogue SET status = 'rejected', decided_by = ?, "
         "decided_at = datetime('now') WHERE id = ?", (decided_by, pkg_id))
     await db.commit()
+    await security.settle(db, "package_requested", "package_id", pkg_id)
     if quiet:
         return await get(db, pkg_id)
     await security.raise_event(

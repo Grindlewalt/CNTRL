@@ -52,7 +52,7 @@ def _proj(*files: str, tick=()):
 async def _events(kind):
     db = await get_db()
     try:
-        async with db.execute("SELECT severity, summary, detail FROM security_events "
+        async with db.execute("SELECT severity, summary, detail, acknowledged FROM security_events "
                               "WHERE kind = ? ORDER BY id", (kind,)) as cur:
             return [dict(r) for r in await cur.fetchall()]
     finally:
@@ -218,6 +218,8 @@ async def test_approve_lands_it_and_vouches_for_the_file(op):
     assert (await op.get("/api/notifications")).json()["memory_pending"] == 0
     assert "notes/spec.md" not in taintpaths.paths("demo")           # the operator read it
     assert len(await _events("always_loaded_approved")) == 1
+    # the hold's alert is answered with it (it left the Queue and the notices)
+    assert [e["acknowledged"] for e in await _events("always_loaded_held")] == [1]
     # a second approval finds nothing
     assert (await op.post(url + "/approve")).status_code == 404
 
@@ -237,6 +239,7 @@ async def test_reject_leaves_the_file_and_drops_the_change(op):
     assert alwaysloaded.list_held() == []
     assert "Edits waiting" not in await _prompt()
     assert len(await _events("always_loaded_rejected")) == 1
+    assert [e["acknowledged"] for e in await _events("always_loaded_held")] == [1]
     assert (await op.post(f"/api/memory/held-files/demo/{item['id']}/reject")).status_code == 404
 
 

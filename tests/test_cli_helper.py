@@ -122,3 +122,40 @@ async def test_a_turn_that_wrote_files_points_at_pull():
         assert "/pull" in app._footer_markup(turn)
         turn.tools = [{"name": "read_file", "args": {}, "ok": True, "result": ""}]
         assert "/pull" not in app._footer_markup(turn)
+
+
+async def test_transcript_copy_puts_the_whole_chat_on_the_clipboard(copied, tmp_path):
+    # 2026-11-03: /copy has only the last reply; /transcript copy is the whole chat as
+    # /export writes it, and /transcript save is /export
+    srv = HelpServer()
+    srv.conv_messages[7] = {"messages": [
+        {"role": "user", "content": "first question"},
+        {"role": "assistant", "content": "first answer",
+         "activity": [{"name": "read_file", "args": {"path": "a.py"}, "ok": True}]},
+        {"role": "system", "content": "never copied"},
+        {"role": "user", "content": "second question"},
+        {"role": "assistant", "content": "second answer"}]}
+    app = jav3.build_tui("http://h:1", "jvd_x", transport=srv.transport())
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause(0.3)
+        with pytest.raises(jav3.CliError, match="no chat"):
+            await app.c_transcript("copy")
+        app.focused_chat.cid = 7
+        await send(pilot, app, "/transcript copy")
+        assert await wait_for(lambda: copied)
+        text = copied[0]
+        for part in ("# Jav3 chat #7", "first question", "first answer", "a.py",
+                     "second question", "second answer"):
+            assert part in text, part
+        assert "never copied" not in text
+        assert text == jav3.transcript_markdown("Jav3 chat #7", [
+            m for m in srv.conv_messages[7]["messages"] if m["role"] != "system"])
+        await app.c_transcript("")                             # bare: copy too
+        assert len(copied) == 2 and copied[1] == text
+        await app.c_transcript("save")
+        assert "second answer" in (tmp_path / "jav3-7.md").read_text()
+        with pytest.raises(jav3.CliError, match="/transcript copy"):
+            await app.c_transcript("print")
+        app.editor.text = "/transcript "
+        await pilot.pause(0.1)
+        assert [v for _, v in app.popup_items] == ["copy", "save"]
