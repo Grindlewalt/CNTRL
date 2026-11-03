@@ -2726,6 +2726,22 @@ class LocalExecutor:
         with contextlib.suppress(OSError, RuntimeError):
             self._deny.append(config_dir().resolve())
 
+    def grants(self) -> dict:
+        """What the operator's `a` answers granted, for the client a restart starts."""
+        return {"cwd": str(self.cwd), "always": sorted(self.always),
+                "read_ok": [[str(d), deep] for d, deep in self.read_ok]}
+
+    def restore_grants(self, g) -> None:
+        """grants() from before a restart, for this same directory only."""
+        if not isinstance(g, dict) or g.get("cwd") != str(self.cwd):
+            return
+        always = g.get("always") if isinstance(g.get("always"), list) else []
+        self.always = {k for k in always if k in ("write", "edit", "shell")}
+        rows = g.get("read_ok") if isinstance(g.get("read_ok"), list) else []
+        self.read_ok = [(Path(r[0]), bool(r[1])) for r in rows
+                        if isinstance(r, list) and len(r) == 2 and isinstance(r[0], str)
+                        and os.path.isabs(r[0])]
+
     async def run(self, name: str, args) -> tuple[bool, str]:
         fn = {"local_read_file": self.read_file, "local_write_file": self.write_file,
               "local_edit_file": self.edit_file, "local_list_files": self.list_files,
@@ -10196,9 +10212,11 @@ def build_tui(base: str, token: str, **kw):
                      server_override: str | None = None,
                      project: str | None = None, agent: str | None = None,
                      model: str | None = None, resume: int | None = None,
-                     cont: bool = False, prompt: str | None = None, transport=None):
+                     cont: bool = False, prompt: str | None = None, transport=None,
+                     restored: dict | None = None):
             super().__init__()
             self.base, self.token, self.server_override = base, token, server_override
+            self.restored = restored         # what the client before a restart kept (restart)
             self.transport = transport       # tests hand in an httpx mock transport
             # the panels: one ChatState each (see "the chat in context"), tiled by `tree`;
             # a panel's number is its key. `self.cid` and the rest are the chat in context's
@@ -10214,7 +10232,11 @@ def build_tui(base: str, token: str, **kw):
             self.cramped = False                # the window is too small for the tiles
             self.local_execs: dict[int, LocalExecutor] = {}
             self.local_cids: set[int] = set()         # chats this client opened as /local
-            self.link = Link()                        # the connection, in words (Link)
+            self.local_grants: dict[int, dict] = {}   # their executors' grants, from before a restart
+            self.local_calls = 0                      # local tool calls in progress here
+            self.local_asking = 0                     # of those, the ones waiting on a dialog
+            self.shells = 0                           # !commands running here
+            self.link = Link()                      # the connection, in words (Link)
             self.whoami = "?"
             self.logged_in: bool | None = None    # None = not checked yet
             self.notices: list[Notice] = []      # newest first
@@ -10429,10 +10451,18 @@ def build_tui(base: str, token: str, **kw):
         async def _startup(self) -> None:
             self.client = self._new_client()
             resume, cont, prompt = self.initial
+            state, self.restored = self.restored, None
+            if state:
+                self._restore_kept(state)
             if not await self._check_login():
+                if state:                  # the tiles and drafts, if not their chats
+                    await self._restore_layout(state.get("layout"), state.get("tiles"))
+                    self._layout_ready = True
+                    self.refresh_tabbar()
                 if prompt:                 # keep it for after /login
-                    self.editor.text = prompt
-                    self.editor.move_cursor(self.editor.document.end)
+                    ed = self.focused_chat.editor
+                    ed.text = prompt
+                    ed.move_cursor(ed.document.end)
                 return
             await self._after_login()
             if not self.options:
@@ -10440,7 +10470,11 @@ def build_tui(base: str, token: str, **kw):
                                 "/model, /agent and /project take typed names", "warn")
             self.refresh_chrome()
             try:
-                if cont and self.convs:
+                if state:
+                    await self._restore_layout(state.get("layout"), state.get("tiles"))
+                    self.notify("jav3 updated and restarted" if state.get("why") == "update"
+                                else "jav3 restarted")
+                elif cont and self.convs:
                     await self.open_conversation(self.convs[0]["id"])
                 elif resume is not None:
                     await self.open_conversation(resume)
@@ -10451,7 +10485,9 @@ def build_tui(base: str, token: str, **kw):
             self._layout_ready = True
             self.refresh_tabbar()
             if prompt:
-                self.send(prompt)
+                # into the tile showing: this worker's own may be gone with the blank tab
+                with self.in_chat(self.focused_chat):
+                    self.send(prompt)
 
         async def _check_login(self) -> bool:
             """Who the saved credential is. No credential, or a 401: the
@@ -12286,6 +12322,21 @@ def build_tui(base: str, token: str, **kw):
             where it works, and only when that is this machine."""
             if cid is None:
                 return
+            # a restart waits until the answer is sent (one waiting on a dialog does not
+            # count: the server asks the client after the restart again)
+            self.local_calls += 1
+            try:
+                ok, result = await self._run_local(ev, cid)
+                try:
+                    await self.api("POST", f"/api/chat/{cid}/local_result",
+                                   json={"id": str(ev.get("id", "")), "ok": ok,
+                                         "result": result})
+                except CliError as e:
+                    await self.note(f"local result not delivered: {e}", "warn")
+            finally:
+                self.local_calls -= 1
+
+        async def _run_local(self, ev: dict, cid: int) -> tuple[bool, str]:
             ex = self.local_execs.get(cid)
             if ex is None:
                 try:
@@ -12295,22 +12346,21 @@ def build_tui(base: str, token: str, **kw):
                 me = socket.gethostname() or "localhost"
                 if here and here.get("hostname") == me and Path(here.get("cwd", "")).is_dir():
                     async def approve(kind, summary):
-                        ans = await self.local_approve(kind, summary)
+                        self.local_asking += 1
+                        try:
+                            ans = await self.local_approve(kind, summary)
+                        finally:
+                            self.local_asking -= 1
                         # a dialog answered after the turn was stopped must not
                         # run anything: nobody is waiting for the result
                         live = self.turn is not None and self.turn.cid == cid
                         return ans if live else "no"
                     ex = self.local_execs[cid] = LocalExecutor(here["cwd"], approve)
+                    ex.restore_grants(self.local_grants.pop(cid, None))
             if ex is None:
-                ok, result = False, ("this chat's local session is not on this computer "
-                                     f"({socket.gethostname()}), or its directory is gone")
-            else:
-                ok, result = await ex.run(ev.get("name", ""), ev.get("args") or {})
-            try:
-                await self.api("POST", f"/api/chat/{cid}/local_result",
-                               json={"id": str(ev.get("id", "")), "ok": ok, "result": result})
-            except CliError as e:
-                await self.note(f"local result not delivered: {e}", "warn")
+                return False, ("this chat's local session is not on this computer "
+                               f"({socket.gethostname()}), or its directory is gone")
+            return await ex.run(ev.get("name", ""), ev.get("args") or {})
 
         # permission modes (backend/permissions.py): shift+tab cycles, stored per
         # conversation; a chat not created yet sends it with its first message
@@ -12771,6 +12821,7 @@ def build_tui(base: str, token: str, **kw):
                 return
             tv = ToolView("local_shell", {"command": command})
             await self.mount_log(tv)
+            self.shells += 1                    # a restart waits for it
             try:
                 proc = await asyncio.create_subprocess_shell(
                     command, stdout=asyncio.subprocess.PIPE,
@@ -12781,6 +12832,8 @@ def build_tui(base: str, token: str, **kw):
                 proc.kill()
                 tv.finish(False, "timed out after 5 minutes")
                 return
+            finally:
+                self.shells -= 1
             text = out.decode("utf-8", "replace").rstrip()
             tv.finish(code == 0, text + (f"\nexit {code}" if code else ""))
             self.attachments.append(f"I ran `{command}` on my machine (exit {code}):\n"
@@ -13354,8 +13407,10 @@ def build_tui(base: str, token: str, **kw):
                                  "or your password (full access)", "[line|password]"),
                 "logout": Command(self.c_logout, "log out: /logout says who, /logout yes does it "
                                  "(a device token is revoked)", "[yes]", takes_arg=True),
-                "update": Command(self.c_update, "replace this jav3 with the server's newer one "
-                                  "(restart to use it)", busy_ok=True),
+                "update": Command(self.c_update, "replace this jav3 with the server's newer one, "
+                                  "then restart into it", busy_ok=True),
+                "restart": Command(self.c_restart, "start jav3 again: tabs, chats and drafts "
+                                   "come back, turns keep running", busy_ok=True),
                 "exit": Command(self.c_exit, "quit (a running turn keeps going)",
                                 busy_ok=True, leader="q"),
             }
@@ -14143,11 +14198,29 @@ def build_tui(base: str, token: str, **kw):
 
         async def c_update(self, arg: str) -> None:
             """/update: swap this client file for the one the server serves (the old one
-            is kept as jav3.bak-<date>); the running TUI keeps its code until a restart."""
+            is kept as jav3.bak-<date>), then offer to restart into it (restart)."""
             if not self.base:
                 raise CliError(NOT_LOGGED_IN)
-            await self.note(await asyncio.to_thread(update_client, self.base,
-                                                    transport=self.transport))
+
+            def file_sha():
+                try:
+                    return _sha256(_client_file().read_bytes())
+                except OSError:
+                    return None
+            before = file_sha()
+            msg = await asyncio.to_thread(update_client, self.base, transport=self.transport)
+            self.drop_notices(lambda r: r == ("update",))     # answered either way
+            if before is None or file_sha() == before:
+                await self.note(msg)
+                return
+            await self.note(msg.removesuffix(" " + UPDATE_RESTART))
+            # it opens on its own after the download: keys typed meanwhile must not answer
+            if await self.push_screen_wait(Confirm("Restart jav3 now?", self._restart_detail(),
+                                                   grace=0.4)):
+                await self.restart("update")
+            else:
+                await self.note("the running jav3 is still the old one: /restart when you're "
+                                "ready, and everything you have open comes back")
 
         async def c_status(self, arg: str) -> None:
             info = self.info or {}
@@ -14761,27 +14834,42 @@ def build_tui(base: str, token: str, **kw):
             """Keep the tabs and their tiles in tui.json, only when they changed."""
             if not self._layout_ready:
                 return
-            state = layout_to_json([
-                {"tree": tb.tree, "focus": tb.focus_no, "zoomed": tb.zoomed,
-                 "cids": {n: c.cid for n, c in tb.chats.items()
-                          if c.cid and not c.ephemeral}} for tb in self.ptabs], self.ptab_i)
+            state = self._layout_state()
             text = json.dumps(state, sort_keys=True)
             if text != self._layout_saved:
                 self._layout_saved = text
                 self._save_settings(layout=state)
 
-        async def _restore_layout(self) -> None:
+        def _layout_state(self) -> dict:
+            return layout_to_json([
+                {"tree": tb.tree, "focus": tb.focus_no, "zoomed": tb.zoomed,
+                 "cids": {n: c.cid for n, c in tb.chats.items()
+                          if c.cid and not c.ephemeral}} for tb in self.ptabs], self.ptab_i)
+
+        async def _restore_layout(self, raw=None, tiles=None) -> None:
             """Put the saved tabs back: every tile in its place, its chat opened again
-            (a chat that is gone from the server stays a new one)."""
-            saved, current = layout_from_json(self._load_settings().get("layout"))
-            if not saved or (len(saved) == 1 and len(tree_leaves(saved[0]["tree"])) == 1
+            (a chat that is gone from the server stays a new one). After a restart `raw`
+            is the layout it kept and `tiles` the rest of each tile (_tile_state), and
+            even one blank tile is put back: it may have a draft."""
+            saved, current = layout_from_json(
+                self._load_settings().get("layout") if raw is None else raw)
+            if not isinstance(tiles, list) or len(tiles) != len(saved):
+                tiles = None
+            if not saved or (tiles is None and len(saved) == 1
+                             and len(tree_leaves(saved[0]["tree"])) == 1
                              and not saved[0]["cids"]):
                 return
+
+            def kept(i: int, n: int) -> dict:
+                t = tiles[i].get(str(n)) if tiles and isinstance(tiles[i], dict) else None
+                return t if isinstance(t, dict) else {}
             first = self.ptabs[0]
             base = first.chats[first.focus_no]
             fresh = []
-            for s in saved:
+            for i, s in enumerate(saved):
                 chats = {n: base.settings_for_new(n) for n in tree_leaves(s["tree"])}
+                for n, chat in chats.items():
+                    self._tile_settings(chat, kept(i, n))
                 fresh.append(PanelTab(chats, s["tree"], s["focus"], s["zoomed"]))
             self.ptabs.extend(fresh)
             for tab in fresh:                    # mounted while the blank first tab shows
@@ -14794,15 +14882,173 @@ def build_tui(base: str, token: str, **kw):
                     await chat.panel.remove()
             self.panel_area.relayout()
             self.focus_panel(self.focus_no)
-            for s, tab in zip(saved, fresh):
+            for i, (s, tab) in enumerate(zip(saved, fresh)):
                 for n, cid in s["cids"].items():
                     running = any(cv.get("id") == cid and cv.get("running") for cv in self.convs)
+                    parent = kept(i, n).get("child_of")
                     with self.in_chat(tab.chats[n]):
                         try:
-                            await self.open_conversation(cid, running=running)
+                            await self.open_conversation(
+                                cid, running=running,
+                                parent=parent if type(parent) is int else None)
                         except CliError:
                             pass
+            if tiles:
+                for i, tab in enumerate(fresh):
+                    for n, chat in tab.chats.items():
+                        await self._tile_restore(chat, kept(i, n))
+                self.focus_panel(self.focus_no)
             self.refresh_chrome()
+
+        # -- restarting: /restart, and yes to "Restart jav3 now?" after /update ----------------
+        #
+        # The client keeps what is open in restart.json (_restart_state), leaves the
+        # terminal, and cmd_tui starts the file on disk again in the same process
+        # (restart_client: the update's code, the same terminal and directory). The new
+        # one reads it once (take_restart_state) and puts it back: the tabs and tiles, each
+        # tile's chat, draft, settings, attachments and page, the notifications, the /local
+        # grants. Turns run on the server, so they go on meanwhile and are re-attached;
+        # the asks and local calls waiting in them are sent again on re-attach.
+
+        def _tile_state(self, chat: ChatState) -> dict:
+            ed = chat.editor
+            typed = chat.hist_draft if chat.hist_pos is not None else (ed.text if ed else "")
+            # typed while a turn was starting: these never left here (see send)
+            draft = "\n".join(chat.queue + ([typed] if typed else []))
+            t = {"draft": draft, "attachments": list(chat.attachments),
+                 "project": chat.project, "project_mode": chat.project_mode,
+                 "agent": chat.agent, "model": chat.model, "perm_mode": chat.perm_mode,
+                 "ephemeral": chat.ephemeral, "local": chat.local,
+                 "orchestrator": chat.orchestrator, "helper_next": chat.helper_next,
+                 "tools_expanded": chat.tools_expanded, "child_of": chat.child_of}
+            if ed is not None and draft and draft == ed.text:
+                t["cursor"] = list(ed.cursor_location)
+            page = chat.panel.host.current if chat.panel is not None else None
+            if page is not None and not isinstance(page, ChatPage) and page.NAME:
+                t["page"] = [page.NAME, *page.args]
+            return t
+
+        def _tile_settings(self, chat: ChatState, t: dict) -> None:
+            """A kept tile's settings, before its chat is opened (which sets its own)."""
+            def word(k):
+                return t[k] if isinstance(t.get(k), str) else None
+            if not t:
+                return
+            chat.project, chat.project_mode = word("project"), word("project_mode")
+            chat.agent, chat.model = word("agent"), word("model")
+            if t.get("perm_mode") in self.PERM_MODES:
+                chat.perm_mode = t["perm_mode"]
+            for k in ("ephemeral", "local", "orchestrator", "helper_next", "tools_expanded"):
+                setattr(chat, k, t.get(k) is True)
+
+        async def _tile_restore(self, chat: ChatState, t: dict) -> None:
+            """A kept tile's draft, attachments and page, once its chat is open."""
+            if not t:
+                return
+            chat.attachments = [a for a in t.get("attachments") or [] if isinstance(a, str)]
+            ed, draft = chat.editor, t.get("draft")
+            if ed is not None and isinstance(draft, str) and draft:
+                ed.text = draft
+                at = t.get("cursor")
+                if (isinstance(at, list) and len(at) == 2 and all(type(x) is int for x in at)
+                        and 0 <= at[0] < ed.document.line_count
+                        and 0 <= at[1] <= len(ed.document.get_line(at[0]))):
+                    ed.move_cursor(tuple(at))
+                else:
+                    ed.move_cursor(ed.document.end)
+            page = t.get("page")
+            if (isinstance(page, list) and page and all(isinstance(w, str) for w in page)
+                    and page[0] in self.page_classes):
+                with self.in_chat(chat):
+                    try:
+                        await self.open_page(page[0], " ".join(page[1:]))
+                    except Exception:       # noqa: BLE001 - the tile stays on its chat
+                        pass
+
+        def _restart_state(self, why: str) -> dict:
+            return {
+                "v": 1, "why": why, "at": time.time(), "base": self.base,
+                "layout": self._layout_state(),
+                "tiles": [{str(n): self._tile_state(c) for n, c in tb.chats.items()}
+                          for tb in self.ptabs],
+                "notices": [[n[0], n[1], n[2], list(n.ref) if n.ref else None, n.unread, n.crit]
+                            for n in self.notices if n.ref != ("update",)],
+                "local": {str(cid): ex.grants() for cid, ex in self.local_execs.items()},
+                "local_cids": sorted(self.local_cids)}
+
+        def _restore_kept(self, state: dict) -> None:
+            """The notifications and /local grants a restart kept (the tiles come with
+            the layout)."""
+            for row in state.get("notices") or []:
+                if not (isinstance(row, list) and len(row) == 6
+                        and isinstance(row[0], (int, float)) and isinstance(row[1], str)
+                        and isinstance(row[2], str)):
+                    continue
+                ref = tuple(row[3]) if isinstance(row[3], list) else None
+                n = Notice(row[0], row[1], row[2], ref)
+                n.unread, n.crit = row[4] is True, row[5] is True
+                self.notices.append(n)
+                self.unread += n.unread
+                self.crit_unread += n.crit
+            for old in self.notices[NOTICE_CAP:]:
+                self._unbadge(old)
+            del self.notices[NOTICE_CAP:]
+            local = state.get("local") if isinstance(state.get("local"), dict) else {}
+            self.local_grants = {int(k): g for k, g in local.items()
+                                 if str(k).isdigit() and isinstance(g, dict)}
+            self.local_cids |= {c for c in state.get("local_cids") or [] if type(c) is int}
+            self._refresh_notices()
+
+        def _restart_waits(self) -> list[str]:
+            """What a restart waits for: a message on its way that the server has not
+            taken yet (no chat to come back to), a command running on this computer."""
+            out = []
+            if any(c.busy and (c.turn is None or c.turn.cid is None) for c in self.all_chats()):
+                out.append("your message reaches the server")
+            if self.local_calls > self.local_asking or self.shells:
+                out.append("the command running on this computer finishes")
+            return out
+
+        def _restart_losses(self) -> list[str]:
+            """What a restart cannot bring back: a temporary chat (the server keeps
+            nothing of it, so there is nothing to reopen)."""
+            n = sum(1 for c in self.all_chats() if c.ephemeral and (c.busy or c.last_user))
+            if not n:
+                return []
+            return ["A temporary chat starts empty again." if n == 1
+                    else f"{n} temporary chats start empty again."]
+
+        def _restart_detail(self) -> str:
+            return " ".join(["Your tabs, chats, drafts and notifications come back, and "
+                             "running turns keep going on the server.",
+                             *self._restart_losses()])
+
+        async def restart(self, why: str = "restart") -> None:
+            if self.logged_in:
+                try:      # the chats are reopened from the server: it must be there
+                    await self.api("GET", "/api/devices/whoami")
+                except CliError as e:
+                    raise CliError(f"not restarting: {e}. The chats are reopened from the "
+                                   "server, so try again when it answers.")
+            waits = self._restart_waits()
+            if waits:
+                self.notify("restarting once " + " and ".join(waits))
+                end = time.monotonic() + LOCAL_SHELL_MAX + 60
+                while self._restart_waits() and time.monotonic() < end:
+                    await asyncio.sleep(0.2)
+            try:
+                save_restart_state(self._restart_state(why))
+            except OSError as e:
+                raise CliError(f"could not keep what is open for the restart ({e}); "
+                               "nothing was restarted")
+            self.exit(result=RESTART)
+
+        async def c_restart(self, arg: str = "") -> None:
+            lost = self._restart_losses()
+            if lost and not await self.push_screen_wait(
+                    Confirm("Restart jav3?", self._restart_detail())):
+                return
+            await self.restart()
 
         async def c_new_panel(self, arg: str = "") -> None:
             await self.new_panel()
@@ -15532,11 +15778,14 @@ def cmd_tui(args) -> int:
     else:
         base, token = (base_url(args.server) if args.server else ""), None
     prompt = " ".join(getattr(args, "prompt", None) or []) or None
+    restored = take_restart_state(base) if getattr(args, "restored", False) else None
     app = build_tui(base, token, server_override=args.server,
                     project=getattr(args, "project", None), agent=getattr(args, "agent", None),
                     model=getattr(args, "model", None), resume=getattr(args, "resume", None),
-                    cont=getattr(args, "cont", False), prompt=prompt)
+                    cont=getattr(args, "cont", False), prompt=prompt, restored=restored)
     app.run()
+    if getattr(app, "return_value", None) == RESTART:
+        return restart_client(args.server)
     for chat in app.all_chats() if hasattr(app, "all_chats") else [app]:   # every tab's tiles
         if chat.busy and chat.cid:
             print(f"the turn keeps running on the server — `jav3 -r {chat.cid}` re-attaches")
@@ -15569,6 +15818,7 @@ def cmd_print(args, out=sys.stdout) -> int:
 
 UPDATE_CHECK_EVERY = 3600          # seconds between asking the server (a stamp in the config dir)
 UPDATE_NOTICE = "a newer jav3 is on the server: /update"
+UPDATE_RESTART = "Restart jav3 to use it."
 
 
 def _client_file() -> Path:
@@ -15681,7 +15931,7 @@ def update_client(base: str, path: Path | None = None, transport=None,
         raise CliError(f"could not write the update next to {path}: {e}")
     finally:
         tmp.unlink(missing_ok=True)
-    return f"jav3 updated ({path}); the old one is kept as {bak.name}. Restart jav3 to use it."
+    return f"jav3 updated ({path}); the old one is kept as {bak.name}. {UPDATE_RESTART}"
 
 
 async def _server_client_sha(base: str, transport=None, now: float | None = None) -> str | None:
@@ -15728,9 +15978,79 @@ async def check_for_update(app) -> None:
             return
         sha = await _server_client_sha(app.base, app.transport)
         if sha and sha != _sha256(path.read_bytes()):
-            app.push_notice(UPDATE_NOTICE, "info", toast=False)
+            app.push_notice(UPDATE_NOTICE, "info", toast=False, ref=("update",))
     except Exception:       # noqa: BLE001 - see above
         pass
+
+
+# --- restarting the TUI (Jav3App.restart) ------------------------------------------------
+
+RESTART = "restart"         # Jav3App.exit(result=RESTART): cmd_tui starts the client again
+RESTART_MAX_AGE = 120       # seconds: the new client reads restart.json within one
+
+
+def _restart_path() -> Path:
+    return config_dir() / "restart.json"
+
+
+def save_restart_state(state: dict) -> None:
+    """What is open, for the client the restart starts: 0600 from the first byte (the
+    drafts are in it), renamed into place whole."""
+    d = config_dir()
+    d.mkdir(mode=0o700, parents=True, exist_ok=True)
+    tmp = d / f".restart-{os.getpid()}.json"
+    tmp.unlink(missing_ok=True)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                 0o600)
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(state, f)
+        os.replace(tmp, _restart_path())
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def take_restart_state(base: str, now: float | None = None) -> dict | None:
+    """restart.json, read once (it goes as it is read). One that is too old, or from
+    another server, is nothing."""
+    path = _restart_path()
+    try:
+        raw = path.read_text()
+    except OSError:
+        return None
+    finally:
+        with contextlib.suppress(OSError):
+            path.unlink()
+    try:
+        state = json.loads(raw)
+    except ValueError:
+        return None
+    now = time.time() if now is None else now
+    if not (isinstance(state, dict) and state.get("v") == 1 and state.get("base") == base
+            and isinstance(state.get("at"), (int, float))
+            and 0 <= now - state["at"] < RESTART_MAX_AGE):
+        return None
+    return state
+
+
+def restart_client(server: str | None, path: Path | None = None, execv=None) -> int:
+    """Run this client again in this process: the file on disk now (an update's), in the
+    same terminal and directory, told to pick up restart.json."""
+    path = path or _client_file()
+    if not sys.executable:
+        raise CliError("could not find this Python to start jav3 again: run jav3 (your tabs "
+                       "and chats come back)")
+    argv = [sys.executable, str(path), "--restored"] + (["--server", server] if server else [])
+    for f in (sys.stdout, sys.stderr):
+        with contextlib.suppress(Exception):
+            f.flush()
+    try:
+        (execv or os.execv)(sys.executable, argv)
+    except OSError as e:
+        _restart_path().unlink(missing_ok=True)
+        raise CliError(f"could not start jav3 again ({e}): run jav3 (your tabs and chats "
+                       "come back)")
+    return 0
 
 
 def cmd_update(args, out=sys.stdout, transport=None) -> int:
@@ -15763,6 +16083,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--model", help="provider/model for this session's chats")
     p.add_argument("--agent", help="start the new chat as this agent")
     p.add_argument("--project", help="pin a new conversation to this project slug")
+    # a restart's: put back what the client before it kept (restart.json)
+    p.add_argument("--restored", action="store_true", help=argparse.SUPPRESS)
     sub = p.add_subparsers(dest="cmd")
     # the line is read from the terminal (or a pipe), never argv: argv lands in
     # shell history and is visible to every user via ps

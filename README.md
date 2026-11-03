@@ -101,7 +101,9 @@ the line from Settings → Add computer). It updates itself from that server: at
 start, at most once an hour, it compares its file with `GET /cli/version` and
 says "a newer jav3 is on the server: /update"; `/update` in the TUI, or
 `jav3 update` in a shell, replaces just the client file (the old one stays as
-`jav3.bak-<date>`), then restart it. It leaves its launcher and venv alone,
+`jav3.bak-<date>`). The TUI then offers to restart into it, and `/restart` does
+that any time: tabs, tiles, chats, drafts and notifications come back, and
+running turns carry on on the server meanwhile. It leaves its launcher and venv alone,
 refuses when run from a git checkout (`git pull` there), and if the new client
 needs newer libraries it prints the installer line instead.
 

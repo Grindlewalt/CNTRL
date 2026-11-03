@@ -303,9 +303,15 @@ async def test_update_replaces_the_file_keeps_a_backup_and_leaves_the_rest(insta
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause(0.3)
         await send(pilot, app, "/update")
-        assert await wait_for(lambda: any("Restart jav3 to use it" in n for n in notes(app)))
+        # it asks to restart into the new one; n keeps this one running
+        assert await wait_for(lambda: type(app.screen).__name__ == "Confirm")
+        assert "Restart jav3 now?" in str(app.screen.query("Static")[0].render())
         day = time.strftime("%Y-%m-%d")
         assert any(f"jav3.bak-{day}" in n for n in notes(app))     # the note names the backup
+        await pilot.pause(0.5)                                      # past its grace
+        await pilot.press("n")
+        assert await wait_for(lambda: any("/restart when you're ready" in n for n in notes(app)))
+        assert app.return_value is None
     assert installed.read_text() == NEW
     assert (installed.parent / f"jav3.bak-{day}").read_text() == OLD
     # the temp file is gone; the launcher and the venv are as they were
@@ -313,6 +319,34 @@ async def test_update_replaces_the_file_keeps_a_backup_and_leaves_the_rest(insta
         "jav3", f"jav3.bak-{day}", "launcher", "venv"]
     assert (installed.parent / "launcher").read_text() == "#!/bin/sh\nexec python jav3\n"
     assert (installed.parent / "venv" / "bin" / "python").read_text() == "venv python"
+
+
+async def test_yes_to_restart_after_update_leaves_for_the_new_client_and_clears_the_notice(
+        installed):
+    srv = UpdSrv()
+    app = await boot(srv)
+    async with app.run_test(size=(120, 40)) as pilot:
+        assert await wait_for(lambda: any(t == jav3.UPDATE_NOTICE for _, _, t in app.notices))
+        app.editor.text = ""
+        await send(pilot, app, "/update")
+        assert await wait_for(lambda: type(app.screen).__name__ == "Confirm")
+        assert not any(t == jav3.UPDATE_NOTICE for _, _, t in app.notices)   # answered
+        await pilot.pause(0.5)
+        await pilot.press("y")
+        assert await wait_for(lambda: app.return_value == jav3.RESTART)
+    assert installed.read_text() == NEW
+    assert jav3.take_restart_state(BASE)["why"] == "update"
+
+
+async def test_update_when_up_to_date_asks_nothing(installed):
+    srv = UpdSrv(served=OLD)
+    app = await boot(srv)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause(0.3)
+        await send(pilot, app, "/update")
+        assert await wait_for(lambda: any("up to date" in n for n in notes(app)))
+        await pilot.pause(0.3)
+        assert type(app.screen).__name__ != "Confirm" and app.return_value is None
 
 
 async def test_update_refuses_a_download_that_is_not_python(installed):

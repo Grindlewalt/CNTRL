@@ -100,7 +100,9 @@ operator the steps; they do it.
 - in /security: tab or 1-8 switch tabs (queue, network, logs, secrets,
   persistent, profiles, rules, calls); y approves, n rejects, enter opens
 
-Commands: `/update` swaps the client for the server's copy; `/sessions`
+Commands: `/update` swaps the client for the server's copy and offers to
+restart into it; `/restart` starts the client again with your tabs, chats and
+drafts (turns keep running on the server); `/sessions`
 switches chats; `/permissions`; `/vms`; `/security`; `/pull` prints the
 clone and pull commands for this chat's project; `/helper` loads this manual
 into the chat so you can answer questions about Jav3 itself.

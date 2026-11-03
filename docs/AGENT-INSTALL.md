@@ -334,8 +334,8 @@ End with a short report the person can keep:
   for the line from Settings → Add computer. It keeps itself current from this
   server: after a server upgrade (the `git pull` above) it says "a newer jav3 is
   on the server: /update" within the hour, and `/update` in it (or `jav3 update`
-  in a shell) swaps its own file, keeping `jav3.bak-<date>` beside it, and asks
-  for a restart. It never touches its launcher or its venv, refuses to run from
+  in a shell) swaps its own file, keeping `jav3.bak-<date>` beside it, and offers
+  to restart into it (open tabs and chats come back). It never touches its launcher or its venv, refuses to run from
   a git checkout (use `git pull` there), and when the new client needs newer
   libraries it prints the installer line above instead: re-running that line is
   always safe.

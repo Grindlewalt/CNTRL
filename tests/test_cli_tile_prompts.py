@@ -175,3 +175,58 @@ async def test_the_menu_fits_a_short_tile_and_rows_stay_one_line():
         await pilot.pause(0.1)
         top = int(pop.scroll_y)
         assert top <= pop.highlighted < top + pop.size.height
+
+
+LAYOUT = {"v": 2, "current": 0, "tabs": [{
+    "tree": {"dir": "row", "children": [1, 2], "sizes": [0.5, 0.5]}, "focus": 2,
+    "zoomed": False, "cids": {"1": 4}}]}
+
+
+def saved_layout(layout=LAYOUT):
+    d = jav3.config_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "tui.json").write_text(jav3.json.dumps({"layout": layout}))
+
+
+async def test_enter_on_the_menu_in_a_tile_from_the_saved_layout_takes_the_highlight():
+    # every start with a saved layout: its tiles were mounted by the startup worker, bound
+    # to the blank tile that then went, and asked THAT tile's menu whether one was open.
+    # So ↓ did nothing and Enter sent the half-typed /upda as it was (2026-11-03)
+    saved_layout()
+    srv = FakeServer()
+    srv.back(4, "first", "one")
+    srv, app = make(srv)
+    ran = []
+    async with app.run_test(size=(140, 40)) as pilot:
+        assert await wait_for(lambda: app._layout_ready, tries=200)
+        await pilot.pause(0.3)
+        assert sorted(app.chats) == [1, 2] and app.focus_no == 2
+
+        async def spy(line):
+            ran.append(line)
+        app.run_command = spy
+        for key in ("slash", "u", "p", "d", "a"):
+            await pilot.press(key)
+        pop = app.focused_chat.popup_list
+        assert await wait_for(lambda: pop.display)
+        await pilot.press("enter")
+        assert await wait_for(lambda: ran)
+        assert ran == ["/update"]
+        app.focus_panel(1)
+        pop = await _menu(pilot, app)
+        await pilot.press("down", "down")
+        await pilot.pause(0.1)
+        assert pop.highlighted == 2
+
+
+async def test_a_first_message_on_the_command_line_goes_to_the_tile_that_shows():
+    # `jav3 fix the tests` with a saved layout: it was sent from the blank tile the
+    # layout replaced, so its reply streamed into a tile nobody could see
+    saved_layout({**LAYOUT, "tabs": [{**LAYOUT["tabs"][0], "cids": {}}]})
+    srv, app = make(prompt="hello there")
+    async with app.run_test(size=(140, 40)) as pilot:
+        assert await wait_for(lambda: srv.posts, tries=200)
+        assert srv.posts[0]["message"] == "hello there"
+        await pilot.pause(0.2)
+        assert app.focused_chat.busy and app.focused_chat.panel is not None
+        assert "hello there" in str(app.focused_chat.log.query("UserMsg").first().render())
