@@ -546,6 +546,9 @@ class Settings(BaseSettings):
     # research subagent reads a few pages and re-sends them each loop, so a
     # smaller slice cuts token throughput hard while keeping the useful content.
     web_max_chars: int = 6_000
+    # the whole extracted text is kept (cached) up to this, so #part=N and
+    # extract= can reach past the first web_max_chars
+    web_full_max_chars: int = 200_000
     # PDFs (backend/pdftext.py): a rule book or manual is often 2-15 MB and is
     # read a slice at a time (#page=N-M / #search=word), each slice up to this
     web_max_pdf_bytes: int = 30_000_000
