@@ -32,6 +32,7 @@ shot = _load()
 def box(monkeypatch, tmp_path):
     proj = tmp_path / "projects" / "demo"
     proj.mkdir(parents=True)
+    (proj / "project.md").write_text("# Demo\n")
     monkeypatch.setattr(settings, "in_guest", True, raising=False)
     monkeypatch.setattr(settings, "projects_dir", tmp_path / "projects")
     monkeypatch.setattr(shot, "SHOT_DIR", str(tmp_path / "shots"))
@@ -123,3 +124,21 @@ def test_remote_withheld_when_taint_fails(box, monkeypatch):
     monkeypatch.setattr(shot, "taint_note", fail)
     out = _shot("p.html")
     assert out.startswith("error") and imageresult.split(out)[1] is None
+
+
+
+def test_an_orchestrator_item_screenshots_the_file_in_its_own_copy(box, monkeypatch):
+    # an item on a branch writes in its copy, not the project's dir: path= must look there
+    from backend.agent.tools import toolctx
+    copy = box.tmp / "worktrees" / "demo--abc123-i1"
+    copy.mkdir(parents=True)
+    (copy / "brief.html").write_text("<h1>item</h1>")
+
+    async def key():
+        return "demo--abc123-i1"
+    monkeypatch.setattr(toolctx, "require_files", key)
+    monkeypatch.setattr(toolctx, "files_dir", lambda k: copy)
+    out = _shot("brief.html")
+    assert imageresult.split(out)[1] is not None, out
+    assert box.calls[-1][-1] == "file://" + os.path.realpath(copy / "brief.html")
+    assert "no such file" in _shot("../demo/project.md") or "inside" in _shot("../demo/project.md")

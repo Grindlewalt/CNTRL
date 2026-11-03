@@ -674,10 +674,12 @@ async def run(mode: str = "url", url: str | None = None, command=None,
                 "not active on this turn.")
     wait_ms, width, height = clamp(wait_ms, width, height)
     if mode == "url" and path:
+        # where the file tools write: the project's dir, or an orchestrator item's copy
         from backend.agent.tools import toolctx
-        from backend.config import settings
-        slug = await toolctx.active_slug()
-        root = settings.projects_dir / (slug or "_scratch")
+        try:
+            root = toolctx.files_dir(await toolctx.require_files())
+        except toolctx.NoProjectError as e:
+            return f"error: {e}"
         try:
             real = resolve_project_file(path, str(root))
         except ValueError as e:
