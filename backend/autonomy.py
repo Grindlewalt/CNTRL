@@ -36,6 +36,8 @@ _READ = {
     # never a project file — offer it at every level, including read_only, so a
     # restricted turn can still flag a broken capability
     "report_harness_fault",
+    # the agent's own call log: one DB read of this conversation, no result bodies
+    "call_log",
 }
 _STAGE = {
     "write_file", "edit_file", "dashboard", "crawl_codebase", "journal_update",
