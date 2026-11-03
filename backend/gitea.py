@@ -36,7 +36,8 @@ log = logging.getLogger("jav3.gitea")
 
 REMOTE = "gitea"                    # host repo remote name (origin stays GitHub's)
 BRANCH_PREFIX = "agent/"
-_AGENT_REF = re.compile(r"^agent/[0-9a-f]{8}$")
+# agent/<8 hex>: an agent's push; agent/orch-<6 hex>: an orchestrator job's PR mirror (nov2)
+_AGENT_REF = re.compile(r"^agent/(?:[0-9a-f]{8}|orch-[0-9a-f]{6})$")
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 API_TIMEOUT = 30
 MERGE_CHECK_TRIES = 3               # a merge Gitea says "try again later" to is retried
@@ -186,8 +187,9 @@ def bot_env() -> dict[str, str]:
 
 
 def check_agent_ref(branch: str) -> str:
-    """The bot may only ever push `agent/<8 hex>`. Anything else (main, a
-    tag, a refspec) is refused before git runs."""
+    """The bot may only ever push `agent/<8 hex>` (or an orchestrator PR's
+    `agent/orch-<6 hex>`). Anything else (main, a tag, a refspec) is refused
+    before git runs."""
     if not isinstance(branch, str) or not _AGENT_REF.match(branch):
         raise ValueError(f"refused: the agent may only push agent/* branches, not {branch!r}")
     return branch

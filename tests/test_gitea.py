@@ -190,9 +190,13 @@ def test_branch_naming():
     for _ in range(20):
         assert re.fullmatch(r"agent/[0-9a-f]{8}", gitea.new_branch())
     for bad in ("main", "refs/heads/main", "agent/../main", "agent/abcd1234:main",
-                "agent/ABCDEF12", "agent/abc", "HEAD", "+agent/abcd1234", None):
+                "agent/ABCDEF12", "agent/abc", "HEAD", "+agent/abcd1234", None,
+                "agent/orch-abc", "agent/orch-abcdef:main", "agent/orch-ABCDEF",
+                "agent/orch-abcdefa", "agent/orchx-abcdef"):
         with pytest.raises(ValueError):
             gitea.check_agent_ref(bad)
+    # an orchestrator job's PR mirror (nov2): the Pi refused it before
+    assert gitea.check_agent_ref("agent/orch-b35389") == "agent/orch-b35389"
 
 
 async def test_bot_cannot_target_main(client, fake):
