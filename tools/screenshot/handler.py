@@ -2,7 +2,7 @@
 
 Runs only in the guest (pushed with the in-guest tools). Two modes:
 
-  url  headless chromium (`--headless=new --screenshot`), no display needed,
+  url  (or `path`, a project file via file://, no server) headless chromium (`--headless=new --screenshot`), no display needed,
        all traffic through the box's egress proxy (loopback stays local).
   app  an on-demand `Xvfb :99` (no window manager, -nolisten tcp), the app run
        with DISPLAY=:99 from argv (never a shell), captured with scrot or
@@ -32,7 +32,7 @@ import signal
 import socket
 import time
 from typing import NamedTuple
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from backend import memguard
 
@@ -82,6 +82,21 @@ def check_url(url) -> str:
     if parts.scheme not in ("http", "https") or not parts.hostname:
         raise ValueError("url must be http:// or https:// with a host")
     return u
+
+
+def resolve_project_file(path, root: str) -> str:
+    """The real path of a file inside the project dir `root`, or ValueError.
+    Symlinks are followed before the check, so a link out of the project is
+    refused the same as `..`."""
+    if not isinstance(path, str) or not path.strip() or "\x00" in path:
+        raise ValueError("path must be a file in the project, relative to its directory")
+    base = os.path.realpath(root)
+    real = os.path.realpath(os.path.join(base, path.strip()))
+    if real != base and not real.startswith(base + os.sep):
+        raise ValueError("path must stay inside the project directory")
+    if not os.path.isfile(real):
+        raise ValueError(f"no such file in the project: {path.strip()[:120]}")
+    return real
 
 
 def is_loopback_url(url: str) -> bool:
@@ -522,20 +537,27 @@ def _finish(raw_path: str, caption: str, extra: str = "") -> str:
 
 
 async def _url_mode(url: str, wait_ms: int, width: int, height: int,
-                    full_page: bool) -> str:
+                    full_page: bool, local_file: str | None = None) -> str:
     binary = (shutil.which("chromium-headless-shell") or shutil.which("chromium")
               or shutil.which("chromium-browser"))
     if not binary:
         return NO_BROWSER
-    try:
-        url = check_url(url)
-    except ValueError as e:
-        return f"error: {e}"
-    remote = not is_loopback_url(url)
+    if local_file:
+        # a project file: file:// needs no server, relative links and
+        # stylesheets resolve next to it
+        url = "file://" + quote(local_file)
+        remote = False
+    else:
+        try:
+            url = check_url(url)
+        except ValueError as e:
+            return f"error: {e}"
+        remote = not is_loopback_url(url)
     if remote and not await taint_note("screenshot:url"):
         return ("error: could not record that this turn read remote content, so the "
                 "screenshot was not taken.")
-    proxy, _, _ = proxy_addr()
+    proxy, phost, pport = proxy_addr()
+    before = proxy_conns(phost, pport) if local_file else set()
     raw = _out_path("raw.png")
     h = FULL_PAGE_H if full_page else height
     import tempfile
@@ -549,6 +571,16 @@ async def _url_mode(url: str, wait_ms: int, width: int, height: int,
         console = console_block(page_console(log), remote)
     if not isinstance(ran, Ran):
         ran = Ran(int(ran))
+    if local_file and proxy_conns(phost, pport) - before:
+        # the file pulled something remote through the proxy: remote content
+        remote = True
+        if not await taint_note("screenshot:path"):
+            try:
+                os.unlink(raw)
+            except OSError:
+                pass
+            return ("error: the page fetched remote content and the taint could not be "
+                    "recorded, so the screenshot is withheld.")
     if ran.rc != 0 and not os.path.exists(raw):
         kind = failure_kind(ran)
         repeat, same = note_failure(kind, url, (url, wait_ms, width, height, bool(full_page)))
@@ -631,7 +663,7 @@ async def _app_mode(command, wait_ms: int, width: int, height: int) -> str:
 
 async def run(mode: str = "url", url: str | None = None, command=None,
               wait_ms: int = 2000, width: int = 1280, height: int = 800,
-              full_page: bool = False) -> str:
+              full_page: bool = False, path: str | None = None) -> str:
     try:
         from backend.config import settings
         in_guest = bool(getattr(settings, "in_guest", False))
@@ -641,6 +673,16 @@ async def run(mode: str = "url", url: str | None = None, command=None,
         return ("error: screenshot only runs inside the sandbox box. The guest loop is "
                 "not active on this turn.")
     wait_ms, width, height = clamp(wait_ms, width, height)
+    if mode == "url" and path:
+        from backend.agent.tools import toolctx
+        from backend.config import settings
+        slug = await toolctx.active_slug()
+        root = settings.projects_dir / (slug or "_scratch")
+        try:
+            real = resolve_project_file(path, str(root))
+        except ValueError as e:
+            return f"error: {e}"
+        return await _url_mode("", wait_ms, width, height, bool(full_page), real)
     if mode == "url":
         return await _url_mode(url, wait_ms, width, height, bool(full_page))
     if mode == "app":
