@@ -78,6 +78,8 @@ class FakeGitea:
             return httpx.Response(404, json={})
         repo, rest = mm[1], mm[2] or ""
         if rest == "":
+            if repo in self.repos and m == "PATCH":
+                self.repos[repo].update(body)
             return (httpx.Response(200, json=self.repos[repo]) if repo in self.repos
                     else httpx.Response(404, json={}))
         if rest.startswith("/collaborators/"):
@@ -95,6 +97,11 @@ class FakeGitea:
         if rest == "/pulls" and m == "POST":
             if tok != BOT_TOK:
                 return httpx.Response(403, json={})
+            for ref in (body["base"], body["head"]):        # as Gitea: no such branch, 404
+                if subprocess.run(["git", "--git-dir", str(self.bare), "rev-parse", "-q",
+                                   "--verify", f"refs/heads/{ref}"],
+                                  capture_output=True).returncode:
+                    return httpx.Response(404, json={"message": "not found"})
             n = len(self.pulls) + 1
             self.pulls[n] = {"number": n, "head": body["head"], "base": body["base"],
                              "title": body["title"], "state": "open", "merged": False,
@@ -184,6 +191,23 @@ async def test_ensure_repo(client, fake):
     assert "extraheader" not in cfg.lower() and "@" not in cfg.split('[remote "gitea"]')[1]
     await gitea.ensure_repo("demo")          # idempotent
     assert len(fake.repos) == 1
+
+
+async def test_a_merge_mirror_puts_main_up_first(client, fake):
+    # a project only the orchestrator had worked on was never on Gitea: the bot's PR
+    # branch became the repo's only branch (and its default), and opening the PR got a
+    # 404, as there was no main to go into (nov2-orch2 on the Pi, 2026-11-03)
+    await gitea.ensure_remote_repo("demo")
+    fake.repos["demo"]["default_branch"] = "agent/orch-abcdef"     # what Gitea had made it
+    base = _head()
+    tip = _git("commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "two parts", cwd=_pdir())
+    n = await gitea.mirror_merge_request("demo", "agent/orch-abcdef", tip, "Two parts\nmore")
+    assert n == 1 and fake.pulls[1]["base"] == "main" and fake.pulls[1]["title"] == "Two parts"
+    assert _git("--git-dir", str(fake.bare), "rev-parse", "main") == base == _head()
+    assert _git("--git-dir", str(fake.bare), "rev-parse", "agent/orch-abcdef") == tip
+    assert fake.repos["demo"]["default_branch"] == "main"
+    pushes = [t for m, p, t in fake.calls if p == "/repos/operator/demo/pulls"]
+    assert pushes == [BOT_TOK]                                      # the PR is the bot's
 
 
 def test_branch_naming():

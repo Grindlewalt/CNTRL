@@ -1158,8 +1158,16 @@ def token_file_ok(p: Path) -> bool:
 # --- the orchestrator's PR mirror (nov2): read-only, failures never block Jav3 --------
 
 async def mirror_merge_request(slug: str, branch: str, sha: str, summary: str) -> int | None:
-    """Push the PR branch as the bot and open a Gitea PR with the summary. The number."""
-    await ensure_remote_repo(slug)
+    """Push the PR branch as the bot and open a Gitea PR with the summary. The number.
+    Main goes up first, as the operator (as ensure_repo does): a project only the
+    orchestrator had worked on was not on Gitea yet, the bot's branch became its only
+    one (and its default), and the PR had no main to go into (Gitea: 404, on the Pi)."""
+    repo = await ensure_remote_repo(slug)
+    err = await push_main(slug)
+    if err and not await _remote_main(slug):
+        raise GiteaError(err)
+    if repo.get("default_branch") not in (None, "main"):
+        await api("PATCH", f"/repos/{owner()}/{slug}", json_body={"default_branch": "main"})
     await push_agent_branch(slug, sha, branch)
     title = (summary.strip().splitlines() or ["Orchestrator job"])[0][:200]
     r = await api("POST", f"/repos/{owner()}/{slug}/pulls", token=bot_token(),
