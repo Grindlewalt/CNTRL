@@ -8,12 +8,13 @@ internet; it only ever receives the sanitised text these functions return.
 """
 import asyncio
 import datetime
+import re
 import time
 from urllib.parse import urlparse
 
 import httpx
 
-from . import pdftext
+from . import pdftext, webfallback
 from .config import settings
 from .db import get_db
 from .websec import UnsafeURL, html_to_text, is_safe_url
@@ -28,10 +29,20 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
+# set by tests to serve the fallback fetches from a fake
+_fallback_transport = None
+
 # --- short-TTL content cache ---------------------------------------------
 # key -> (expires_at_monotonic, text). Shared helpers: summarize.py keeps its
 # own dict of summaries keyed (url, focus) with the same TTL/size settings.
 _page_cache: dict[str, tuple[float, str]] = {}
+
+
+# the WHOLE extracted text of pages read lately (capped at web_full_max_chars),
+# so #part=N and extract= reach past the first web_max_chars without a refetch.
+# Entry: "head \x00 capped(0/1) \x00 text", head = the page's title/URL lines.
+_full_cache: dict[str, tuple[float, str]] = {}
+_PART = re.compile(r"#part=(\d+)$")
 
 
 def _cache_get(cache: dict, key) -> str | None:
@@ -144,6 +155,27 @@ async def _turn_grants() -> tuple[str | None, set[str]]:
         await db.close()
 
 
+def full_text(url: str) -> str | None:
+    """The whole cached text of a page read lately, or None. extract= and
+    read_and_summarize search this instead of the first part only."""
+    hit = _cache_get(_full_cache, _PART.sub("", url))
+    return hit.split("\x00", 2)[2] if hit else None
+
+
+def _slice(base: str, hit: str, part: int) -> str:
+    head, capped, text = hit.split("\x00", 2)
+    size = settings.web_max_chars
+    if part < 1 or (part - 1) * size >= max(len(text), 1):
+        n = max(1, -(-len(text) // size))
+        return f"error: {base} has {n} part{'s' if n != 1 else ''}; there is no part {part}."
+    body = text[(part - 1) * size:part * size]
+    lead = head if part == 1 else f"{base} (part {part})\n\n"
+    note = ""
+    if len(text) > size:
+        note = "\n\n" + webfallback.slice_note(base, part, size, len(text), capped == "1")
+    return lead + body + note
+
+
 async def read(url: str, session: str) -> str:
     """Fetch a page and return inert plain text. SSRF-guarded. Claims the URL
     in the shared ledger BEFORE fetching, so parallel bots never pull the same
@@ -155,6 +187,19 @@ async def read(url: str, session: str) -> str:
     fetched bodies and error strings are scrubbed because APIs love echoing
     the key back in error payloads."""
     from . import secrets as secrets_mod
+    m = _PART.search(url)
+    if m:
+        # a later slice of a page read lately; the fetched URL never carries
+        # the fragment. Gone from the cache: read the page again, then slice.
+        base, part = url[:m.start()], int(m.group(1))
+        hit = _cache_get(_full_cache, base)
+        if hit is None:
+            await release(session, base)
+            first = await read(base, session)
+            hit = _cache_get(_full_cache, base)
+            if hit is None:
+                return first
+        return _slice(base, hit, part)
     fetch_url = url
     if "{{secret:" in url:
         try:
@@ -259,14 +304,33 @@ async def read(url: str, session: str) -> str:
             return _out(f"error: {url} is binary content ({ctype or 'unknown type'}), "
                         "not a page or a PDF, so there is no text to read.")
         body = raw.decode("utf-8", errors="replace")
+        html = ""
         if "html" in ctype or "<html" in body[:2000].lower():
+            html = body
             title, text = html_to_text(body)
         else:
             title, text = "", body  # plain text / markdown / json served as-is
-        text = text[:settings.web_max_chars]
+        lead = ""
+        if html and webfallback.is_thin(html, text):
+            # JavaScript-built or menus only: look for the text elsewhere. A
+            # URL that had a secret substituted gets the page-local rung only
+            got, tried = await webfallback.find_text(
+                fetch_url, html, _check_safe, _fallback_transport, local_only=substituted)
+            ok = True
+            if not got:
+                out = _out(webfallback.nothing_note(
+                    url, title, tried, webfallback.meta_description(html)))
+                _cache_put(_page_cache, url, out)
+                return out
+            label, text = got
+            lead = f"(read from: {label})\n"
         ok = True
-        head = f"# {title}\n{url}\n\n" if title else f"{url}\n\n"
-        out = _out(head + (text or "(no readable text extracted)"))
+        capped = len(text) > settings.web_full_max_chars
+        text = text[:settings.web_full_max_chars] or "(no readable text extracted)"
+        head = lead + (f"# {title}\n{url}\n\n" if title else f"{url}\n\n")
+        entry = "\x00".join([_out(head), "1" if capped else "0", _out(text)])
+        _cache_put(_full_cache, url, entry)
+        out = _out(_slice(url, entry, 1))
         _cache_put(_page_cache, url, out)  # keyed by the URL as requested
         return out
     except httpx.HTTPError as e:
