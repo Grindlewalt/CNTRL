@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from . import alwaysloaded
+from . import alwaysloaded, journalhold
 from .auth import require_user
 from .config import settings
 from .fsutil import list_tree, read_text_or_binary, safe_join
@@ -257,6 +257,42 @@ async def reject_held(slug: str, item_id: str):
     if path is None:
         raise HTTPException(status_code=404, detail="no held change with that id")
     return {"ok": True, "project": slug, "path": path}
+
+
+# --- journal lines held as [unverified] (backend/journalhold.py) ---------------
+
+@router.get("/held-journal")
+async def held_journal(project: str | None = None):
+    """Journal lines tagged [unverified], all projects or one. Reading the list
+    also settles the alert of a line whose tag the operator removed by hand."""
+    await journalhold.sweep()
+    return {"items": journalhold.list_held(project)}
+
+
+async def _decide_journal(fn, slug: str, item_id: str):
+    try:
+        await fn(slug, item_id, by_operator=True)
+    except journalhold.LineChanged:
+        raise HTTPException(
+            status_code=409,
+            detail="that journal line changed or is gone (project.md was edited); "
+                   "reload the list") from None
+    except SecretLeakError as e:
+        raise HTTPException(
+            status_code=422,
+            detail=f"project.md would contain the value of secret(s) {', '.join(e.names)}; "
+                   "it cannot be written") from None
+    return {"ok": True, "project": slug, "id": item_id}
+
+
+@router.post("/held-journal/{slug}/{item_id}/approve")
+async def approve_journal(slug: str, item_id: str):
+    return await _decide_journal(journalhold.approve, slug, item_id)
+
+
+@router.post("/held-journal/{slug}/{item_id}/drop")
+async def drop_journal(slug: str, item_id: str):
+    return await _decide_journal(journalhold.drop, slug, item_id)
 
 
 @router.get("/trash")

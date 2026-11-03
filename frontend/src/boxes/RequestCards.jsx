@@ -12,6 +12,7 @@ import { ago } from '../format.js'
 import { approvePackage, listPackages, rejectPackage, resolvePackages } from './api/packages.js'
 import { approveService, getService, rejectService } from './api/services.js'
 import { approveEnvironment, rejectEnvironment } from './api/environments.js'
+import { approveHeldJournal, dropHeldJournal } from './api/journalHeld.js'
 import { approveSkillRequest, fetchSkillRequest, rejectSkillRequest } from './api/skillRequests.js'
 import {
   diffLines, EXPOSE_LABEL, exposeChoices, exposeDefault, exposePayload, packageReach, PLACEMENTS,
@@ -437,6 +438,42 @@ export function SkillRequestCard({ r, onDone }) {
           {st.canInstall && <Button disabled={busy} onClick={install}>Install &amp; grant</Button>}
         </div>
       )}
+    </div>
+  )
+}
+
+// ---- journal lines held as [unverified] -----------------------------------------
+// The line was written by an agent in a turn that had read untrusted content. It
+// stays in project.md but out of every prompt until you approve it (the tag comes
+// off, nothing else in the file changes) or drop it (the line is removed).
+export function JournalHeldCard({ h, onDone }) {
+  const [busy, setBusy] = useState(false)
+  async function decide(fn, done) {
+    setBusy(true)
+    try { await fn(h); notify(done) } catch (err) { notifyError(err) }
+    setBusy(false)
+    onDone()
+  }
+  return (
+    <div className="sbx-card bx-svc-req">
+      <div className="bx-pkg-top">
+        <Tag tone="pending">journal</Tag>
+        <Tag>{h.project}</Tag>
+        {h.date && <span className="dim small mono">{h.date}</span>}
+        <Tag>unverified</Tag>
+      </div>
+      <dl className="bx-kv small">
+        <dt>entry</dt><dd>{h.text}</dd>
+        <dt>why held</dt>
+        <dd>an agent wrote it after reading untrusted content, so it stays out of the prompt until you approve it</dd>
+      </dl>
+      <div className="row">
+        <span className="grow" />
+        <Button variant="ghost" danger disabled={busy}
+                onClick={() => decide(dropHeldJournal, 'journal entry dropped')}>Drop</Button>
+        <Button disabled={busy}
+                onClick={() => decide(approveHeldJournal, 'journal entry approved')}>Approve</Button>
+      </div>
     </div>
   )
 }

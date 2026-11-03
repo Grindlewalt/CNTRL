@@ -67,7 +67,9 @@ async def run(entry: str) -> str:
         await memory.audit("journal_unverified", "info",
                            f"journal entry in '{slug}' marked {UNVERIFIED_MARK}: written "
                            "after untrusted content", {"project": slug})
+        from backend import journalhold
+        await journalhold.hold_event(slug, line)
         return (f"journal updated, marked {UNVERIFIED_MARK}: this turn read untrusted "
-                "content, so the entry stays out of the prompt until the operator "
-                "removes the tag in project.md. Tell them.")
+                "content, so the entry stays out of the prompt. It waits in the Queue "
+                "for the operator's approval. Tell them.")
     return "journal updated"
