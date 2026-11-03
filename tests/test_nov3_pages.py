@@ -180,3 +180,16 @@ async def test_short_real_page_is_left_alone(tmp_env, monkeypatch):
     _serve(monkeypatch, {url: (200, "text/html", _page("<p>" + PROSE * 3 + "</p>"))})
     out = await webtools.read(url, "s10")
     assert "read from" not in out and "cut at" not in out and "committee met" in out
+
+
+async def test_an_alternate_on_another_site_is_never_fetched(tmp_env, monkeypatch):
+    # the page is untrusted: it must not make the server fetch some other site for it
+    await init_db()
+    url = "https://news.example/a9"
+    elsewhere = "https://tracker.example/amp?id=1"
+    page = _page(MENU, f'<link rel="amphtml" href="{elsewhere}">')
+    calls = _serve(monkeypatch, {url: (200, "text/html", page),
+                                 elsewhere: (200, "text/html", _page("<p>" + PROSE * 10 + "</p>"))})
+    out = await webtools.read(url, "s9")
+    assert elsewhere not in calls
+    assert not out.startswith("(read from: the page's AMP")

@@ -116,8 +116,16 @@ def meta_description(html: str) -> str:
     return ""
 
 
+def _same_site(a: str, b: str) -> bool:
+    ha = (urlparse(a).hostname or "").lower().removeprefix("www.")
+    hb = (urlparse(b).hostname or "").lower().removeprefix("www.")
+    return bool(ha) and ha == hb and urlparse(a).scheme in ("http", "https")
+
+
 def alternates(html: str, base: str) -> list[tuple[str, str]]:
-    """Rung b candidates: (label, url) the page itself points at."""
+    """Rung b candidates: (label, url) the page itself points at, on its own site
+    only: the page is untrusted, and read() never follows it to another host
+    either (a cross-host redirect goes back to the model)."""
     out: list[tuple[str, str]] = []
     for m in re.finditer(r"<link\b[^>]*>", html, re.I):
         tag = m.group(0)
@@ -136,7 +144,7 @@ def alternates(html: str, base: str) -> list[tuple[str, str]]:
             out.append(("the page's print version", urljoin(base, unescape(href))))
     seen, uniq = set(), []
     for label, u in out:
-        if u not in seen and u != base:
+        if u not in seen and u != base and _same_site(u, base):
             seen.add(u)
             uniq.append((label, u))
     return uniq[:4]
