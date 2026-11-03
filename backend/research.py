@@ -34,6 +34,8 @@ MAX_QUERIES = 8
 RESULTS_PER_QUERY = 6
 MAX_SOURCES_TO_FILTER = 40
 MAX_URLS_PER_READER = 4
+# fewer on-topic sources than this, after search showed trouble, and no readers run
+MIN_ONTOPIC_SOURCES = 3
 
 
 @contextlib.contextmanager
@@ -139,10 +141,21 @@ async def _gen_queries(topic: str) -> list[str]:
     return qs[:MAX_QUERIES]
 
 
-async def _batch_search(queries: list[str]) -> list[dict]:
+async def _batch_search(queries: list[str], notes: dict | None = None) -> list[dict]:
     # a transient SearXNG hiccup would otherwise yield 0 sources and a silently
-    # empty research, so retry the whole batch once before giving up
+    # empty research, so retry the whole batch once before giving up. `notes`
+    # collects what search saw (health lines, off-topic results dropped).
+    tok = webtools.search_notes.set(notes)
+    try:
+        return await _batch_search_once(queries, notes)
+    finally:
+        webtools.search_notes.reset(tok)
+
+
+async def _batch_search_once(queries: list[str], notes: dict | None) -> list[dict]:
     for attempt in range(2):
+        if notes is not None:
+            notes["dropped"] = 0     # count the final attempt only
         lists = await asyncio.gather(
             *[webtools.search_results(q, limit=RESULTS_PER_QUERY) for q in queries],
             return_exceptions=True)
@@ -176,6 +189,14 @@ def _parse_groups(text: str, valid_urls: set) -> list[dict]:
     return groups
 
 
+def _is_empty_reply(text: str) -> bool:
+    m = re.search(r"\[.*\]", text, re.S)
+    try:
+        return bool(m) and json.loads(m.group(0)) == []
+    except json.JSONDecodeError:
+        return False
+
+
 async def _filter_and_assign(topic: str, results: list[dict], n_groups: int) -> list[dict]:
     if not results:
         return []
@@ -184,12 +205,16 @@ async def _filter_and_assign(topic: str, results: list[dict], n_groups: int) -> 
     text = await complete_text(
         f"From the search results below for the topic '{topic}', pick the most "
         f"relevant and DIVERSE sources worth reading (about {n_groups * 3} total). "
-        "Discard duplicates, low-quality, and off-topic results. Group the kept "
-        f"URLs into {n_groups} themed reading groups. Reply ONLY with JSON: "
+        "Discard duplicates, low-quality, and off-topic results: leave out anything "
+        "that is not about the topic itself, and never pad a group with background "
+        f"pages. Group the kept URLs into up to {n_groups} themed reading groups "
+        "(fewer is fine). If nothing fits, reply []. Reply ONLY with JSON: "
         '[{"theme": "...", "urls": ["...", "..."]}]', listing, temperature=0.2)
     valid = {r["url"] for r in results}
     groups = _parse_groups(text, valid)
-    if not groups:  # fallback: just split the top results evenly
+    if not groups and not _is_empty_reply(text):
+        # the reply was not usable JSON: split the top results evenly. (An
+        # explicit [] means the model found nothing on topic: believe it.)
         top = [r["url"] for r in results[:n_groups * 3]]
         groups = [{"theme": topic, "urls": top[i::n_groups]} for i in range(n_groups)]
         groups = [g for g in groups if g["urls"]]
@@ -290,24 +315,43 @@ async def run_research(topic: str, project: str, n_angles: int = 3,
             queries = await _gen_queries(topic)
         for q in queries:
             bus.publish(job_id, {"type": "tool", "node_id": scout, "name": f"search: {q}"})
-        results = await _batch_search(queries)
+        notes: dict = {}
+        results = await _batch_search(queries, notes)
+        health = "\n".join(sorted(notes.get("health") or ()))
+        # junk thrown out, or engines down: then a thin list of sources is not
+        # worth reading (a healthy search with two good hits still is)
+        trouble = bool(health) or bool(notes.get("dropped"))
         bus.publish(job_id, {"type": "node_status", "node_id": scout, "status": "summarizing"})
         with _billed_to(scout):
             groups = await _filter_and_assign(topic, results, n_groups)
         kept = sum(len(g["urls"]) for g in groups)
+        thin = not groups or (trouble and kept < MIN_ONTOPIC_SOURCES)
         scout_rollup = (f"Ran {len(queries)} searches, found {len(results)} unique "
                         f"sources, kept {kept} across {len(groups)} reading groups.")
         await _save_rollup(scout, scout_rollup)
         await apply_write(project, f"runs/{job_id}/{scout}-scout.md", scout_rollup.encode())
         bus.publish(job_id, {"type": "node_done", "node_id": scout, "rollup": scout_rollup})
 
-        if not groups:
-            # no sources -> say so plainly instead of synthesizing from nothing
-            doc = (f"# Research: {topic}\n\nThe search backend returned no usable "
-                   "sources for this topic (it may have been momentarily "
-                   "unavailable). Please try again.")
+        if thin:
+            # no (or too few) on-topic sources -> say so plainly instead of
+            # synthesizing from nothing
+            if trouble:
+                doc = (f"# Research: {topic}\n\nSearch found nothing relevant to this "
+                       f"topic ({kept} on-topic sources kept, "
+                       f"{notes.get('dropped', 0)} unrelated results thrown out), so no "
+                       "pages were read.\n\n"
+                       + (health + "\n\n" if health else "")
+                       + "What to do: try again later, give known URLs to read "
+                       "directly with web_read, or ask the operator to fix search "
+                       "(`python -m backend.cli doctor` checks it).")
+                note = ("search found nothing relevant, no pages read"
+                        + (f" — {health.splitlines()[0]}" if health else ""))
+            else:
+                doc = (f"# Research: {topic}\n\nThe search backend returned no usable "
+                       "sources for this topic (it may have been momentarily "
+                       "unavailable). Please try again.")
+                note = "no sources retrieved — search returned nothing"
             doc_status = await _write_doc(project, doc_path, doc)
-            note = "no sources retrieved — search returned nothing"
             await _save_rollup(head, note)
             bus.publish(job_id, {"type": "job_final", "job_id": job_id, "root_id": head,
                                  "doc_path": doc_path, "rollup": note, "usage": b.summary()})

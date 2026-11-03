@@ -17,3 +17,8 @@ parameters:
 This is inert text only — no pages are opened. Use web_read on a specific URL
 to get its contents. Prefer sources not already flagged as fetched, so the
 knowledge gathered stays diverse.
+
+If the result says search is degraded or that results do not match the
+query, the engines are failing: do not retry the same search over and over,
+tell the operator search needs fixing, and read URLs you already know with
+web_read instead. Never cite results the note says it left out.

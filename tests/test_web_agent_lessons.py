@@ -165,7 +165,7 @@ async def test_web_read_extract_uses_small_model(tmp_env, monkeypatch):
 
 async def test_search_output_has_date_line_and_citation_reminder(tmp_env, monkeypatch):
     await init_db()
-    payload = {"results": [{"url": "https://a.com/x", "title": "A",
+    payload = {"results": [{"url": "https://a.com/x", "title": "A test topic",
                             "content": "snip"}]}
     mock_client(monkeypatch, lambda request: httpx.Response(200, json=payload))
 

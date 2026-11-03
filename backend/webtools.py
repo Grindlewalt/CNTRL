@@ -55,6 +55,89 @@ def _same_host(a: str, b: str) -> bool:
     return ha.removeprefix("www.") == hb.removeprefix("www.")
 
 
+# --- search health and relevance ---------------------------------------------
+# SearXNG answers 200 even when most engines refused it (CAPTCHA, suspended,
+# rate-limited) and the one left may return pages that share only a first word
+# with the query (chat #723). These helpers make search say so.
+import contextvars
+import re
+
+_STOPWORDS = frozenset((
+    "the and for with from that this these those what when where which who whom why how "
+    "are was were has have had not but you your our their its into onto about over under "
+    "than then them they also can could would should will may might did does done any "
+    "all one two per via").split())
+_WORD = re.compile(r"[^\W_]+", re.UNICODE)
+
+# Research sets this to a dict before its batch of searches; search_results adds
+# what it saw (health lines, how many results it dropped) so the scout can stop
+# on junk. Left unset for every other caller.
+search_notes: contextvars.ContextVar = contextvars.ContextVar("search_notes", default=None)
+
+
+def _fold(word: str) -> str:
+    """Crude suffix folding so 'bombs', 'bombing' and 'bombed' meet at 'bomb'."""
+    for suf in ("ing", "ed", "es", "s"):
+        if word.endswith(suf) and len(word) - len(suf) >= 3:
+            return word[:-len(suf)]
+    return word
+
+
+def _terms(text: str) -> set[str]:
+    return {_fold(w) for w in _WORD.findall(text.lower())
+            if len(w) >= 3 and w not in _STOPWORDS}
+
+
+def _matches_query(qterms: set[str], title: str, snippet: str) -> bool:
+    """True when title+snippet share enough distinctive query terms: 2 (3 for a
+    long query), or 1 when the query has two terms or fewer."""
+    if not qterms:
+        return True
+    need = 1 if len(qterms) <= 2 else (2 if len(qterms) <= 6 else 3)
+    return len(qterms & _terms(f"{title} {snippet}")) >= need
+
+
+def _split_relevant(query: str, results: list[dict]) -> tuple[list[dict], int]:
+    """(results that match the query, how many did not). Each result is a
+    SearXNG dict with title/content."""
+    qterms = _terms(query)
+    keep = [r for r in results
+            if _matches_query(qterms, r.get("title") or "", r.get("content") or "")]
+    return keep, len(results) - len(keep)
+
+
+def search_health(data: dict) -> str | None:
+    """The one degraded-search line, or None when every engine asked answered.
+    Reads SearXNG's unresponsive_engines [[engine, reason], ...]."""
+    bad = [(str(e[0]), str(e[1]) if len(e) > 1 else "no answer")
+           for e in (data.get("unresponsive_engines") or []) if e]
+    if not bad:
+        return None
+    asked = [e.strip() for e in settings.searxng_engines.split(",") if e.strip()]
+    why = "; ".join(f"{n}: {r[:1].lower()}{r[1:]}" for n, r in bad)
+    if asked:
+        total = max(len(asked), len(bad))
+        return f"(search is degraded: {total - len(bad)} of {total} engines answered; {why})"
+    return f"(search is degraded: {len(bad)} engines did not answer; {why})"
+
+
+async def search_probe() -> dict:
+    """One canary query for the doctor: {ok, engines, answered, relevant, health, error}."""
+    query = "python programming language"
+    try:
+        async with httpx.AsyncClient(timeout=settings.web_fetch_timeout) as c:
+            r = await c.get(f"{settings.searxng_url}/search",
+                            params=_search_params(query), headers=HEADERS)
+            r.raise_for_status()
+            data = r.json()
+    except (httpx.HTTPError, ValueError) as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    results = data.get("results") or []
+    keep, _ = _split_relevant(query, results)
+    return {"ok": True, "health": search_health(data), "results": len(results),
+            "relevant": len(keep)}
+
+
 def _search_params(query: str) -> dict:
     """SearXNG query params, pinning the working engines (config searxng_engines)
     so blocked defaults don't silently return zero results."""
@@ -76,8 +159,15 @@ async def search_results(query: str, limit: int = 6) -> list[dict]:
             data = r.json()
     except (httpx.HTTPError, ValueError):
         return []
+    keep, dropped = _split_relevant(query, data.get("results") or [])
+    notes = search_notes.get()
+    if notes is not None:
+        notes["dropped"] = notes.get("dropped", 0) + dropped
+        health = search_health(data)
+        if health:
+            notes.setdefault("health", set()).add(health)
     out = []
-    for res in (data.get("results") or [])[:limit]:
+    for res in keep[:limit]:
         url = res.get("url")
         if url:
             out.append({"url": url, "title": res.get("title", ""),
@@ -103,6 +193,9 @@ async def search(query: str, session: str) -> str:
     lines = [f"search: {query}",
              f"(today is {datetime.date.today():%Y-%m-%d} — include the current "
              "year in queries about recent events)"]
+    health = search_health(data)
+    if health:
+        lines.append(health)
     for ans in (data.get("answers") or [])[:3]:
         text = ans if isinstance(ans, str) else ans.get("answer", "")
         if text:
@@ -111,7 +204,17 @@ async def search(query: str, session: str) -> str:
         if box.get("content"):
             lines.append(f"[infobox] {box['content'][:400]}")
     results = data.get("results") or []
-    if not results:
+    if results:
+        keep, dropped = _split_relevant(query, results)
+        if len(keep) * 2 < len(results):
+            lines.append(
+                "(these results do not match the query: the engines answering return "
+                "unrelated pages. Do not use them as sources, tell the operator search "
+                "is degraded, and read known URLs with web_read instead of retrying. "
+                f"Left out {dropped} of {len(results)} results"
+                + (f"; the {len(keep)} that match follow)" if keep else "; none match)"))
+            results = keep
+    elif not results:
         # a genuinely empty index for this term — re-running the SAME query
         # won't change that (the loop in the 07-21 Kevin-Rindal chat). Say so.
         has_info = bool(data.get("answers") or data.get("infoboxes"))
