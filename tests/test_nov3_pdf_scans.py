@@ -14,6 +14,7 @@ from PIL import Image  # noqa: E402
 
 from backend import pdftext, webtools  # noqa: E402
 from backend.agent import imageresult  # noqa: E402
+from backend.db import init_db  # noqa: E402
 from tests.test_pdftext import make_pdf  # noqa: E402
 
 URL = "https://example.test/doc.pdf"
@@ -129,7 +130,10 @@ async def test_raw_bytes_are_dropped_when_the_cache_is_full(monkeypatch):
     assert "no longer held" in out
 
 
-async def test_read_attaches_the_image_and_does_not_cache_it(monkeypatch):
+async def test_read_attaches_the_image_and_does_not_cache_it(tmp_env, monkeypatch):
+    # tmp_env: read() claims the URL in the DB ledger (without it the claim went into
+    # the real state dir, and a second run found its own claim)
+    await init_db()
     raw = mixed()
 
     def handler(req):

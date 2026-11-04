@@ -650,6 +650,8 @@ class SeededServer(FakeServer):
             return logged(J({"events": evs}))
         if path == "/api/security/runs" and method == "GET":
             return logged(J({"runs": runs(), "totals": {"runs": 2, "need": 2, "reports": 0}}))
+        if path == "/api/memory/held-journal" and method == "GET":
+            return J({"items": []})         # no journal entry held: the Queue as before
         if path == "/api/services" and method == "GET":
             return logged(J({"services_lan_ip": "", "services": [
                 {"id": 5, "name": "nas-sync", "command": ["python", "sync.py", "--watch"],

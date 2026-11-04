@@ -23,7 +23,3 @@ worth it for real research, not quick lookups (use web_search for those). The
 finished document is written to research/ in the project. Read it with
 read_file if you need
 the details; otherwise just tell the operator it's ready.
-
-If the result says search found nothing relevant, the search engines are
-degraded and no pages were read: do not call research again right away. Tell
-the operator, or read URLs you already know with web_read.
