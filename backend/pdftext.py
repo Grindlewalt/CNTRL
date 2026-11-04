@@ -313,9 +313,8 @@ def _render(doc_url: str, doc: dict, kind: str | None, value: str | None,
     tail = f"\n[pages 1-{shown} of {total} shown]" if shown < total else ""
     scans = doc.get("scans") or []
     if scans:
-        tail += (f"\n{len(scans)} of {total} pages are scans (no text layer): "
-                 f"{doc_url}#page={scans[0]} attaches that page's image for a chat model "
-                 "that can see images (one page per read).")
+        tail += (f"\n{len(scans)} of {total} pages are scans (no text layer): a scan "
+                 f"page's image comes with web_read url={doc_url}#page=N, one page per call.")
     return f"{head}{how}\n\n{outline}\n\n{text}{tail}".replace("\n\n\n", "\n\n"), None
 
 
@@ -332,19 +331,27 @@ def _can_see() -> bool | None:
 
 async def answer(doc_url: str, doc: dict, kind: str | None, value: str | None,
                  budget: int) -> str:
-    """render(), and for a #page= read that reaches a scan page, the first such
-    page's image attached (agent.imageresult carries it beside the text)."""
+    """render(), with a scan page's image attached (agent.imageresult carries it
+    beside the text): on a #page= read the first scan page in it, and on the first
+    read of a document with scans its first scan page, so a model that drops the
+    #page= from the URL still sees one (chat #730 on the Pi asked for 33.pdf#page=1
+    and the model called 33.pdf)."""
     text, shown = _render(doc_url, doc, kind, value, budget)
-    if kind != "page" or shown is None:
+    if kind == "page" and shown is not None:
+        m = re.fullmatch(r"(\d+)(?:\s*-\s*(\d+))?", value or "")
+        first = max(1, int(m.group(1)))
+        scans = [p for p in doc.get("scans", ()) if first <= p <= shown]
+        rest = scans[1:]
+        more = ("\nMore scan pages in this range, one image per read: "
+                + ", ".join(f"{doc_url}#page={p}" for p in rest[:12]) + ".") if rest else ""
+    elif kind is None:
+        scans = list(doc.get("scans") or ())
+        more = (f"\nFor another scan page, call web_read with url={doc_url}#page=N."
+                if len(scans) > 1 else "")
+    else:
         return text
-    m = re.fullmatch(r"(\d+)(?:\s*-\s*(\d+))?", value or "")
-    first = max(1, int(m.group(1)))
-    scans = [p for p in doc.get("scans", ()) if first <= p <= shown]
     if not scans:
         return text
-    rest = scans[1:]
-    more = ("\nMore scan pages in this range, one image per read: "
-            + ", ".join(f"{doc_url}#page={p}" for p in rest[:12]) + ".") if rest else ""
     if _can_see() is False:
         return (text + f"\nPage {scans[0]} is a scan, but the chat model cannot read images: "
                 "switch to a model that can see images, or look for a text copy of "
@@ -355,5 +362,6 @@ async def answer(doc_url: str, doc: dict, kind: str | None, value: str | None,
     from .agent import imageresult
     data, mime = got
     return imageresult.with_inline(
-        text + f"\nPage {scans[0]} is a scan: its image is attached." + more, data,
+        text + f"\nPage {scans[0]} is a scan: its image is attached to this result." + more,
+        data,
         mime=mime, caption=f"page {scans[0]} of {doc_url} (scan)")

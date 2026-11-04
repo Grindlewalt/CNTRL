@@ -280,6 +280,26 @@ def _slice(base: str, hit: str, part: int) -> str:
     return lead + body + note
 
 
+_CHARSET = re.compile(r"""charset=["']?([\w.:-]+)""", re.I)
+
+
+def _decode(raw: bytes, ctype: str) -> str:
+    """A page's text in the charset it declares (its Content-Type, else a <meta> in
+    its first bytes), UTF-8 when it declares none. Latin-1 is read as Windows-1252,
+    as browsers do: the National Security Archive serves latin-1 with curly quotes
+    in 0x80-0x9f, which came out as U+FFFD in every quote ("Hull \ufffds arguments")."""
+    m = _CHARSET.search(ctype or "") or _CHARSET.search(raw[:4096].decode("ascii", "ignore"))
+    name = (m.group(1) if m else "utf-8").lower()
+    if name in ("iso-8859-1", "latin-1", "latin1", "l1", "us-ascii", "ascii"):
+        name = "cp1252"
+    for enc in (name, "utf-8"):
+        try:
+            return raw.decode(enc)
+        except (LookupError, UnicodeDecodeError):
+            continue
+    return raw.decode("cp1252", errors="replace")
+
+
 async def read(url: str, session: str) -> str:
     """Fetch a page and return inert plain text. SSRF-guarded. Claims the URL
     in the shared ledger BEFORE fetching, so parallel bots never pull the same
@@ -410,7 +430,7 @@ async def read(url: str, session: str) -> str:
             # of junk in the model's context
             return _out(f"error: {url} is binary content ({ctype or 'unknown type'}), "
                         "not a page or a PDF, so there is no text to read.")
-        body = raw.decode("utf-8", errors="replace")
+        body = _decode(raw, ctype)
         html = ""
         if "html" in ctype or "<html" in body[:2000].lower():
             html = body

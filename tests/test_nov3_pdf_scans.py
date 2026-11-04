@@ -62,11 +62,16 @@ async def test_text_only_pdf_keeps_no_bytes():
     assert doc["scans"] == [] and doc["raw"] is None
 
 
-async def test_first_read_counts_scans():
+async def test_first_read_counts_scans_and_brings_the_first_one():
+    # the first read comes with the first scan page's image: on the Pi the model was
+    # asked for 33.pdf#page=1, called 33.pdf, and took the note for an attachment
     doc = await load()
-    text = await pdftext.answer(URL, doc, None, None, 12000)
-    assert "2 of 4 pages are scans" in text and f"{URL}#page=2" in text
-    assert imageresult.MARKER not in text
+    out = await pdftext.answer(URL, doc, None, None, 12000)
+    text, img = imageresult.split(out)
+    assert "2 of 4 pages are scans" in text and f"url={URL}#page=N" in text
+    assert img is not None and img.caption == f"page 2 of {URL} (scan)"
+    assert "Page 2 is a scan: its image is attached to this result." in text
+    assert f"For another scan page, call web_read with url={URL}#page=N." in text
 
 
 async def test_single_scan_page_attaches_png():

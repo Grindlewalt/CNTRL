@@ -193,3 +193,26 @@ async def test_an_alternate_on_another_site_is_never_fetched(tmp_env, monkeypatc
     out = await webtools.read(url, "s9")
     assert elsewhere not in calls
     assert not out.startswith("(read from: the page's AMP")
+
+
+async def test_a_latin1_page_keeps_its_quotes(tmp_env, monkeypatch):
+    # the NSA Archive index: charset=latin-1 and curly quotes; read as UTF-8 every
+    # quote became U+FFFD ("Hull �s arguments")
+    await init_db()
+    url = "https://archive.example/index.htm"
+    body = ("<html><head><meta http-equiv='Content-Type' content='text/html; "
+            "charset=iso-8859-1'><title>Index</title></head><body><p>" + PROSE * 3
+            + "Hull\u2019s arguments may have reinforced his decision.</p></body></html>")
+    real = httpx.AsyncClient
+
+    def handler(req):
+        return httpx.Response(200, headers={"content-type": "text/html; charset=latin-1"},
+                              content=body.encode("cp1252"))
+    monkeypatch.setattr(webtools.httpx, "AsyncClient",
+                        lambda *a, **kw: real(transport=httpx.MockTransport(handler),
+                                              timeout=kw.get("timeout")))
+    monkeypatch.setattr(webtools, "is_safe_url", lambda u: u)
+    out = await webtools.read(url, "s10")
+    assert "Hull’s arguments" in out and "�" not in out
+    assert webtools._decode("café".encode(), "text/html") == "café"     # no charset: UTF-8
+    assert webtools._decode(b"caf\xe9", "text/html") == "café"               # not UTF-8 after all
