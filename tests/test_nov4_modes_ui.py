@@ -89,3 +89,16 @@ async def test_a_chosen_yolo_sends_yolo_full_with_the_first_message():
         app.perm_mode = "yolo"
         await open_chat(pilot, app, srv)
         assert srv.posts[0]["permission_mode"] == "yolo-full"
+
+
+async def test_enter_on_the_yolo_question_says_no():
+    # the most permissive mode is never one reflexive keypress away: enter is no
+    srv = FakeServer()
+    app = jav3.build_tui("http://h:1", "jvd_x", transport=srv.transport())
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause(0.3)
+        await send(pilot, app, "/permissions yolo")
+        assert await wait_for(lambda: type(app.screen).__name__ == "Confirm")
+        await pilot.press("enter")
+        await pilot.pause(0.3)
+        assert app.chat.perm_mode == "safe-yolo"

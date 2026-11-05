@@ -12536,7 +12536,8 @@ def build_tui(base: str, token: str, **kw):
                     "Switch to yolo? Nothing will ask you any more.",
                     "Packages, network access, pushes anywhere, publishing and secrets "
                     "are all approved the moment they are requested. Each one is logged "
-                    "as a security event. The VM and the secret-leak refusal still hold."))
+                    "as a security event. The VM and the secret-leak refusal still hold.",
+                    strict=True))               # only y: a reflexive enter says no
                 if not ok:
                     return
             self.set_permission(mode)
