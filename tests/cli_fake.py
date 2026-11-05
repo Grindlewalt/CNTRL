@@ -124,6 +124,8 @@ class FakeServer:
         self.calls.append((method, path))
         if self.down:
             raise httpx.ConnectError("All connection attempts failed")
+        if path in ("/api/pages", "/api/pages/requests") and method == "GET":
+            return httpx.Response(200, json={"items": []})
         if path == "/api/devices/whoami":
             return httpx.Response(200, json={"username": "device:test"})
         if path == "/api/auth/me":

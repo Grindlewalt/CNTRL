@@ -13,9 +13,11 @@ import { approvePackage, listPackages, rejectPackage, resolvePackages } from './
 import { approveService, getService, rejectService } from './api/services.js'
 import { approveEnvironment, rejectEnvironment } from './api/environments.js'
 import { approveHeldJournal, dropHeldJournal } from './api/journalHeld.js'
+import { approvePage, rejectPage, unpublishPage } from './api/pages.js'
+import { Copy } from '../copy.jsx'
 import { approveSkillRequest, fetchSkillRequest, rejectSkillRequest } from './api/skillRequests.js'
 import {
-  diffLines, EXPOSE_LABEL, exposeChoices, exposeDefault, exposePayload, packageReach, PLACEMENTS,
+  bytes, diffLines, EXPOSE_LABEL, exposeChoices, exposeDefault, exposePayload, packageReach, PLACEMENTS,
   packagesByManager, skillCardState,
 } from './logic.js'
 import { ProjectList } from './ui.jsx'
@@ -474,6 +476,104 @@ export function JournalHeldCard({ h, onDone }) {
         <Button disabled={busy}
                 onClick={() => decide(approveHeldJournal, 'journal entry approved')}>Approve</Button>
       </div>
+    </div>
+  )
+}
+
+// ---- published pages -----------------------------------------------------------
+
+function PageLink({ url }) {
+  return (
+    <div className="row">
+      <a className="mono small" href={url} target="_blank" rel="noopener noreferrer">{url}</a>
+      <Copy text={url} label="Copy link" />
+    </div>
+  )
+}
+
+// An agent asked to publish a file or folder of a project: a copy is served at its own
+// link, and anyone with the link can open it (scripts in it run, in a sandbox). The
+// names and paths were written by the agent, so they render as text. After Approve the
+// card stays and shows the link; `onDone` refreshes the lists.
+export function PagePublishCard({ p, onDone }) {
+  const [busy, setBusy] = useState(false)
+  const [url, setUrl] = useState(null)
+  const [all, setAll] = useState(false)
+  const files = p.files || []
+  const shown = all ? files : files.slice(0, 5)
+  async function approve() {
+    setBusy(true)
+    try {
+      const r = await approvePage(p)
+      setUrl(r?.url || '')
+      notify(`published ${p.name}`)
+    } catch (err) { notifyError(err) }
+    setBusy(false)
+    onDone()
+  }
+  async function reject() {
+    setBusy(true)
+    try { await rejectPage(p); notify('publish request rejected') } catch (err) { notifyError(err) }
+    setBusy(false)
+    onDone()
+  }
+  return (
+    <div className="sbx-card bx-svc-req">
+      <div className="bx-pkg-top">
+        <Tag tone="pending">page</Tag>
+        <b>{p.name}</b>
+        <Tag>{p.project}</Tag>
+        <span className="dim small mono">{bytes(p.bytes)}</span>
+      </div>
+      <dl className="bx-kv small">
+        <dt>path</dt><dd className="mono">{p.path}</dd>
+        <dt>files</dt>
+        <dd>
+          {shown.map((f) => (
+            <div key={f.path} className="mono">{f.path} <span className="dim">{bytes(f.size)}</span></div>
+          ))}
+          {files.length > shown.length && (
+            <button type="button" className="ghost small" onClick={() => setAll(true)}>
+              show all {files.length}
+            </button>
+          )}
+        </dd>
+      </dl>
+      {url !== null ? (url ? <PageLink url={url} /> : <div className="dim small">published</div>) : (
+        <div className="row">
+          <span className="dim small grow">Anyone with the link can open it, and scripts in it run.</span>
+          <Button variant="ghost" danger disabled={busy} onClick={reject}>Reject</Button>
+          <Button disabled={busy} onClick={approve}>Approve</Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// A live page: its link, a copy button, and Unpublish (the link stops working).
+export function PageLiveCard({ p, onDone }) {
+  const ask = useAsk()
+  const [busy, setBusy] = useState(false)
+  async function unpublish() {
+    const ok = await ask.confirm(
+      `Unpublish ${p.name}? Its link stops working. The project's files are not touched.`,
+      { confirmLabel: 'Unpublish', danger: true })
+    if (!ok) return
+    setBusy(true)
+    try { await unpublishPage(p); notify(`unpublished ${p.name}`) } catch (err) { notifyError(err) }
+    setBusy(false)
+    onDone()
+  }
+  return (
+    <div className="sbx-card bx-svc-req">
+      <div className="bx-pkg-top">
+        <Tag tone="done">live</Tag>
+        <b>{p.name}</b>
+        <Tag>{p.project}</Tag>
+        <span className="grow" />
+        <Button variant="ghost" danger disabled={busy} onClick={unpublish}>Unpublish</Button>
+      </div>
+      {p.url && <PageLink url={p.url} />}
     </div>
   )
 }
