@@ -6694,6 +6694,13 @@ def build_tui(base: str, token: str, **kw):
                 f"[b]{_esc(_short(r.get('text') or '?', 70))}[/] "
                 f"[$text-muted]for {_esc(r.get('project') or '?')} · unverified[/]")
 
+    def _row_page(e) -> str:
+        r, ts = e["raw"], row_ts(e.get("ts"))
+        return (f"[$warning b]PAGE [/] [$text-muted]{ts}[/] "
+                f"[b]{_esc(_short(r.get('name') or '?', 50))}[/] "
+                f"[$text-muted]for {_esc(r.get('project') or '?')} · "
+                f"{_plural(len(r.get('files') or []), 'file')} · {_page_size(r.get('bytes'))}[/]")
+
     def _row_skillreq(e) -> str:
         r, ts = e["raw"], row_ts(e.get("ts"))
         st = r.get("status") or "pending"
@@ -6833,7 +6840,8 @@ def build_tui(base: str, token: str, **kw):
                 + f" · {len(projects)} project{'s' * (len(projects) != 1)}[/]")
 
     _ROWS = {"service": _row_service, "package": _row_package, "envreq": _row_envreq,
-             "skillreq": _row_skillreq, "journal": _row_journal, "policy": _row_policy,
+             "skillreq": _row_skillreq, "journal": _row_journal, "page": _row_page,
+             "policy": _row_policy,
              "group": _row_group, "pbox": _row_pbox, "proc": _row_proc, "svc": _row_svc,
              "orphan": _row_orphan,
              "call": calls_row, "refusal": calls_row,
@@ -7071,7 +7079,9 @@ def build_tui(base: str, token: str, **kw):
                           quiet404=True))
             held = await self._get("queue", "journal", "/api/memory/held-journal", "items",
                                    quiet404=True)
-            self._queue_extra = (envs or [], skills or [], held or [])
+            pages = await self._get("queue", "pages", "/api/pages/requests", "items",
+                                    quiet404=True)
+            self._queue_extra = (envs or [], skills or [], held or [], pages or [])
             alerts = None
             if runs is None:                          # the flat list, as before the cards
                 alerts = await self._get("queue", "alerts", "/api/security/events", "events",
@@ -7093,10 +7103,10 @@ def build_tui(base: str, token: str, **kw):
             """The Queue from what was last loaded, with the cards opened or closed as
             they are now (no request)."""
             pending, git, alerts, services, packages, runs = self._queue_src
-            envs, skills, journal = getattr(self, "_queue_extra", ((), (), ()))
+            envs, skills, journal, pages = getattr(self, "_queue_extra", ((), (), (), ()))
             return self.queue_entries(pending, git, alerts, services, packages, runs=runs,
                                       open_runs=self.open_runs, envs=envs, skills=skills,
-                                      journal=journal)
+                                      journal=journal, pages=pages)
 
         def _lan(self, svcs) -> None:
             """GET /api/services' LAN fields: services_lan_ip is "" unless a
@@ -7118,7 +7128,7 @@ def build_tui(base: str, token: str, **kw):
 
         @staticmethod
         def queue_entries(pending, git: dict, alerts, services=(), packages=(), runs=None,
-                          open_runs=(), envs=(), skills=(), journal=()) -> list[dict]:
+                          open_runs=(), envs=(), skills=(), journal=(), pages=()) -> list[dict]:
             asks = [{"type": "egress", "key": f"p{e.get('id')}", "raw": e,
                      "ts": e.get("last_seen") or ""} for e in pending]
             asks += [{"type": "service", "key": f"v{q.get('id')}", "raw": q,
@@ -7136,6 +7146,9 @@ def build_tui(base: str, token: str, **kw):
             # journal lines held [unverified]: no timestamp of their own, the line's date
             asks += [{"type": "journal", "key": f"j{q.get('project')}:{q.get('id')}", "raw": q,
                       "ts": q.get("date") or ""} for q in journal]
+            asks += [{"type": "page", "key": f"pg{q.get('id')}", "raw": q,
+                      "ts": q.get("created_at") or ""}
+                     for q in pages if q.get("status", "pending") == "pending"]
             for slug, reqs in git.items():
                 for q in reqs or []:
                     if q.get("status", "pending") == "pending":
@@ -7823,6 +7836,23 @@ def build_tui(base: str, token: str, **kw):
                 "[$text-muted]An agent wrote this after reading untrusted content. It is in "
                 "project.md tagged [unverified] and stays out of every prompt until you approve it.[/]"])
 
+        def _detail_page(self, e) -> str:
+            r = e["raw"]
+            files = r.get("files") or []
+            lines = [
+                "[$primary]y[/] publish   [$primary]n[/] reject",
+                "",
+                f"[b]publish a page[/] [$text-muted]{_esc(r.get('name') or '?')} · "
+                f"{_esc(r.get('project') or '?')} · {_esc(r.get('path') or '')} · "
+                f"{_page_size(r.get('bytes'))}[/]", ""]
+            lines += [f"  {_esc(f.get('path') or '?')}  [$text-muted]{_page_size(f.get('size'))}[/]"
+                      for f in files[:40]]
+            if len(files) > 40:
+                lines.append(f"  [$text-muted]and {len(files) - 40} more[/]")
+            lines += ["", "[$text-muted]A copy of these files is served at its own link on the "
+                      "pages port. Anyone with the link can open it, and scripts in it run.[/]"]
+            return "\n".join(lines)
+
         def _detail_skillreq(self, e) -> str:
             r = e["raw"]
             st = r.get("status") or "pending"
@@ -8089,6 +8119,8 @@ def build_tui(base: str, token: str, **kw):
                             "[$primary]n[/] reject")
                 if e is not None and e["type"] == "journal":
                     return "[$primary]y[/] approve  [$primary]n[/] drop"
+                if e is not None and e["type"] == "page":
+                    return "[$primary]y[/] publish  [$primary]n[/] reject"
                 if e is not None:
                     return "[$primary]y[/] approve  [$primary]n[/] deny"
             return self.FOOT[self.tab]
@@ -8162,6 +8194,9 @@ def build_tui(base: str, token: str, **kw):
                 ne = sum(e["type"] == "envreq" for e in es)
                 nk = sum(e["type"] == "skillreq" for e in es)
                 nj = sum(e["type"] == "journal" for e in es)
+                npg = sum(e["type"] == "page" for e in es)
+                if npg:
+                    extra += f"{npg} page{'s' * (npg != 1)} to publish · "
                 if nj:
                     extra += f"{nj} journal entr{'ies' if nj != 1 else 'y'} · "
                 if ne or nk:
@@ -8573,6 +8608,9 @@ def build_tui(base: str, token: str, **kw):
                 return
             if e is not None and e["type"] == "journal":
                 await self._decide_journal(e["raw"], yes)
+                return
+            if e is not None and e["type"] == "page":
+                await self._decide_page(e["raw"], yes)
                 return
             if e is not None and e["type"] == "skillreq":
                 if not yes:
@@ -9049,6 +9087,26 @@ def build_tui(base: str, token: str, **kw):
                 await self._send(
                     "POST", f"/api/memory/held-journal/{r.get('project')}/{r.get('id')}/{verb}",
                     f"{'approved' if yes else 'dropped'} the journal entry")
+
+        async def _decide_page(self, r: dict, yes: bool) -> None:
+            files = r.get("files") or []
+            listing = "\n".join(f"  {f.get('path')}  {_page_size(f.get('size'))}"
+                                 for f in files[:12])
+            if len(files) > 12:
+                listing += f"\n  and {len(files) - 12} more"
+            what = f"{r.get('name') or '?'} from {r.get('project') or '?'} ({r.get('path') or ''})"
+            if yes:
+                q = "Publish this page?"
+                detail = (f"{what}\n{listing}\n\nAnyone with the link can open it, and scripts "
+                          "in it run (in a sandbox with no access to your login).")
+            else:
+                q, detail = "Reject this page?", f"{what}\n\nNothing is published."
+            if await self._confirm(q, detail):
+                verb = "approve" if yes else "reject"
+                if await self._send("POST", f"/api/pages/requests/{r.get('id')}/{verb}",
+                                    "published the page" if yes else "rejected the page") \
+                        and yes and self.last.get("url"):
+                    self.status = f"[$success]published: {_esc(self.last['url'])}[/]"
 
         async def _fetch_skill(self, r: dict) -> None:
             sid = r.get("id")
@@ -13453,6 +13511,8 @@ def build_tui(base: str, token: str, **kw):
                                   "then restart into it", busy_ok=True),
                 "restart": Command(self.c_restart, "start jav3 again: tabs, chats and drafts "
                                    "come back, turns keep running", busy_ok=True),
+                "pages": Command(self.c_pages, "the pages you have published: enter copies a "
+                                 "link, u unpublishes"),
                 "exit": Command(self.c_exit, "quit (a running turn keeps going)",
                                 busy_ok=True, leader="q"),
             }
@@ -14053,6 +14113,44 @@ def build_tui(base: str, token: str, **kw):
             copy_to_clipboard((pr.get("fetch") if here else pr.get("clone")) if pr else
                               (pull if here else clone), osc52=self.copy_to_clipboard)
             await self.say("\n".join(lines))
+
+        async def c_pages(self, arg: str) -> None:
+            """/pages: the live pages. enter copies the link, u unpublishes (after a confirm)."""
+            self._need_full("/pages")
+            try:
+                items = (await self.api("GET", "/api/pages") or {}).get("items") or []
+            except CliError as e:
+                if "said 404" not in str(e):
+                    raise
+                items = []
+            if not items:
+                await self.say("no pages are published")
+                return
+            by_id = {str(p.get("id")): p for p in items}
+
+            def rows():
+                return [(i, p.get("name") or "?", f"{p.get('project') or '?'} · {p.get('url') or ''}")
+                        for i, p in by_id.items()]
+
+            async def unpublish(pid):
+                p = by_id.get(pid)
+                if p is None or not await self.push_screen_wait(Confirm(
+                        f"Unpublish {p.get('name') or '?'}?",
+                        f"{p.get('url') or ''}\n\nThe link stops working. The project's files "
+                        "are not touched.", strict=True)):
+                    return None
+                await self.api("POST", f"/api/pages/{pid}/unpublish")
+                by_id.pop(pid, None)
+                self.notify(f"unpublished {p.get('name') or '?'}")
+                return rows()
+
+            pid = await self.pick("Published pages", rows(), wide=True,
+                                  actions={"u": ("unpublish", unpublish)},
+                                  hint="enter copies the link, u unpublishes")
+            p = by_id.get(pid or "")
+            if p and p.get("url"):
+                how = copy_to_clipboard(p["url"], osc52=self.copy_to_clipboard)
+                self.notify(f"copied the link ({how})")
 
         async def c_helper(self, arg: str) -> None:
             """/helper [question]: the next message (this one, with a question) carries
@@ -15767,6 +15865,16 @@ def load_custom_themes(reserved=()) -> tuple[list[dict], list[str]]:
         seen.add(clean["name"].lower())
         themes.append(clean)
     return themes, errors
+
+
+def _page_size(n) -> str:
+    """A byte count for a published page's files: 812 B, 14 KB, 2.3 MB."""
+    n = int(n or 0)
+    if n < 1024:
+        return f"{n} B"
+    if n < 1024 * 1024:
+        return f"{n // 1024} KB"
+    return f"{n / (1024 * 1024):.1f} MB"
 
 
 def copy_to_clipboard(text: str, osc52=None) -> str:

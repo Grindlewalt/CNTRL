@@ -26,11 +26,12 @@ import { listPackages } from '../boxes/api/packages.js'
 import { listEnvironments } from '../boxes/api/environments.js'
 import { listSkillRequests } from '../boxes/api/skillRequests.js'
 import { listHeldJournal } from '../boxes/api/journalHeld.js'
+import { listPageRequests, listPages } from '../boxes/api/pages.js'
 import { listProfiles } from '../boxes/api/profiles.js'
 import { listImages } from '../boxes/api/images.js'
 import { needsProject } from '../boxes/logic.js'
 import {
-  EnvironmentCard, JournalHeldCard, PackageApprove, PackageSummary, ServiceRequest, SkillRequestCard, usePackageReject,
+  EnvironmentCard, JournalHeldCard, PackageApprove, PageLiveCard, PagePublishCard, PackageSummary, ServiceRequest, SkillRequestCard, usePackageReject,
 } from '../boxes/RequestCards.jsx'
 
 // One cross-project queue of everything awaiting the operator: git commit
@@ -67,6 +68,8 @@ export function ReviewQueue({ slug }) {
   const [envReqs, setEnvReqs] = useState([])
   const [skillReqs, setSkillReqs] = useState([])
   const [heldJournal, setHeldJournal] = useState([])
+  const [pageReqs, setPageReqs] = useState([])
+  const [livePages, setLivePages] = useState([])
   const [profiles, setProfiles] = useState([])
   const [variants, setVariants] = useState(null)
   const [approvingPkg, setApprovingPkg] = useState(null)
@@ -137,6 +140,11 @@ export function ReviewQueue({ slug }) {
         setSkillReqs(slug ? rows.filter((r) => r.project_slug === slug) : rows)
       }).catch(() => setSkillReqs([]))
     listHeldJournal(slug || undefined).then(setHeldJournal).catch(() => setHeldJournal([]))
+    // published pages (older servers: the sections never show)
+    listPageRequests().then((rows) => setPageReqs(slug ? rows.filter((r) => r.project === slug) : rows))
+      .catch(() => setPageReqs([]))
+    listPages().then((rows) => setLivePages(slug ? rows.filter((r) => r.project === slug) : rows))
+      .catch(() => setLivePages([]))
   }
   function loadPkgReqs() {
     listPackages('pending').then((rows) =>
@@ -259,7 +267,7 @@ export function ReviewQueue({ slug }) {
   const projLabel = (s) => names[s] || s
   const gitTotal = (slugs || []).reduce((n, s) => n + (gitReqs[s]?.length || 0), 0)
   const total = totals.need + totals.reports + gitTotal + pending.length + svcReqs.length + pkgReqs.length
-    + envReqs.length + skillReqs.length + heldJournal.length + asks.length
+    + envReqs.length + skillReqs.length + heldJournal.length + pageReqs.length + asks.length
 
   if (!slugs) return <div className="dim center-pad">…</div>
 
@@ -383,6 +391,26 @@ export function ReviewQueue({ slug }) {
             <span className="sec-count">{heldJournal.length}</span>
           </div>
           {heldJournal.map((h) => <JournalHeldCard key={`${h.project}:${h.id}`} h={h} onDone={loadBoxReqs} />)}
+        </section>
+      )}
+
+      {pageReqs.length > 0 && (
+        <section className="sbx-sec">
+          <div className="sbx-sec-head">
+            <h3>Pages waiting to publish</h3>
+            <span className="sec-count">{pageReqs.length}</span>
+          </div>
+          {pageReqs.map((p) => <PagePublishCard key={p.id} p={p} onDone={loadBoxReqs} />)}
+        </section>
+      )}
+
+      {livePages.length > 0 && (
+        <section className="sbx-sec">
+          <div className="sbx-sec-head">
+            <h3>Published pages</h3>
+            <span className="sec-count">{livePages.length}</span>
+          </div>
+          {livePages.map((p) => <PageLiveCard key={p.id} p={p} onDone={loadBoxReqs} />)}
         </section>
       )}
 
