@@ -499,3 +499,42 @@ async def unresolved(db) -> list[dict]:
             "SELECT * FROM package_catalogue WHERE status = 'pending' AND "
             "resolved_version IS NULL ORDER BY id") as cur:
         return [dict(r) for r in await cur.fetchall()]
+
+
+async def yolo_approve(pkg_id: int) -> dict | None:
+    """FULL mode (permissions.auto_approve said yes): resolve the request's
+    dry-run if it has none yet, approve it as decided_by="yolo", and start the
+    variant's build. A package that cannot be resolved stays pending for the
+    operator. Runs in the background after the tool call has returned."""
+    from .config import settings
+    from .db import get_db
+    from .vm import images
+    db = await get_db()
+    try:
+        row = await get(db, pkg_id)
+        if row is None or row["status"] != "pending":
+            return row
+        if not row.get("resolved_version"):
+            await db.close()
+            db = None
+            try:
+                await images.builder.resolve_pending()
+            except Exception:  # noqa: BLE001 — stays pending, resolvable from the card
+                return None
+            db = await get_db()
+            row = await get(db, pkg_id)
+            if row is None or not row.get("resolved_version"):
+                return row
+        try:
+            row = await approve(db, pkg_id, target_variant=None, decided_by="yolo")
+        except (PackageError, images.RecipeError):
+            return row
+    finally:
+        if db is not None:
+            await db.close()
+    if settings.vm_boxes_enabled and not images.builder.lock.locked():
+        try:
+            await images.builder.build(row["target_variant"])
+        except Exception:  # noqa: BLE001 — the version row / security event carry the error
+            pass
+    return row

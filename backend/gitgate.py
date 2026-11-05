@@ -435,6 +435,31 @@ async def _names(slug: str, a: str, b: str) -> dict[str, str]:
     return {parts[i + 1]: parts[i] for i in range(0, len(parts) - 1, 2) if parts[i]}
 
 
+async def yolo_decide(row: dict) -> tuple[dict, str | None]:
+    """FULL mode: approve a request just filed (commit, remote, push or merge) as it
+    is made. -> (the row as it now stands, an error text or None). When the
+    conversation is not in yolo-full this does nothing and the row stays pending;
+    when the approval itself fails (a push refused, Gitea down) the row stays
+    pending too and the error says why. The row's own conversation decides: a
+    request filed with none (HTTP, a scheduled run) never auto-approves."""
+    from . import permissions
+    cid = row.get("conversation_id")
+    if cid is None or not await permissions.auto_approve(
+            f"git_{row.get('kind') or 'commit'}", cid=cid, project=row["project_slug"],
+            summary=f"git {row.get('kind') or 'commit'} request #{row['id']} in "
+                    f"'{row['project_slug']}': {(row.get('message') or '')[:120]}",
+            detail={"git_request_id": row["id"], "kind": row.get("kind") or "commit"}):
+        return row, None
+    try:
+        return await approve_request(row["id"], row["project_slug"]), None
+    except Exception as e:  # noqa: BLE001 — stays pending for the operator
+        db = await get_db()
+        try:
+            return await _fetch_request(db, row["id"]), str(e)[:300]
+        finally:
+            await db.close()
+
+
 async def create_merge_request(slug: str, *, job_id: str, branch: str, base_sha: str,
                                parts: list[dict], summary: str,
                                conversation_id: int | None = None) -> dict:
@@ -520,6 +545,9 @@ async def create_merge_request(slug: str, *, job_id: str, branch: str, base_sha:
                     await db.close()
         except Exception as e:                      # noqa: BLE001
             log.warning("Gitea mirror of merge request #%s failed: %s", rid, e)
+    row, err = await yolo_decide(row)
+    if err:
+        log.warning("yolo approval of merge request #%s failed: %s", rid, err)
     return row
 
 
@@ -702,6 +730,9 @@ async def _approve_merge(db, rid: int, row: dict) -> dict:
     # it would have been written straight into the project; a PR never deletes one
     from . import alwaysloaded, taintpaths
     tainted = set(taintpaths.paths(slug))
+    # yolo-full: nothing is held; a tainted always-loaded change lands with the PR
+    from . import permissions
+    yolo = await permissions.never_asks(row.get("conversation_id"))
     for key in _job_keys(slug, pl):
         tainted |= set(taintpaths.paths(key))
     for st, mode, sha, rel in entries:
@@ -719,7 +750,7 @@ async def _approve_merge(db, rid: int, row: dict) -> dict:
             skipped.append(rel)
             continue
         data = await _read_blob(gd, sha)
-        if loaded and rel in tainted:
+        if loaded and rel in tainted and not yolo:
             try:
                 await alwaysloaded.hold(slug, rel, data)
             except Exception as e:                  # noqa: BLE001 — too large: not written

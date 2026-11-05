@@ -1,6 +1,8 @@
 """environment_request: file a pending request for a new image variant
 (host-side, brokered). Validation and storage live in backend/environments.py."""
-from backend import environments, runtime
+import asyncio
+
+from backend import environments, permissions, runtime
 from backend.agent.tools.toolctx import active_slug
 from backend.config import settings
 from backend.db import get_db
@@ -23,6 +25,22 @@ async def run(name: str = "", packages: list | None = None, reason: str = "",
         return f"error: {e}"
     finally:
         await db.close()
+    if await permissions.auto_approve(
+            "environment_request", project=slug,
+            summary=f"image `{row['name']}` for '{slug}'",
+            detail={"environment_id": row["id"], "name": row["name"],
+                    "kind": row["kind"]}):
+        if row["kind"] == "use":
+            done = await environments.yolo_approve(row["id"])
+            if done is not None and done["status"] == "approved":
+                return (f"environment request #{row['id']} approved unasked (yolo): "
+                        f"this project's next box boot uses image `{row['name']}`.")
+        else:
+            # resolve, approve and build in the background; the agent is not held
+            asyncio.get_running_loop().create_task(environments.yolo_approve(row["id"]))
+            return (f"environment request #{row['id']} filed: image `{row['name']}` — "
+                    "approved unasked (yolo) once its packages resolve, then built; "
+                    "this project's boxes boot on it on a later box boot, not this turn.")
     if row["kind"] == "use":
         return (f"environment request #{row['id']} filed: move this project onto the "
                 f"existing image `{row['name']}` (its own box) — pending. Nothing is "

@@ -263,7 +263,17 @@ async def apply_write_gated(slug: str, rel: str, content: bytes, *,
     if tainted:
         from . import alwaysloaded, worktrees
         if not worktrees.is_work_key(slug) and alwaysloaded.is_loaded(slug, rel):
+            from . import permissions, taintpaths
             await _check(slug, rel, content)
+            if await permissions.auto_approve(
+                    "always_loaded", project=slug,
+                    summary=f"tainted change to always-loaded file {rel} lands unasked",
+                    detail={"path": rel, "bytes": len(content)}):
+                # yolo-full: not held; it lands, and the file leaves the tainted ledger
+                # as an operator's approval would have left it
+                triggers = await apply_write(slug, rel, content)
+                taintpaths.record(slug, [rel], False)
+                return triggers, False
             await alwaysloaded.hold(slug, rel, content)
             return [], True
     return await apply_write(slug, rel, content), False

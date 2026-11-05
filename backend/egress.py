@@ -740,6 +740,29 @@ async def approve_host_once(db: aiosqlite.Connection, pending_id: int,
     return {"ok": True, "host": r["host"], "until": got["expires_at"], "project": slug}
 
 
+async def yolo_approve_queued(db: aiosqlite.Connection, slug: str | None, host: str,
+                              conversation_id: int | None) -> bool:
+    """FULL mode: a host a box just got denied (and so queued) is approved onto its
+    project's list as decided_by "yolo", for the retry. Needs the conversation the
+    traffic belongs to: an unattributed connection, or one with no known
+    conversation (a scheduled run), keeps waiting for the operator."""
+    from . import permissions
+    if conversation_id is None or is_unattributed(slug):
+        return False
+    async with db.execute("SELECT id, status FROM egress_pending WHERE project_slug = ? "
+                          "AND host = ?", (slug, host)) as cur:
+        r = await cur.fetchone()
+    if r is None or r["status"] != "pending":
+        return False
+    if not await permissions.auto_approve(
+            "egress_host", cid=conversation_id, project=slug,
+            summary=f"network host {host} for '{slug}'",
+            detail={"host": host, "pending_id": r["id"]}):
+        return False
+    res = await approve_host(db, r["id"], by="yolo")
+    return bool(res.get("ok"))
+
+
 async def reject_host(db: aiosqlite.Connection, pending_id: int) -> dict:
     # clearing auto_verdict marks the row as a human decision, which egress
     # auto mode never overrides (egress_auto.judge)

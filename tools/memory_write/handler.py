@@ -82,6 +82,26 @@ def _label(stem: str, name: str) -> str:
             "memory_read and memory_write)")
 
 
+async def _yolo_approved(stem: str, notes, what: str, proposal: bool) -> bool:
+    """yolo-full: the note or proposal just written is approved on the spot (as an
+    operator's approval would: approved, taint stamp cleared). False when the
+    conversation is not in yolo-full, the chat is incognito, or it cannot be done."""
+    from backend import permissions, runtime
+    if runtime.ephemeral.get():
+        return False
+    if not await permissions.auto_approve(
+            "memory_proposal" if proposal else "memory_note",
+            summary=f"{what} '{stem}'", detail={"note": stem}):
+        return False
+    try:
+        if proposal:
+            memory.approve_proposal(stem, notes=notes)
+            return True
+        return memory.promote_note(stem, notes)
+    except Exception:  # noqa: BLE001 — it stays pending on the Memory page
+        return False
+
+
 async def _propose(stem, label, mode, description, content, op_taint, notes,
                    base_text, base_meta, base_body) -> str:
     """An agent write onto a binding note. The note is NOT touched: rewriting it
@@ -112,6 +132,9 @@ async def _propose(stem, label, mode, description, content, op_taint, notes,
                        f"an agent proposed a change to note '{stem}'"
                        + (" (written after untrusted content)" if taint else ""),
                        {"note": stem, "mode": mode, "tainted": bool(taint)})
+    if await _yolo_approved(stem, notes, "proposed change to note", True):
+        return (f"note {label} was binding, and your change is approved unasked (yolo): "
+                "it is the note now.")
     return (f"note {label} is one the operator wrote or approved, so it is unchanged "
             "and still binding. Your change is saved as a proposal that takes effect "
             "only when the operator approves it on the Memory page. Tell them.")
@@ -218,6 +241,8 @@ async def run(name: str, content: str, mode: str | None = "append",
         path.write_text(_with_frontmatter(description, content, taint=op_taint or prior))
         if not was_pending:
             memory.notify_pending(stem)
+        if await _yolo_approved(stem, notes, "memory note", False):
+            return f"memory note {label} saved and approved unasked (yolo)."
         return _saved("memory note", f"{label} saved")
     # append: keep (or update) the existing frontmatter, never duplicate it, and
     # carry the taint forward (a new untrusted write escalates a clean note).
@@ -225,4 +250,6 @@ async def run(name: str, content: str, mode: str | None = "append",
     desc = description or meta.get("description")
     taint = op_taint or meta.get("taint")
     path.write_text(_with_frontmatter(desc, body + "\n\n" + content.strip(), taint=taint))
+    if await _yolo_approved(stem, notes, "memory note", False):
+        return f"appended to memory note {label}; approved unasked (yolo)."
     return _saved("appended to memory note", label)

@@ -72,7 +72,7 @@ class ChatRequest(BaseModel):
     local: dict | None = None
     # permissions.py: yolo | auto | ask for this conversation (new or existing);
     # omitted keeps what the conversation has
-    permission_mode: Literal["yolo", "auto", "ask"] | None = None
+    permission_mode: Literal["yolo", "safe-yolo", "auto", "ask", "yolo-full"] | None = None
     # "orchestrate" opens this NEW conversation as an orchestrator: it breaks
     # the operator's dump into a checklist run by a team of agents in
     # `project` (required), monitors and messages them, and reports. Binds at

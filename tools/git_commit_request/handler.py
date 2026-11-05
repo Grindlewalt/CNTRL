@@ -1,5 +1,5 @@
 from backend.agent.tools.toolctx import require_project
-from backend.gitgate import create_request, ensure_repo
+from backend.gitgate import create_request, ensure_repo, yolo_decide
 
 
 async def run(message: str, paths: list[str] | None = None) -> str:
@@ -18,6 +18,13 @@ async def run(message: str, paths: list[str] | None = None) -> str:
         scope += "; replaces pending " + ", ".join(
             f"request #{r['id']} ({r['message'][:60]!r})" for r in replaced)
     note = "".join(f"\nnote: {n}" for n in row.get("harness_notice") or [])
+    done, err = await yolo_decide(row)
+    if done["status"] == "approved":
+        return (f"commit request #{row['id']} filed{scope} and approved unasked (yolo): "
+                f"committed {(done.get('commit_sha') or '')[:10]}"
+                + (f"; {done['error']}" if done.get("error") else "") + "." + note)
+    if err:
+        note += f"\nthe unasked approval (yolo) failed: {err}. It waits for the operator."
     return (f"commit request #{row['id']} filed{scope} — status pending. "
             "Nothing is committed or pushed until the operator approves it "
             "in the dashboard." + note)

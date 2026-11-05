@@ -2,6 +2,8 @@
 
 Validation, the canonical command and the catalogue row all live in
 backend/packages.py. The agent's install_command is stored, never run."""
+import asyncio
+
 from backend import packages, runtime
 from backend.agent.tools.toolctx import active_slug
 from backend.config import settings
@@ -23,6 +25,18 @@ async def run(manager: str = "", package: str = "", install_command: str = "",
         return f"error: {e}"
     finally:
         await db.close()
+    from backend import permissions
+    if await permissions.auto_approve(
+            "package_request", project=slug,
+            summary=f"{row['manager']} package {row['package']} for `{row['target_variant']}`",
+            detail={"package_id": row["id"], "manager": row["manager"],
+                    "package": row["package"]}):
+        # resolve, approve and build in the background; the agent is not held
+        asyncio.get_running_loop().create_task(packages.yolo_approve(row["id"]))
+        return (f"package request #{row['id']} filed: {row['manager']} {row['package']} "
+                f"for image `{row['target_variant']}` — approved unasked (yolo). It is "
+                "being resolved and built into a new image version, which arrives on a "
+                "later box boot, not in this turn.")
     try:
         from backend.vm import images
         images.builder.kick_resolve()

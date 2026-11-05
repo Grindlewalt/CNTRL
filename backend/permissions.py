@@ -2,7 +2,9 @@
 their own. Stored per conversation (conversations.permission_mode; a NULL
 follows the parent chain, so an orchestrator's agents inherit its mode):
 
-  yolo  everything runs in the VM, no checks (the default: today's behaviour)
+  safe-yolo  everything runs in the VM, no checks; the bigger requests still wait
+        in the Queue (the default; the legacy stored value "yolo" means this, forever)
+  yolo-full  (shown as "yolo") nothing waits: see auto_approve below
   auto  each write-type call first goes to a cheap context-free judge (one
         model call with ONLY the tool name and arguments, a handful of output
         tokens). SAFE runs; RISKY, or any judge failure, asks the operator.
@@ -36,8 +38,10 @@ import secrets as pysecrets
 from . import runtime
 from .config import settings
 
-MODES = ("yolo", "auto", "ask")
-DEFAULT_MODE = "yolo"
+FULL = "yolo-full"
+MODES = ("safe-yolo", "auto", "ask", FULL)
+DEFAULT_MODE = "safe-yolo"
+LEGACY_YOLO = "yolo"      # old clients and stored rows: always safe-yolo
 
 IN_GUEST_GATED = frozenset({"write_file", "edit_file", "run_code"})
 GATED_TOOLS = IN_GUEST_GATED | {"git_commit_request", "git_remote_request", "git_push_request",
@@ -83,6 +87,11 @@ _NO_ALWAYS_HEADS = frozenset({"rm", "sudo", "su", "dd", "mkfs", "chmod", "chown"
 
 # --- mode ----------------------------------------------------------------------
 
+def normalize_mode(mode):
+    """The legacy "yolo" is safe-yolo; anything else is returned as given."""
+    return DEFAULT_MODE if mode == LEGACY_YOLO else mode
+
+
 async def get_mode(cid: int | None) -> str:
     """The conversation's mode: its own, else the nearest ancestor's, else yolo."""
     if cid is None:
@@ -101,11 +110,12 @@ async def get_mode(cid: int | None) -> str:
             row = await cur.fetchone()
     finally:
         await db.close()
-    mode = row[0] if row else None
+    mode = normalize_mode(row[0] if row else None)
     return mode if mode in MODES else DEFAULT_MODE
 
 
 async def set_mode(db, cid: int, mode: str) -> None:
+    mode = normalize_mode(mode)
     if mode not in MODES:
         raise ValueError(f"mode must be one of {', '.join(MODES)}")
     await db.execute("UPDATE conversations SET permission_mode = ? WHERE id = ?",
@@ -119,7 +129,6 @@ async def set_mode(db, cid: int, mode: str) -> None:
 # push, a publish, a held memory line...) is approved as it is made, and each such
 # approval is a security event, the record of what ran unasked. The stored value
 # "yolo" keeps its old meaning for good: old clients send it as their default.
-FULL = "yolo-full"
 
 
 async def never_asks(cid: int | None) -> bool:
@@ -346,7 +355,7 @@ async def gate(tool: str, args: dict) -> str | None:
     if cid is None:
         return None                     # no conversation (a scheduled run): yolo
     mode = await get_mode(cid)
-    if mode == "yolo":
+    if mode in (DEFAULT_MODE, FULL):
         return None
     project = runtime.active_project.get() or ""
     if await _rule_allows(project, tool, args):

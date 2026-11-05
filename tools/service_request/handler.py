@@ -21,6 +21,19 @@ async def run(name: str = "", command: list | None = None, files: list | None = 
             slug, args, conversation_id=runtime.conversation_id.get())
     except services.ServiceError as e:
         return f"error: {e}"
+    from backend import permissions
+    if await permissions.auto_approve(
+            "service_request", project=slug,
+            summary=f"service '{row['name']}' for '{slug}'",
+            detail={"service_id": row["id"], "name": row["name"]}):
+        try:
+            row = await services.yolo_approve(row)
+        except services.ServiceError as e:
+            return (f"service request #{row['id']} '{row['name']}' filed but the "
+                    f"unasked approval (yolo) failed: {e}. It waits for the operator.")
+        return (f"service request #{row['id']} '{row['name']}' approved unasked (yolo) "
+                f"for '{slug}', placement {row['placement']}; it is starting. Check "
+                "it with service_status.")
     sup = (f" It would replace approved service #{row['supersedes_id']} "
            "(the operator sees a diff)." if row["supersedes_id"] else "")
     return (f"service request #{row['id']} '{row['name']}' filed for '{slug}' "

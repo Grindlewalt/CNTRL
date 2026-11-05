@@ -37,6 +37,14 @@ async def run(title: str, description: str = "") -> str:
         note = (f"\nEarlier push request(s) {ids} are still waiting. This one holds "
                 "those changes too, so the operator can merge just this one and "
                 "close the others.")
+    from backend.gitgate import yolo_decide
+    done, err = await yolo_decide(row)
+    if done["status"] == "approved":
+        return (f"push request #{row['id']} filed and approved unasked (yolo): pull "
+                f"request #{row['pr_number']} ({row['pr_url']}) from {row['branch']} "
+                f"is merged into main{'; ' + done['error'] if done.get('error') else ''}.")
+    if err:
+        note += f"\nthe unasked approval (yolo) failed: {err}. It waits for the operator."
     return (f"push request #{row['id']} filed: pull request #{row['pr_number']} from branch "
             f"{row['branch']} into main ({row['pr_url']}).\n"
             f"It changes {len(files)} file(s):{listed}\n"
