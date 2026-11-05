@@ -112,6 +112,43 @@ async def set_mode(db, cid: int, mode: str) -> None:
                      (mode, cid))
 
 
+# --- yolo: nothing waits for the operator (2026-11-04) ----------------------------
+# The operator split the old yolo in two: "safe-yolo" (the old one: free in the VM,
+# the bigger requests still wait in the Queue) and FULL, shown as "yolo", where
+# nothing waits: a request a turn makes (a package, a service, a network host, a git
+# push, a publish, a held memory line...) is approved as it is made, and each such
+# approval is a security event, the record of what ran unasked. The stored value
+# "yolo" keeps its old meaning for good: old clients send it as their default.
+FULL = "yolo-full"
+
+
+async def never_asks(cid: int | None) -> bool:
+    """The conversation (or the nearest ancestor with a mode) is in FULL."""
+    return cid is not None and await get_mode(cid) == FULL
+
+
+async def auto_approve(kind: str, *, cid: int | None = None, project: str | None = None,
+                       summary: str = "", detail: dict | None = None) -> bool:
+    """True when a request of `kind` is to be approved now, unasked, because its
+    conversation (default: the running turn's) is in FULL: the caller then approves
+    it as decided_by="yolo". Each True is recorded as a `yolo_auto_approved` event."""
+    if cid is None:
+        cid = runtime.conversation_id.get()
+    if not await never_asks(cid):
+        return False
+    from . import security
+    from .db import get_db
+    db = await get_db()
+    try:
+        await security.raise_event(
+            db, kind="yolo_auto_approved", severity="info", project=project,
+            summary=f"approved unasked (yolo): {summary}"[:300], conversation_id=cid,
+            detail={"request": kind, **(detail or {})})
+    finally:
+        await db.close()
+    return True
+
+
 # --- always-allow rules ------------------------------------------------------------
 
 def _norm_path(p) -> str | None:

@@ -122,6 +122,10 @@ KNOWN_KINDS = {
     "memory_deleted": "info", "memory_approved": "info", "memory_refused": "warn",
     "memory_proposed": "warn", "journal_unverified": "info",
     "journal_held": "warn", "journal_approved": "info", "journal_dropped": "info",
+    # nov4: publishing static pages, and requests approved unasked in yolo
+    "page_publish_requested": "warn", "page_published": "info", "page_rejected": "info",
+    "page_unpublished": "info", "page_refused": "warn",
+    "yolo_auto_approved": "info",
     "desk_session": "info", "desk_killed": "warn", "desk_shell": "info",
     "desk_refused": "warn", "desk_shell_refused": "warn", "desk_operator_control": "info",
     "browser_session": "info", "browser_killed": "warn", "browser_refused": "warn",
