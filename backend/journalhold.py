@@ -82,7 +82,8 @@ def _rewrite(slug: str, iid: str, keep) -> str:
     raise LineChanged(iid)
 
 
-async def _decide(slug: str, iid: str, keep, kind: str, summary: str, by_operator: bool) -> None:
+async def _decide(slug: str, iid: str, keep, kind: str, summary: str, by_operator: bool,
+                  by: str = "operator") -> None:
     from . import writes
     from .db import get_db
     from .memory import refresh_all_projects
@@ -97,14 +98,25 @@ async def _decide(slug: str, iid: str, keep, kind: str, summary: str, by_operato
     finally:
         await db.close()
     await _settle(iid)
-    await _audit(kind, "info", slug, summary, {"project": slug, "id": iid, "by": "operator"},
+    await _audit(kind, "info", slug, summary, {"project": slug, "id": iid, "by": by},
                  by_operator=by_operator)
 
 
-async def approve(slug: str, iid: str, *, by_operator: bool = False) -> None:
+async def approve(slug: str, iid: str, *, by_operator: bool = False, by: str = "operator") -> None:
     """Remove the tag from the line: it rides prompts from the next turn."""
     await _decide(slug, iid, lambda ln: _TAG.sub(r"\1", ln, count=1), "journal_approved",
-                  f"journal entry in '{slug}' approved: it rides prompts now", by_operator)
+                  f"journal entry in '{slug}' approved: it rides prompts now", by_operator, by)
+
+
+async def yolo_release(slug: str, entry_line: str) -> bool:
+    """FULL mode: a line just written tagged is approved on the spot, as "yolo", so it
+    rides prompts from the next turn. False (it stays held) when the line cannot be
+    found or rewritten."""
+    try:
+        await approve(slug, line_id(entry_line), by="yolo")
+    except Exception:  # noqa: BLE001 — stays tagged; the normal held event is raised
+        return False
+    return True
 
 
 async def drop(slug: str, iid: str, *, by_operator: bool = False) -> None:

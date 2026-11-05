@@ -310,3 +310,13 @@ async def reject(db, req_id: int, *, reason: str, decided_by: str,
         detail={"request_id": req_id, "source": row["source"], "reason": reason},
         actor=security.OPERATOR if by_operator else None)
     return await get(db, req_id)
+
+
+async def yolo_approve(db, req_id: int) -> dict:
+    """FULL mode (permissions.auto_approve said yes): fetch the source and install it
+    as decided_by="yolo", pinned to the SKILL.md bytes just fetched. Raises
+    SkillRequestError / SkillImportError when the fetch or install fails; the
+    request then stays for the operator."""
+    row = await fetch(db, req_id)
+    return await approve(db, req_id, skill_sha256=row["skill_sha256"],
+                         decided_by="yolo", by_operator=False)

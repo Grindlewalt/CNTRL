@@ -1,4 +1,4 @@
-"""Permission modes (backend/permissions.py): yolo/auto/ask per conversation,
+"""Permission modes (backend/permissions.py): safe-yolo/auto/ask/yolo-full per conversation,
 the context-free judge (args as data, injection cannot flip it, fails closed),
 the operator ask with Yes / always / guidance, and the narrow always-rules."""
 import asyncio
@@ -198,7 +198,7 @@ async def _done(post, results):
     return results
 
 
-async def test_yolo_runs_without_asking(client, monkeypatch, judge):
+async def test_safe_yolo_runs_without_asking(client, monkeypatch, judge):
     post, results = await _chat(client, monkeypatch,
                                 [_gate("run_code", {"command": "rm -rf build"})], None)
     assert await _done(post, results) == ["allow"]
@@ -296,11 +296,11 @@ async def test_mode_api_and_inheritance(client):
         await db.commit()
     finally:
         await db.close()
-    assert (await client.get(f"/api/chat/{child}/permission_mode")).json()["mode"] == "yolo"
+    assert (await client.get(f"/api/chat/{child}/permission_mode")).json()["mode"] == "safe-yolo"
     r = await client.put(f"/api/chat/{root}/permission_mode", json={"mode": "auto"})
     assert r.status_code == 200
     got = (await client.get(f"/api/chat/{child}/permission_mode")).json()
-    assert got == {"mode": "auto", "explicit": False, "modes": ["yolo", "auto", "ask"]}
+    assert got == {"mode": "auto", "explicit": False, "modes": ["safe-yolo", "auto", "ask", "yolo-full"]}
     r = await client.put(f"/api/chat/{root}/permission_mode", json={"mode": "nope"})
     assert r.status_code == 422
     assert (await client.get("/api/chat/99999/permission_mode")).status_code == 404

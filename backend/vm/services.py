@@ -670,6 +670,26 @@ async def approve(sid: int, *, placement: str, expose_ports: list,
     return row
 
 
+async def yolo_approve(row: dict) -> dict:
+    """FULL mode: approve the request as filed, its placement as proposed and
+    each port exposed as wide as it asked (a lan bind that cannot be had falls
+    back to loopback). Raises ServiceError like approve does."""
+    from . import portfwd
+    expose = []
+    for p in row["ports"]:
+        bind = p["expose"]
+        if bind == "none":
+            continue
+        if bind == "lan":
+            try:
+                portfwd.lan_address()
+            except portfwd.PortfwdError:
+                bind = "loopback"
+        expose.append({"port": p["port"], "bind": bind})
+    return await approve(row["id"], placement=row["placement"], expose_ports=expose,
+                         by="yolo")
+
+
 async def reject(sid: int, reason: str = "", by: str = "operator",
                  by_operator: bool = False) -> dict:
     from ..db import get_db

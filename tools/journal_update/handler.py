@@ -67,7 +67,15 @@ async def run(entry: str) -> str:
         await memory.audit("journal_unverified", "info",
                            f"journal entry in '{slug}' marked {UNVERIFIED_MARK}: written "
                            "after untrusted content", {"project": slug})
-        from backend import journalhold
+        from backend import journalhold, permissions
+        if await permissions.auto_approve(
+                "journal_hold", project=slug,
+                summary=f"journal entry in '{slug}' written after untrusted content",
+                detail={"project": slug}):
+            if await journalhold.yolo_release(slug, line):
+                return ("journal updated; this turn read untrusted content, so the "
+                        "entry would have waited for approval: it was approved "
+                        "unasked (yolo) and rides prompts from the next turn.")
         await journalhold.hold_event(slug, line)
         return (f"journal updated, marked {UNVERIFIED_MARK}: this turn read untrusted "
                 "content, so the entry stays out of the prompt. It waits in the Queue "

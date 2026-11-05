@@ -386,3 +386,40 @@ async def reject(db, env_id: int, *, reason: str = "", decided_by: str,
         detail={"environment_id": env_id, "reason": (reason or "")[:500]},
         actor=security.OPERATOR if by_operator else None)
     return await get(db, env_id)
+
+
+async def yolo_approve(env_id: int) -> dict | None:
+    """FULL mode (permissions.auto_approve said yes): approve as decided_by="yolo".
+    A build request first needs its packages resolved (one dry-run); one that
+    cannot be resolved stays pending for the operator. A new image is then built
+    in the background. Returns the row, or None when nothing could be decided."""
+    from .config import settings
+    from .db import get_db
+    from .vm import images
+    db = await get_db()
+    try:
+        row = await get(db, env_id)
+        if row is None or row["status"] != "pending":
+            return row
+        if row["kind"] != "use" and any(not p["resolved_version"] for p in row["packages"]):
+            await db.close()
+            db = None
+            try:
+                await images.builder.resolve_pending()
+            except Exception:  # noqa: BLE001 — stays pending, resolvable from the card
+                return None
+            db = await get_db()
+        try:
+            row = await approve(db, env_id, decided_by="yolo", by_operator=False)
+        except (PackageError, images.RecipeError):
+            return None
+    finally:
+        if db is not None:
+            await db.close()
+    if row.get("kind") != "use" and settings.vm_boxes_enabled \
+            and not images.builder.lock.locked():
+        try:
+            await images.builder.build(row["name"])
+        except Exception:  # noqa: BLE001 — the version row / security event carry the error
+            pass
+    return row

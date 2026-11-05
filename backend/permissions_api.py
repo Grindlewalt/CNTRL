@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api", tags=["permissions"])
 
 
 class ModeBody(BaseModel):
-    mode: Literal["yolo", "auto", "ask"]
+    mode: Literal["yolo", "safe-yolo", "auto", "ask", "yolo-full"]
 
 
 async def _explicit(cid: int) -> str | None:
@@ -50,7 +50,7 @@ async def put_mode(cid: int, body: ModeBody):
         await db.commit()
     finally:
         await db.close()
-    return {"mode": body.mode, "explicit": True}
+    return {"mode": permissions.normalize_mode(body.mode), "explicit": True}
 
 
 @router.get("/permissions/rules", dependencies=[Depends(require_user)])
