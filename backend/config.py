@@ -121,6 +121,15 @@ class Settings(BaseSettings):
     # a box turn that owns its workspace hands its edits home this often (s; 0 = only
     # at the end): a box that dies mid-turn loses this much, not the turn
     turn_flush_seconds: int = 60
+    # Published pages (backend/pages.py): static documents the operator approved,
+    # served from snapshots by their own small server (backend/pages_server.py) on
+    # their own port, so a page never shares an origin with the app. pages_base_url
+    # is the address the operator's browser uses for the links (empty =
+    # http://<first LAN IP>:<pages_port>).
+    pages_enabled: bool = True
+    pages_port: int = 8090
+    pages_bind: str = "0.0.0.0"
+    pages_base_url: str = ""
     # A `jav3 login` device token dies this many days after it was minted, or
     # after this many days without being used, whichever comes first. The CLI
     # answers either with "run: jav3 login".

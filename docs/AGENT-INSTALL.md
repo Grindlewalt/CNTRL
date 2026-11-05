@@ -222,6 +222,8 @@ bash ~/jarvis/scripts/install.sh --yes <flags>
 ```
 
 This builds the venv and the web UI, installs and enables the systemd unit,
+also installs and enables the published-pages server (`jarvis-pages.service`,
+port 8090, `JARVIS_PAGES_PORT` to change it; `doctor` has an optional stage for it),
 builds the image (unless `--no-image`), sets up Gitea and Docker boxes when
 chosen and possible, and starts the service. A failed check prints its fix
 beside it. Optional steps (Gitea, Docker) only warn and carry on, so don't

@@ -115,6 +115,13 @@ checkout remembers the instance, so later `backend.cli` commands and re-runs
 from it target that one. The installer refuses to overwrite another app's
 config dir, another checkout's unit, or a port something else is using.
 
+**Published pages.** The installer also enables `jarvis-pages.service`, a small
+read-only server (`python -m backend.pages_server`) on port 8090 that serves the
+pages an agent published and the operator approved, at `/p/<id>/` (anyone with
+the link can open one; pages run sandboxed, with no access to the app's login).
+Change the port or turn it off with `JARVIS_PAGES_PORT` / `JARVIS_PAGES_ENABLED`
+in the config env file (a second instance needs its own port); `doctor` checks it.
+
 The handful of steps that genuinely need root are collected into one phase, so
 they are one paste rather than a conversation:
 
