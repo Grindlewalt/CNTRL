@@ -4229,7 +4229,8 @@ a:has(> .nav-dot) { position: relative; }
 .sbd-table td:last-child { white-space: nowrap; }
 .triage-lede { margin: 0 0 var(--sp-3); max-width: 80ch; }
 .voice-mic-err { max-width: 46ch; line-height: 1.5; }
-.perm-mode.yolo { color: var(--amber); }
+.perm-mode.safe-yolo { color: var(--amber); }
+.perm-mode.yolo { color: var(--red); font-weight: 600; }
 @media (max-width: 640px) { .perm-mode { max-width: 11em; text-overflow: ellipsis; } }
 .bx-seg.loose { background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(0, 0, 0, 0.35) 4px 7px); }
 .bx-warn-details { margin-top: var(--sp-3); }

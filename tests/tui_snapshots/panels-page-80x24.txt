@@ -11,7 +11,7 @@
 │  /help       commands and keys       │║  1 leftover no box owns — c cleans   ║
 │  ← →         agents · sessions, on   │║  runtimes: kvm  docker  less         ║
 │  ctrl+j      new line (enter sends)  │║                                      ║
-│  shift+tab   permissions: yolo → au  │║ █ ● shared kvm running · scrub       ║
+│  shift+tab   permissions: safe-yolo  │║ █ ● shared kvm running · scrub       ║
 │  ctrl+x l    sessions · ctrl+x m mo  │║──────────────────────────────────────║
 │  ctrl+p      command palette         │║  enter history   s stop   r          ║
 │  ctrl+x ←↑↓→  move between tiles ·   │║  restart   x nuke                    ║

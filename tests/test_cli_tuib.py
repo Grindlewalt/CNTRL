@@ -725,14 +725,11 @@ async def test_one_shift_tab_too_many_does_not_land_on_yolo_TUIB14():
         app.notify = lambda msg, **kw: told.append(msg)
         await pilot.press("shift+tab", "shift+tab")
         assert app.perm_mode == "ask"
-        await pilot.press("shift+tab")                   # one too many: it asks first
-        assert app.perm_mode == "ask" and any("again for yolo" in t for t in told)
-        await pilot.press("shift+tab")                   # meant it
-        assert app.perm_mode == "yolo"
-        await pilot.press("shift+tab", "shift+tab")      # ask again; the arming timed out
-        app._yolo_armed = -100.0
-        await pilot.press("shift+tab")
-        assert app.perm_mode == "ask"
+        await pilot.press("shift+tab")                   # one too many: round to safe-yolo
+        assert app.perm_mode == "safe-yolo"
+        for _ in range(6):
+            await pilot.press("shift+tab")               # never the new yolo
+            assert app.perm_mode != "yolo"
 
 
 

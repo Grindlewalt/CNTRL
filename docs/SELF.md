@@ -95,8 +95,14 @@ operator the steps; they do it.
   connection), its x hides it too; ctrl+n new chat; ctrl+p palette; ctrl+g edits
   the prompt in $EDITOR; ctrl+j new line
 - esc esc interrupts the running turn; ctrl+c clears, interrupts, twice quits
-- shift+tab cycles permissions (yolo, auto, ask); left and right on an empty
-  prompt open the agents and sessions drawers
+- shift+tab cycles permissions (safe-yolo, auto, ask; it never reaches yolo);
+  /permissions yolo sets the last one after a confirmation; left and right on an
+  empty prompt open the agents and sessions drawers
+- the four permission modes, per chat: ask (every write or run asks); auto (a
+  judge reviews writes and runs, risky ones ask); safe-yolo (the default: free
+  in the VM, but packages, network hosts, git pushes, publishing and held memory
+  wait in the Queue); yolo (never asks: every request is approved as it is made,
+  secrets included, and each one is logged as a security event)
 - in /security: tab or 1-8 switch tabs (queue, network, logs, secrets,
   persistent, profiles, rules, calls); y approves, n rejects, enter opens
 

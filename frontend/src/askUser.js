@@ -5,30 +5,48 @@
 // on, esc skips). Kept out of the component so node can test it.
 
 export const FREE_TEXT = 'Type something…'
-export const PERMISSION_MODES = ['yolo', 'auto', 'ask']
+// Shown names. The server stores safe-yolo / auto / ask / yolo-full; an old
+// "yolo" (stale rows, an older server, a stored pick from before) is safe-yolo.
+export const PERMISSION_MODES = ['safe-yolo', 'auto', 'ask', 'yolo']
 export const MODE_HINT = {
-  yolo: 'everything runs in the VM without asking',
+  'safe-yolo': 'free in the VM; packages, network, pushes and publishing wait for you (the default)',
   auto: 'a cheap judge reviews each write/run; risky ones ask you',
   ask: 'every write/run asks you first',
+  yolo: 'never asks: packages, network, pushes, publishing and secrets are all approved, each one logged',
 }
 // What the picker shows. The bare word says nothing to someone who has not read
 // the docs, and this is the most important switch in the product: the meaning
 // sits in the option, not only in a tooltip (WEB-15). The mode is still the
 // first word, so a keyboard user typing "a" still lands on auto.
 export const MODE_LABEL = {
-  yolo: 'yolo: runs without asking',
+  'safe-yolo': 'safe-yolo: free in the VM, big requests wait',
   auto: 'auto: a judge checks, risky asks you',
   ask: 'ask: asks before every write or run',
+  yolo: 'yolo: never asks, everything approved',
 }
+// What choosing yolo says before it takes effect.
+export const YOLO_CONFIRM = 'Switch to yolo? Nothing will ask you any more: packages, network '
+  + 'access, git pushes anywhere, publishing and secrets are all approved the moment they are '
+  + 'requested. Each one is logged as a security event. The VM and the secret-leak refusal still hold.'
 
-// A new chat starts in the mode you last picked on this browser, else yolo (the
-// server's own default): a choice you made is not thrown away, and the picker
-// always shows the mode and what it means.
-export const initialMode = (stored) => (PERMISSION_MODES.includes(stored) ? stored : 'yolo')
+// A server's (or stored) value as shown, or null when it is none of ours.
+export function shownMode(v) {
+  if (v === 'yolo-full') return 'yolo'
+  if (v === 'yolo') return 'safe-yolo'
+  return ['safe-yolo', 'auto', 'ask'].includes(v) ? v : null
+}
+export const wireMode = (m) => (m === 'yolo' ? 'yolo-full' : m)
 
+// A new chat starts in the mode you last picked on this browser, else safe-yolo
+// (the server's own default). Yolo is never remembered: a new chat does not start
+// with nothing asking because of a pick made days ago.
+export const initialMode = (stored) => shownMode(stored) || 'safe-yolo'
+
+// The cycle (shift+tab) never reaches yolo; from yolo it goes to safe-yolo.
 export function nextMode(mode) {
-  const i = PERMISSION_MODES.indexOf(mode)
-  return PERMISSION_MODES[(i + 1) % PERMISSION_MODES.length]
+  const cycle = ['safe-yolo', 'auto', 'ask']
+  const i = cycle.indexOf(mode)
+  return i < 0 ? 'safe-yolo' : cycle[(i + 1) % cycle.length]
 }
 
 export function freeLabel(ev) {

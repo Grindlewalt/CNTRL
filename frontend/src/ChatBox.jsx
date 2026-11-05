@@ -8,6 +8,7 @@ import { useFollow } from './useFollow.js'
 import TurnStatus from './TurnStatus.jsx'
 import { useAsk } from './ask.jsx'
 import { AskPanel, PermissionModeSelect, useOperatorAsks, usePermissionMode } from './AskUser.jsx'
+import { wireMode } from './askUser.js'
 import Button from './components/Button.jsx'
 import Menu, { MenuItem, MenuSep } from './components/Menu.jsx'
 import Tag from './components/Tag.jsx'
@@ -201,7 +202,7 @@ export default function ChatBox({ projectSlug, initialId, onOpened }) {
         { message: text, conversation_id: cid,
           project: wasNew && projectSlug ? projectSlug : undefined,
           agent: wasNew && newAs ? newAs : undefined,
-          permission_mode: wasNew ? permMode : undefined },
+          permission_mode: wasNew ? wireMode(permMode) : undefined },
         (ev) => {
           if (mine !== gen.current) return
           if (ev.type === 'start') {

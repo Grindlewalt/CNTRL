@@ -18,7 +18,7 @@ export const TERMINAL_ONLY = {
     + 'screenshot tool',
   exit: 'there is nothing to quit in the browser — close the tab (/stop ends a running '
     + 'turn first)',
-  permissions: 'the permission mode (yolo / auto / ask) is the picker in the chat’s '
+  permissions: 'the permission mode (safe-yolo / auto / ask / yolo) is the picker in the chat’s '
     + 'toolbar, at the top of the chat',
   persona: 'agent presets live on the Agents page — /agents takes you there',
   dnd: 'do not disturb is in Settings → Alerts; while it is on, the top bar says so',

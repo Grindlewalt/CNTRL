@@ -146,7 +146,7 @@ async def test_shift_tab_cycles_permission_mode_and_permission_ask():
     app = jav3.build_tui("http://h:1", "jvd_x", transport=httpx.MockTransport(handler))
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.pause(0.3)
-        assert app.perm_mode == "yolo"
+        assert app.perm_mode == "safe-yolo"
         await pilot.press("shift+tab")
         await pilot.pause(0.05)
         assert app.perm_mode == "auto" and puts == []        # no chat yet: nothing saved
