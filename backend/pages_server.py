@@ -18,6 +18,7 @@ application/octet-stream.
 import html
 import re
 from pathlib import Path
+from urllib.parse import quote
 
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -58,7 +59,8 @@ def _not_found() -> Response:
 def _listing(pid: str, rel: str, d: Path) -> Response:
     rows = sorted(d.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
     items = "".join(
-        f'<li><a href="{html.escape(p.name)}{"/" if p.is_dir() else ""}">'
+        # "./" + quoted: a file named "javascript:..." stays a relative link
+        f'<li><a href="./{html.escape(quote(p.name))}{"/" if p.is_dir() else ""}">'
         f'{html.escape(p.name)}{"/" if p.is_dir() else ""}</a></li>' for p in rows)
     title = html.escape(f"/{rel}" if rel else "/")
     return HTMLResponse(f"<!doctype html><meta charset=utf-8><title>{title}</title>"
@@ -89,7 +91,7 @@ async def serve(request: Request) -> Response:
         return _not_found()
     if real.is_dir():
         if not raw.endswith("/"):           # relative links in the page need the slash
-            return Response(status_code=307, headers={"Location": raw + "/"})
+            return Response(status_code=307, headers={"Location": quote(raw) + "/"})
         index = real / "index.html"
         if index.is_file() and not index.is_symlink():
             real = index

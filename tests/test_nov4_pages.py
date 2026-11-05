@@ -254,3 +254,13 @@ async def test_routes_are_guarded(env):
 async def test_cross_origin_cookie_post_is_403(op):
     r = await op.post("/api/pages/x/unpublish", headers={"Origin": "http://evil.example"})
     assert r.status_code == 403
+
+
+async def test_a_listing_never_turns_a_file_name_into_a_script_link(env, srv):
+    (env / "odd").mkdir()
+    (env / "odd" / "javascript:alert(1)").write_text("x")
+    p = await pages.approve((await pages.request("demo", "odd", "Odd"))["id"])
+    r = await srv.get(f"/p/{p['id']}/")
+    assert 'href="javascript:' not in r.text and 'href="./javascript%3Aalert%281%29"' in r.text
+    sub = await srv.get(f"/p/{p['id']}", follow_redirects=False)       # no trailing slash
+    assert sub.status_code == 307 and sub.headers["location"] == f"/p/{p['id']}/"
