@@ -9,8 +9,8 @@
                            Keys
 
                            enter                 send (while a turn runs: the agent gets it at its next step)
-                           shift+tab             permissions: yolo (the default: agents run in the VM without asking) → auto → ask;
-                                                 /permissions picks
+                           shift+tab             permissions: safe-yolo (the default: agents run in the VM without asking) → auto →
+                                                 ask; /permissions yolo is the only way to stop all asking
                            ← → (empty prompt)    drawers: ← agents, → sessions (running and needs-you first); ↑↓ enter · p new
                                                  panel · esc
                            / (on a page)         type a /page command on the prompt line: /vms images, /security calls; esc goes
@@ -45,7 +45,7 @@
   █
   █  Ask anything… "Fix the failing test in tests/"
   █
-  █  Jav3  deepseek-flash  deepseek  ⏵ yolo
+  █  Jav3  deepseek-flash  deepseek  ⏵ safe-yolo
   █
   enter send · ctrl+j newline · / commands · @ file · ! shell                                                                  ctrl+x leader · ctrl+p commands
 ## colours (fg/bg as xterm-256 index, - = default)
@@ -94,6 +94,6 @@
 42 0-1=254/233 2-2=59/234 3-24=254/234 25-134=-/235 135-157=254/234 158-159=254/233
 43 0-1=254/233 2-2=59/234 3-4=254/234 5-5=233/241 6-50=237/234 51-157=254/234 158-159=254/233
 44 0-1=254/233 2-2=59/234 3-157=254/234 158-159=254/233
-45 0-1=254/233 2-2=59/234 3-4=254/234 5-8=59/234+b 9-10=241/234 11-24=242/234 25-26=241/234 27-34=238/234 35-36=241/234 37-42=238/234 43-157=254/234 158-159=254/233
+45 0-1=254/233 2-2=59/234 3-4=254/234 5-8=59/234+b 9-10=241/234 11-24=242/234 25-26=241/234 27-34=238/234 35-36=241/234 37-47=238/234 48-157=254/234 158-159=254/233
 46 0-1=254/233 2-2=59/234 3-157=254/234 158-159=254/233
 47 0-1=254/233 2-60=238/233 61-126=254/233 127-157=238/233 158-159=254/233

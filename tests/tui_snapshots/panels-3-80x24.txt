@@ -7,11 +7,11 @@
 │                                      ││  /help       commands and keys       │
 │                                      ││  ← →         agents · sessions, on   │
 │  operator @ http://127.0.0.1:NNNNN   ││  ctrl+j      new line (enter sends)  │
-│                                      ││  shift+tab   permissions: yolo → au  │
+│                                      ││  shift+tab   permissions: safe-yolo  │
 │  /help       commands and keys       ││                                      │
 │  ← →         agents · sessions, on   ││█  ask a new chat… or /page [args]    │
 │  ctrl+j      new line (enter sends)  ││█  Jav3  deepseek-flash  deepseek  ⏵  │
-│  shift+tab   permissions: yolo → au  │╰──────────────────────────────────────╯
+│  shift+tab   permissions: safe-yolo  │╰──────────────────────────────────────╯
 │  ctrl+x l    sessions · ctrl+x m mo  │╔═ 3 chat (new) ═══════════════════════╗
 │  ctrl+p      command palette         │║                                      ║
 │  ctrl+x ←↑↓→  move between tiles ·   │║  operator @ http://127.0.0.1:NNNNN   ║

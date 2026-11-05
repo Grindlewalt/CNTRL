@@ -50,7 +50,8 @@ t('answer body, event folding, mode cycle', () => {
   asks = foldAsks(asks, { type: 'ask_user', id: 'a' })
   assert.equal(asks.length, 1)
   assert.deepEqual(foldAsks(asks, { type: 'ask_done', id: 'a' }), [])
-  assert.deepEqual(['yolo', 'auto', 'ask'].map(nextMode), ['auto', 'ask', 'yolo'])
+  assert.deepEqual(['safe-yolo', 'auto', 'ask'].map(nextMode), ['auto', 'ask', 'safe-yolo'])
+  assert.equal(nextMode('yolo'), 'safe-yolo')           // the cycle never lands on yolo
 })
 t('mode labels say what each mode does; a new chat starts where the last pick was', () => {
   for (const m of PERMISSION_MODES) {
@@ -58,8 +59,10 @@ t('mode labels say what each mode does; a new chat starts where the last pick wa
     assert.ok(MODE_LABEL[m].length > m.length + 10, m)   // and something follows it
   }
   assert.equal(initialMode('ask'), 'ask')
-  assert.equal(initialMode('bogus'), 'yolo')
-  assert.equal(initialMode(null), 'yolo')
+  assert.equal(initialMode('bogus'), 'safe-yolo')
+  assert.equal(initialMode(null), 'safe-yolo')
+  assert.equal(initialMode('yolo'), 'safe-yolo')        // an old stored yolo is safe-yolo
+  assert.equal(initialMode('yolo-full'), 'yolo')
 })
 t('a turn that ended voids its own asks and keeps a child agent\'s', () => {
   const own = { id: 'a', conversation_id: 7 }

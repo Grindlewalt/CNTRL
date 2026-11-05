@@ -33,7 +33,7 @@ def make_app(srv=None, **kw):
 # TUI-05
 
 def test_help_is_two_lines_per_command_and_keeps_angle_brackets():
-    keys = [("shift+tab", "permissions: yolo, auto or ask")]
+    keys = [("shift+tab", "permissions: safe-yolo, auto or ask")]
     cmds = [("/themes [name|create|export [path]|import <path>]", "list, apply, make", ""),
             ("/help", "commands and keys", "ctrl+x h")]
     view, plain = jav3.help_view(keys, cmds)

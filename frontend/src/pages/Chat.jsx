@@ -15,6 +15,7 @@ import { RESUME_TEXT, resumable, resumeUrl } from '../resume.js'
 import { useAsk } from '../ask.jsx'
 import ModelPicker from '../ModelPicker.jsx'
 import { AskPanel, PermissionModeSelect, useOperatorAsks, usePermissionMode } from '../AskUser.jsx'
+import { wireMode } from '../askUser.js'
 import ChatGroups from '../ChatGroups.jsx'
 import { useSlash } from '../slash/useSlash.jsx'
 import { subscribe } from '../events.js'
@@ -599,7 +600,7 @@ export default function Chat({
           // only meaningful when the conversation is being created by this turn
           ...(conversationId ? {} : { project: pendingProject || null,
                                       project_mode: pendingMode, ...slash.newChatFields,
-                                      permission_mode: permMode }) },
+                                      permission_mode: wireMode(permMode) }) },
         (ev) => {
           if (ev.type === 'start') started = true
           if (ev.type === 'final' || ev.type === 'error') settled = true

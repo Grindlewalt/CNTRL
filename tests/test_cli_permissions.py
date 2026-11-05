@@ -1,5 +1,5 @@
 """Permission modes in the terminal client (TUI-04): /permissions and a leader key
-choose yolo / auto / ask, /help and the home screen say so, and the default is
+choose safe-yolo / auto / ask / yolo, /help and the home screen say so, and the default is
 explained once, the first time a turn starts with it."""
 import json
 
@@ -21,7 +21,7 @@ def notes(app) -> list[str]:
     return [str(n.render()) for n in app.query("Note")]
 
 
-async def test_permissions_picker_lists_the_three_modes_and_says_which_is_the_default():
+async def test_permissions_picker_lists_the_four_modes_and_says_which_is_the_default():
     srv = FakeServer()
     app = jav3.build_tui("http://h:1", "jvd_x", transport=srv.transport())
     async with app.run_test(size=(100, 30)) as pilot:
@@ -29,8 +29,8 @@ async def test_permissions_picker_lists_the_three_modes_and_says_which_is_the_de
         await send(pilot, app, "/permissions")
         assert await wait_for(lambda: top(app) == "Picker")
         rows = app.screen.rows
-        assert [r[0] for r in rows] == ["yolo", "auto", "ask"]
-        assert "default" in rows[0][1] and "without asking" in rows[0][2]
+        assert [r[0] for r in rows] == ["safe-yolo", "auto", "ask", "yolo"]
+        assert "default" in rows[0][1] and "wait for you" in rows[0][2]
         assert "judge" in rows[1][2] and "asks you first" in rows[2][2]
         assert "shift+tab" in app.screen.hint
         await pilot.press("down", "down", "enter")
@@ -49,7 +49,7 @@ async def test_permissions_takes_the_mode_as_an_argument_and_saves_it_on_the_cha
         await send(pilot, app, "/perms ASK")
         assert await wait_for(lambda: app.perm_mode == "ask")
         await send(pilot, app, "/mode banana")
-        assert await wait_for(lambda: any("not one of yolo, auto, ask" in n for n in notes(app)))
+        assert await wait_for(lambda: any("not one of safe-yolo, auto, ask, yolo" in n for n in notes(app)))
         assert app.perm_mode == "ask"
         await finish(srv, app)
 
@@ -64,7 +64,7 @@ async def test_the_slash_menu_and_the_leader_key_reach_it():
         assert app.popup_items[0] == ("cmd", "permissions")
         await pilot.press("tab")
         await pilot.pause(0.1)
-        assert [v for _, v in app.popup_items] == ["yolo", "auto", "ask"]
+        assert [v for _, v in app.popup_items] == ["safe-yolo", "auto", "ask", "yolo"]
         app.editor.text = ""
         await pilot.pause(0.1)
         await pilot.press("ctrl+x", "u")
@@ -107,11 +107,11 @@ async def test_someone_who_already_changed_the_mode_is_not_told():
     app = jav3.build_tui("http://h:1", "jvd_x", transport=srv.transport())
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause(0.3)
-        await pilot.press("shift+tab", "shift+tab", "shift+tab")     # ask: one more press is asked twice
+        await pilot.press("shift+tab", "shift+tab")                  # auto, then ask
         assert app.perm_mode == "ask"
-        await pilot.press("shift+tab")                               # around to yolo again
+        await pilot.press("shift+tab")                               # around to safe-yolo again
         await pilot.pause(0.2)
-        assert app.perm_mode == "yolo"
+        assert app.perm_mode == "safe-yolo"
         await open_chat(pilot, app, srv)
         await pilot.pause(0.3)
         assert not any("agents run in the VM without asking" in n for n in notes(app))

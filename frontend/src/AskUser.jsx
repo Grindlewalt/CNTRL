@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api.js'
 import {
-  answerBody, foldAsks, freeLabel, initAsk, initialMode, keyToAction, MODE_HINT, MODE_LABEL, nextMode,
+  answerBody, foldAsks, freeLabel, initAsk, initialMode, keyToAction, MODE_HINT, MODE_LABEL, nextMode, shownMode, wireMode, YOLO_CONFIRM,
   PERMISSION_MODES, reduceAsk, settleAsks,
 } from './askUser.js'
 
@@ -153,12 +153,13 @@ const MODE_KEY = 'jav3.permission_mode'   // the last mode picked here: where a 
 // held here and sent with the first message (`permission_mode`).
 export function PermissionModeSelect({ cid, value, onChange }) {
   async function set(mode) {
+    if (mode === 'yolo' && value !== 'yolo' && !window.confirm(YOLO_CONFIRM)) return
     onChange(mode)
-    try { localStorage.setItem(MODE_KEY, mode) } catch { /* private mode */ }
+    try { localStorage.setItem(MODE_KEY, mode === 'yolo' ? 'safe-yolo' : mode) } catch { /* private mode */ }
     if (cid == null) return
     try {
       await api(`/api/chat/${cid}/permission_mode`,
-                { method: 'PUT', body: JSON.stringify({ mode }) })
+                { method: 'PUT', body: JSON.stringify({ mode: wireMode(mode) }) })
     } catch { /* the next open re-reads it */ }
   }
   return (
@@ -173,12 +174,12 @@ export function PermissionModeSelect({ cid, value, onChange }) {
 // the conversation's mode, re-read when the chat changes
 export function usePermissionMode(cid) {
   const [mode, setMode] = useState(() => {
-    try { return initialMode(localStorage.getItem(MODE_KEY)) } catch { return 'yolo' }
+    try { return initialMode(localStorage.getItem(MODE_KEY)) } catch { return 'safe-yolo' }
   })
   useEffect(() => {
     if (cid == null) return
     let live = true
-    api(`/api/chat/${cid}/permission_mode`).then((r) => { if (live) setMode(r.mode) })
+    api(`/api/chat/${cid}/permission_mode`).then((r) => { if (live) setMode(shownMode(r.mode) || 'safe-yolo') })
       .catch(() => {})
     return () => { live = false }
   }, [cid])

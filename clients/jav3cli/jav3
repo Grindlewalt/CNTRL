@@ -2065,7 +2065,7 @@ class ChatState:
         self.last_user: str | None = None
         self.last_reply = ""
         self.tools_expanded = False
-        self.perm_mode = "yolo"
+        self.perm_mode = "safe-yolo"
         self.unseen = 0                       # transcript items mounted while scrolled up
         self.asks = 0                         # asks waiting on the operator for this chat
         # the widgets, set when the panel is built
@@ -10294,7 +10294,7 @@ def build_tui(base: str, token: str, **kw):
             self.esc_armed = 0.0
             self.ctrl_c_at = 0.0
             self.sidebar_pref: bool | None = None     # None = follow the width
-            self._yolo_armed = -100.0                 # when shift+tab last stopped short of yolo
+            self._yolo_armed = -100.0                 # unused now: shift+tab never reaches yolo
             self.history: list[str] = []
             self.initial = (resume, cont, prompt)
             self.client = None
@@ -11210,7 +11210,7 @@ def build_tui(base: str, token: str, **kw):
                 "[$text]← →[/]         [$text-muted]agents · sessions, on an empty "
                 "prompt[/]\n"
                 "[$text]ctrl+j[/]      [$text-muted]new line (enter sends)[/]\n"
-                "[$text]shift+tab[/]   [$text-muted]permissions: yolo → auto → ask · "
+                "[$text]shift+tab[/]   [$text-muted]permissions: safe-yolo → auto → ask · "
                 "ctrl+x u picks[/]\n"
                 "[$text]ctrl+x l[/]    [$text-muted]sessions · [/][$text]ctrl+x m[/] "
                 "[$text-muted]models[/]\n"
@@ -11719,8 +11719,8 @@ def build_tui(base: str, token: str, **kw):
                     body["mode"] = "orchestrate"
                 if self.local:
                     body["local"] = local_spec()
-            if self.cid is None and self.perm_mode != "yolo":
-                body["permission_mode"] = self.perm_mode
+            if self.cid is None:
+                body["permission_mode"] = self._perm_wire(self.perm_mode)
             if self.model:
                 body["model"] = self.model
             if self.helper_next:
@@ -12406,37 +12406,51 @@ def build_tui(base: str, token: str, **kw):
 
         # permission modes (backend/permissions.py): shift+tab cycles, stored per
         # conversation; a chat not created yet sends it with its first message
-        PERM_MODES = ("yolo", "auto", "ask")
-        PERM_HINT = {"yolo": "everything runs in the VM without asking (the default)",
+        # shown names; the server stores safe-yolo / auto / ask / yolo-full
+        PERM_MODES = ("safe-yolo", "auto", "ask", "yolo")
+        PERM_CYCLE = ("safe-yolo", "auto", "ask")      # shift+tab never reaches yolo
+        PERM_HINT = {"safe-yolo": "free in the VM; packages, network, pushes and "
+                                  "publishing wait for you (the default)",
                      "auto": "a cheap judge reviews each write/run; risky ones ask you",
-                     "ask": "every write/run asks you first"}
+                     "ask": "every write/run asks you first",
+                     "yolo": "never asks: packages, network, pushes, publishing and "
+                             "secrets are all approved, each one logged"}
+
+        @staticmethod
+        def _perm_wire(mode: str) -> str:
+            return "yolo-full" if mode == "yolo" else mode
+
+        @staticmethod
+        def _perm_shown(mode) -> str | None:
+            """A server's value as shown: yolo-full is yolo; the old yolo is safe-yolo."""
+            if mode == "yolo-full":
+                return "yolo"
+            if mode == "yolo":
+                return "safe-yolo"
+            return mode if mode in ("safe-yolo", "auto", "ask") else None
 
         async def _explain_permissions(self) -> None:
             """Once, the first time a turn starts with the default: what the chip in
             the prompt's corner means and how to change it."""
-            if self.perm_mode != "yolo" or self._load_settings().get("perm_explained"):
+            if self.perm_mode != "safe-yolo" or self._load_settings().get("perm_explained"):
                 return
             self._save_settings(perm_explained=True)
-            await self.note("permissions: yolo — agents run in the VM without asking. "
+            await self.note("permissions: safe-yolo — agents run in the VM without asking; "
+                            "packages, network, pushes and publishing wait in the Queue. "
                             "shift+tab or /permissions makes them ask first.")
 
         def _perm_label(self) -> str:
-            col = {"yolo": "$text-muted", "auto": "$accent", "ask": "$warning"}[self.perm_mode]
+            # yolo is a solid error colour: blended colours round to grey in 256 colours
+            col = {"safe-yolo": "$text-muted", "auto": "$accent", "ask": "$warning",
+                   "yolo": "$error"}[self.perm_mode]
             return f"[{col}]⏵ {self.perm_mode}[/]"
 
         def cycle_permission(self) -> None:
-            """yolo → auto → ask, and back to yolo only on a second press within four
-            seconds: one press too many from ask must not drop every guardrail."""
-            modes = self.PERM_MODES
-            nxt = modes[(modes.index(self.perm_mode) + 1) % len(modes)]
-            if nxt == "yolo" and self.perm_mode != "yolo":
-                now = time.monotonic()
-                if now - self._yolo_armed > 4.0:
-                    self._yolo_armed = now
-                    self.notify("shift+tab again for yolo: everything runs in the VM without "
-                                "asking (/permissions picks a mode too)", severity="warning")
-                    return
-            self._yolo_armed = -100.0
+            """safe-yolo → auto → ask → safe-yolo. It never lands on yolo (nothing asks):
+            that takes /permissions yolo and a yes. From yolo it goes to safe-yolo."""
+            modes = self.PERM_CYCLE
+            nxt = modes[(modes.index(self.perm_mode) + 1) % len(modes)] \
+                if self.perm_mode in modes else "safe-yolo"
             self.set_permission(nxt)
 
         def set_permission(self, mode: str) -> None:
@@ -12446,26 +12460,35 @@ def build_tui(base: str, token: str, **kw):
             self.run_worker(self._save_perm_mode(self.cid, self.perm_mode), group="perm")
 
         async def c_permissions(self, arg: str) -> None:
-            """/permissions [yolo|auto|ask]: whether agents ask before they write or
-            run something. shift+tab cycles the same three from the prompt."""
+            """/permissions [safe-yolo|auto|ask|yolo]: whether agents ask before they
+            write or run something. shift+tab cycles the first three from the prompt."""
             if not arg:
-                rows = [(m, f"{m}  (the default)" if m == "yolo" else m, self.PERM_HINT[m]
-                         .replace(" (the default)", "")) for m in self.PERM_MODES]
+                rows = [(m, f"{m}  (the default)" if m == "safe-yolo" else m,
+                         self.PERM_HINT[m].replace(" (the default)", ""))
+                        for m in self.PERM_MODES]
                 arg = await self.pick("Permissions", rows, self.perm_mode,
-                                      hint="shift+tab cycles these · set per chat") or ""
+                                      hint="shift+tab cycles the first three · set per chat") or ""
                 if not arg:
                     return
             mode = arg.strip().lower()
             if mode not in self.PERM_MODES:
                 raise CliError(f"permissions: {arg!r} is not one of "
                                f"{', '.join(self.PERM_MODES)}")
+            if mode == "yolo" and self.perm_mode != "yolo":
+                ok = await self.push_screen_wait(Confirm(
+                    "Switch to yolo? Nothing will ask you any more.",
+                    "Packages, network access, pushes anywhere, publishing and secrets "
+                    "are all approved the moment they are requested. Each one is logged "
+                    "as a security event. The VM and the secret-leak refusal still hold."))
+                if not ok:
+                    return
             self.set_permission(mode)
 
         async def _save_perm_mode(self, cid, mode: str) -> None:
             if cid is not None and not self.ephemeral:
                 try:
                     await self.api("PUT", f"/api/chat/{cid}/permission_mode",
-                                   json={"mode": mode})
+                                   json={"mode": self._perm_wire(mode)})
                 except CliError as e:
                     await self.note(f"permission mode not saved: {e}", "error")
                     return
@@ -12476,8 +12499,9 @@ def build_tui(base: str, token: str, **kw):
                 r = await self.api("GET", f"/api/chat/{cid}/permission_mode")
             except CliError:
                 return                  # an older server: the default holds
-            if self.cid == cid and r.get("mode") in self.PERM_MODES:
-                self.perm_mode = r["mode"]
+            shown = self._perm_shown(r.get("mode"))
+            if self.cid == cid and shown:
+                self.perm_mode = shown
                 self.refresh_chrome()
 
         def _ask_who(self, ev: dict, cid: int | None) -> str:
@@ -13387,8 +13411,8 @@ def build_tui(base: str, token: str, **kw):
                                   "import <path>]",
                                   takes_arg=True, busy_ok=True),
                 "permissions": Command(self.c_permissions, "ask before agents write or run "
-                                       "(yolo · auto · ask); shift+tab cycles",
-                                       "[yolo|auto|ask]", takes_arg=True, busy_ok=True,
+                                       "(safe-yolo · auto · ask · yolo); shift+tab cycles",
+                                       "[safe-yolo|auto|ask|yolo]", takes_arg=True, busy_ok=True,
                                        leader="u"),
                 "temp": Command(self.c_temp, "toggle temporary chats (nothing saved)"),
                 "local": Command(self.c_local, "toggle local chats (files and shell here, "
@@ -13544,8 +13568,9 @@ def build_tui(base: str, token: str, **kw):
             keys = []
             for k, v in [("enter", "send (while a turn runs: the agent gets it at its "
                                    "next step)"),
-                         ("shift+tab", "permissions: yolo (the default: agents run in the VM "
-                                       "without asking) → auto → ask; /permissions picks"),
+                         ("shift+tab", "permissions: safe-yolo (the default: agents run in the VM "
+                                       "without asking) → auto → ask; /permissions yolo "
+                                       "is the only way to stop all asking"),
                          ("← → (empty prompt)", "drawers: ← agents, → sessions (running and "
                                                 "needs-you first); ↑↓ enter · p new panel · "
                                                 "esc"),
@@ -14978,8 +15003,8 @@ def build_tui(base: str, token: str, **kw):
                 return
             chat.project, chat.project_mode = word("project"), word("project_mode")
             chat.agent, chat.model = word("agent"), word("model")
-            if t.get("perm_mode") in self.PERM_MODES:
-                chat.perm_mode = t["perm_mode"]
+            if self._perm_shown(t.get("perm_mode")):
+                chat.perm_mode = self._perm_shown(t["perm_mode"])
             for k in ("ephemeral", "local", "orchestrator", "helper_next", "tools_expanded"):
                 setattr(chat, k, t.get(k) is True)
 
