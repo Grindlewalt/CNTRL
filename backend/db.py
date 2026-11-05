@@ -849,6 +849,7 @@ async def init_db() -> None:
         await _migrate_logging(db)
         await _migrate_secnotify(db)
         await _migrate_boxlog(db)
+        await _migrate_pages(db)
         await _detach_orphan_usage(db)
         # after _migrate_turnstats: the trigger names that table
         await _migrate_usage_detach(db)
@@ -1262,3 +1263,24 @@ async def _lineage_slugs(db: aiosqlite.Connection, cid: int) -> list | None:
         "SELECT slug FROM up ORDER BY d", (cid,)) as cur:
         rows = await cur.fetchall()
     return [r["slug"] for r in rows] if rows else None
+
+
+async def _migrate_pages(db: aiosqlite.Connection) -> None:
+    """Published pages (backend/pages.py): one row per publish request, from
+    pending to live, rejected, unpublished or refused. `source` is the files key
+    the request was made from (the project, or an orchestrator item's copy), so
+    an approval later copies from the same place. Idempotent."""
+    await db.execute(
+        "CREATE TABLE IF NOT EXISTS pages ("
+        " id TEXT PRIMARY KEY,"
+        " project TEXT NOT NULL,"
+        " name TEXT NOT NULL,"
+        " path TEXT NOT NULL,"
+        " files TEXT NOT NULL DEFAULT '[]',"
+        " bytes INTEGER NOT NULL DEFAULT 0,"
+        " status TEXT NOT NULL,"
+        " conversation_id INTEGER,"
+        " source TEXT,"
+        " created_at TEXT NOT NULL DEFAULT (datetime('now')),"
+        " decided_at TEXT,"
+        " decided_by TEXT)")

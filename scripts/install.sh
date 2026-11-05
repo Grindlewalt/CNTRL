@@ -877,12 +877,18 @@ user_phase() {
     > "$HOME/.config/systemd/user/$UNIT.service"
   sed -e "s#%h/jarvis#$REPO_DIR#g" "${cfgenv[@]}" scripts/jarvis-backup.service \
     > "$HOME/.config/systemd/user/$UNIT-backup.service"
+  # The pages server (published static pages) is its own unit beside the app's.
+  sed -e "s#%h/jarvis#$REPO_DIR#g" "${cfgenv[@]}" scripts/jarvis-pages.service \
+    > "$HOME/.config/systemd/user/$UNIT-pages.service"
   cp scripts/jarvis-backup.timer "$HOME/.config/systemd/user/$UNIT-backup.timer" 2>/dev/null || true
   chmod +x scripts/backup.sh 2>/dev/null || true
   systemctl --user daemon-reload
   systemctl --user enable "$UNIT.service" >/dev/null
   systemctl --user enable --now "$UNIT-backup.timer" >/dev/null 2>&1 || true
   ok "$UNIT.service installed and enabled"
+  systemctl --user enable "$UNIT-pages.service" >/dev/null 2>&1 \
+    && ok "$UNIT-pages.service installed and enabled (published pages, port 8090)" \
+    || warn "could not enable $UNIT-pages.service; published pages stay off"
 
   if [ "$BUILD_IMAGE" = 1 ]; then
     step "guest golden image"
@@ -968,6 +974,9 @@ first_run_setup() {
 verify() {
   step "verify"
   systemctl --user restart "$UNIT" || { warn "could not start $UNIT.service"; return 1; }
+  # restart (not start) so a re-run picks up new code, like the app above
+  systemctl --user restart "$UNIT-pages.service" >/dev/null 2>&1 \
+    || warn "could not start $UNIT-pages.service (published pages are off until it runs)"
   local i
   for i in $(seq 1 30); do
     if curl -sf "localhost:$PORT/api/health" >/dev/null 2>&1; then

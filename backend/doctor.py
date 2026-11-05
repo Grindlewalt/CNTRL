@@ -195,7 +195,29 @@ def stages() -> list[dict]:
                       gitea_ok if settings.gitea_enabled else False,
                       gitea_detail, gitea_fix, optional=True))
     out.append(_search_stage())
+    out.append(pages_stage())
     return out
+
+
+def pages_stage() -> dict:
+    """The pages server answers on its port and sends the sandbox CSP (without it a
+    published page could use the operator's login: see backend/pages_server.py)."""
+    import httpx
+    title = "published pages server"
+    fix = (f"systemctl --user restart {unit_name().removesuffix('.service')}-pages.service "
+           f"(port {settings.pages_port})")
+    if not settings.pages_enabled:
+        return _stage("pages", title, None, "off (pages_enabled)", optional=True)
+    try:
+        r = httpx.get(f"http://127.0.0.1:{settings.pages_port}/p/doctor-probe/", timeout=3)
+    except httpx.HTTPError as e:
+        return _stage("pages", title, False, f"not answering on :{settings.pages_port} "
+                      f"({type(e).__name__})", fix, optional=True)
+    if "sandbox" not in r.headers.get("content-security-policy", ""):
+        return _stage("pages", title, False,
+                      "answers, but without the sandbox header: something else is on "
+                      f"port {settings.pages_port}", fix, optional=True)
+    return _stage("pages", title, True, f"answering on :{settings.pages_port}", optional=True)
 
 
 def _search_stage() -> dict:

@@ -1,0 +1,18 @@
+[Unit]
+Description=Jav3 published pages (static, read-only)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/jarvis
+# The pages server reads only <data_dir>/pages (snapshots the operator approved)
+# and answers GET/HEAD. It runs beside jarvis.service, never inside it, so a
+# published page is never on the app's port. Its port and bind address come from
+# JARVIS_PAGES_PORT / JARVIS_PAGES_BIND (the same env file as the app).
+ExecStart=%h/jarvis/.venv/bin/python -m backend.pages_server
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

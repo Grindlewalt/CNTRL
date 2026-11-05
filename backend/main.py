@@ -16,6 +16,7 @@ from . import (agents_api, agents_run, artifacts_api, auth, backup, browser_api,
                reviewer_api, runs_api, schedules, setup_api, sidebar_api, skills_api,
                vm_api, voice_api, workspace, secrets)
 from . import procview_api   # WP4
+from . import pages_api
 from . import orchestrator   # settle_lost_heads at boot
 from . import storage_watch   # captured-context storage check
 from .agent.tools.registry import compile_registry
@@ -178,6 +179,7 @@ app.include_router(projects.router)
 app.include_router(chat.router)
 app.include_router(sidebar_api.router)
 app.include_router(memory_api.router)
+app.include_router(pages_api.router)
 app.include_router(workspace.router)
 app.include_router(skills_api.router)
 app.include_router(agents_api.router)
