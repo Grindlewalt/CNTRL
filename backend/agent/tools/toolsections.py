@@ -57,13 +57,14 @@ MERGED_NOTES_MAX = 300   # per-action Notes kept in a merged tool's description
 SECTIONS: dict[str, dict] = {
     "files": {"about": "project files and the sandbox: read, write, edit, search, run code"},
     "project": {
-        "about": "switch project, index the code, dashboards, workspace panels, sandbox "
-                 "packages, environments and screenshots, the journal",
+        "about": "switch project, index the code, dashboards, publish pages at a link, "
+                 "workspace panels, sandbox packages, environments and screenshots, the journal",
         "merged": "The active project: switch to another, index its code, build a dashboard, "
+                  "publish a file or folder as a page at its own link, "
                   "arrange its workspace panels, request a sandbox package or propose a "
                   "whole sandbox environment, screenshot the sandbox, add a journal entry.",
         "triggers": r"\b(load|switch|open) (the |a |another )?project\b|\b(workspace|panels?|"
-                    r"dashboards?|crawl|index the (code|codebase)|screenshot|journal)\b|"
+                    r"dashboards?|crawl|index the (code|codebase)|screenshot|journal|publish)\b|"
                     r"\b(install|add) (a |an |the )?(apt |pip |npm )?packages?\b",
         "lead": ["load", "journal"]},
     "headless": {

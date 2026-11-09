@@ -27,7 +27,7 @@ Project files and the sandbox: read, write, edit, search, run code.
 
 ## project
 
-Switch project, index the code, dashboards, workspace panels, sandbox packages, environments and screenshots, the journal.
+Switch project, index the code, dashboards, publish pages at a link, workspace panels, sandbox packages, environments and screenshots, the journal.
 
 | Old name | The model calls | Core | Gating |
 | --- | --- | --- | --- |

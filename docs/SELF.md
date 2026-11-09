@@ -134,10 +134,12 @@ Everything below waits on the operator and shows in the Review page (web) or the
 - egress hosts (Network tab), packages (`package_request`), environments and new
   images (`environment_request`), skills (`skill_request`), services
 - git commits, remotes and pushes
+- publishing a page (`publish` in the project section)
 - memory proposals
 - permission asks (in ask or auto mode, a prompt in the chat: y, a, n)
 - schedule proposals (Schedules page; they start paused)
-Nothing applies before the answer. Say plainly what you filed and where.
+Nothing applies before the answer (in yolo mode nothing waits: each request is
+approved as it is made and logged). Say plainly what you filed and where.
 
 ## when something looks stuck
 
