@@ -264,3 +264,14 @@ async def test_a_listing_never_turns_a_file_name_into_a_script_link(env, srv):
     assert 'href="javascript:' not in r.text and 'href="./javascript%3Aalert%281%29"' in r.text
     sub = await srv.get(f"/p/{p['id']}", follow_redirects=False)       # no trailing slash
     assert sub.status_code == 307 and sub.headers["location"] == f"/p/{p['id']}/"
+
+
+@pytest.mark.parametrize("origin", ["null", "http://test:8090"])
+async def test_a_page_cannot_act_with_the_operators_login(op, origin):
+    # what a published page's script sends if the browser attached the login anyway: a
+    # sandboxed page's Origin is "null", and without the sandbox it would be the pages port
+    r = await op.post("/api/projects", json={"name": "probe"}, headers={"Origin": origin})
+    assert r.status_code == 403
+    assert (await op.get("/api/projects")).json()["projects"] == []
+    read = await op.get("/api/auth/me", headers={"Origin": origin})
+    assert "access-control-allow-origin" not in read.headers    # the browser hides the answer
