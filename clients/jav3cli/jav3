@@ -11776,7 +11776,9 @@ def build_tui(base: str, token: str, **kw):
                     body["mode"] = "orchestrate"
                 if self.local:
                     body["local"] = local_spec()
-            if self.cid is None:
+            if self.cid is None and self.perm_mode != "safe-yolo":
+                # safe-yolo is every server's default: an older one calls it yolo and
+                # refuses the new name, so the default is not sent at all
                 body["permission_mode"] = self._perm_wire(self.perm_mode)
             if self.model:
                 body["model"] = self.model

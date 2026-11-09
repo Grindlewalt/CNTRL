@@ -73,12 +73,24 @@ async def test_a_server_yolo_shows_as_safe_yolo():
         assert app.perm_mode == "safe-yolo"
 
 
-async def test_a_new_chat_sends_safe_yolo():
+async def test_a_new_chat_in_safe_yolo_sends_no_mode():
+    # safe-yolo is every server's default; an older server only knows yolo/auto/ask
+    # and refuses the new name with a 422, which would fail every new chat
     srv = FakeServer()
     app = jav3.build_tui("http://h:1", "jvd_x", transport=srv.transport())
     async with app.run_test(size=(100, 30)) as pilot:
         await open_chat(pilot, app, srv)
-        assert srv.posts[0]["permission_mode"] == "safe-yolo"
+        assert "permission_mode" not in srv.posts[0]
+
+
+async def test_a_new_chat_in_auto_sends_it():
+    srv = FakeServer()
+    app = jav3.build_tui("http://h:1", "jvd_x", transport=srv.transport())
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause(0.3)
+        app.perm_mode = "auto"
+        await open_chat(pilot, app, srv)
+        assert srv.posts[0]["permission_mode"] == "auto"
 
 
 async def test_a_chosen_yolo_sends_yolo_full_with_the_first_message():
