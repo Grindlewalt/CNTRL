@@ -1947,6 +1947,8 @@ _posting: set[int] = set()
 
 @router.post("/chat")
 async def chat(body: ChatRequest, request: Request, actor: dict = Depends(require_actor)):
+    if body.permission_mode and not permissions.may_set(body.permission_mode, actor):
+        raise HTTPException(status_code=403, detail=permissions.FULL_NEEDS_LOGIN)
     if body.helper:
         from . import helper as _h
         _h.request_base.set(str(request.base_url).rstrip('/'))

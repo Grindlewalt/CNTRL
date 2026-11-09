@@ -41,8 +41,10 @@ async def get_mode(cid: int):
             "modes": list(permissions.MODES)}
 
 
-@router.put("/chat/{cid}/permission_mode", dependencies=[Depends(require_actor)])
-async def put_mode(cid: int, body: ModeBody):
+@router.put("/chat/{cid}/permission_mode")
+async def put_mode(cid: int, body: ModeBody, actor: dict = Depends(require_actor)):
+    if not permissions.may_set(body.mode, actor):
+        raise HTTPException(status_code=403, detail=permissions.FULL_NEEDS_LOGIN)
     await _explicit(cid)                 # 404 on an unknown conversation
     db = await get_db()
     try:

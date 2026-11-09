@@ -6,6 +6,7 @@ import pytest
 from cli_fake import FakeServer, load_client, open_chat, send, top, wait_for
 
 jav3 = load_client("jav3cli_nov4_modes")
+SESSION = jav3.SESSION_PREFIX + "abc"       # the password login: full access
 
 
 @pytest.fixture(autouse=True)
@@ -39,7 +40,7 @@ async def test_shift_tab_never_reaches_yolo_from_any_mode():
 
 async def test_permissions_yolo_asks_first_and_sends_yolo_full_on_yes():
     srv = FakeServer()
-    app = jav3.build_tui("http://h:1", "jvd_x", transport=srv.transport())
+    app = jav3.build_tui("http://h:1", SESSION, transport=srv.transport())
     async with app.run_test(size=(100, 30)) as pilot:
         await open_chat(pilot, app, srv)
         await send(pilot, app, "/permissions yolo")
@@ -53,7 +54,7 @@ async def test_permissions_yolo_asks_first_and_sends_yolo_full_on_yes():
 
 async def test_permissions_yolo_then_no_leaves_the_mode():
     srv = FakeServer()
-    app = jav3.build_tui("http://h:1", "jvd_x", transport=srv.transport())
+    app = jav3.build_tui("http://h:1", SESSION, transport=srv.transport())
     async with app.run_test(size=(100, 30)) as pilot:
         await open_chat(pilot, app, srv)
         await send(pilot, app, "/permissions yolo")
@@ -106,7 +107,7 @@ async def test_a_chosen_yolo_sends_yolo_full_with_the_first_message():
 async def test_enter_on_the_yolo_question_says_no():
     # the most permissive mode is never one reflexive keypress away: enter is no
     srv = FakeServer()
-    app = jav3.build_tui("http://h:1", "jvd_x", transport=srv.transport())
+    app = jav3.build_tui("http://h:1", SESSION, transport=srv.transport())
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause(0.3)
         await send(pilot, app, "/permissions yolo")
@@ -114,3 +115,15 @@ async def test_enter_on_the_yolo_question_says_no():
         await pilot.press("enter")
         await pilot.pause(0.3)
         assert app.chat.perm_mode == "safe-yolo"
+
+
+async def test_a_device_token_cannot_turn_yolo_on():
+    # chat only: it approves nothing, so it cannot switch on what approves everything
+    srv = FakeServer()
+    app = jav3.build_tui("http://h:1", "jvd_x", transport=srv.transport())
+    async with app.run_test(size=(100, 30)) as pilot:
+        await open_chat(pilot, app, srv)
+        await send(pilot, app, "/permissions yolo")
+        await pilot.pause(0.4)
+        assert top(app) != "Confirm" and app.perm_mode == "safe-yolo" and srv.perm_puts == []
+        assert any("needs full access" in str(n.render()) for n in app.query("Note"))

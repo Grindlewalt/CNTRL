@@ -549,3 +549,29 @@ async def test_always_loaded_tainted_write_lands_in_full(db, tmp_env, monkeypatc
     assert (proj / "project.md").read_text() == "new2\n"
     assert "project.md" not in taintpaths.paths("proj")
     assert len(await _events(db)) == 1
+
+
+async def test_a_device_token_cannot_turn_yolo_on(client):
+    # chat only: a device approves nothing, so it must not reach the mode that approves
+    # everything, by PUT or with a new chat's first message
+    conn = await get_db()
+    try:
+        cid = await _conv(conn)
+    finally:
+        await conn.close()
+    from backend import devicetokens
+    raw, _ = await devicetokens.mint("phone", by="operator")
+    head = {"Authorization": f"Bearer {raw}"}
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                 base_url="http://test") as anon:
+        r = await anon.put(f"/api/chat/{cid}/permission_mode", json={"mode": "yolo-full"},
+                           headers=head)
+        assert r.status_code == 403 and "password login" in r.text
+        assert await permissions.get_mode(cid) == "safe-yolo"
+        r = await anon.post("/api/chat", json={"message": "hi", "permission_mode": "yolo-full"},
+                            headers=head)
+        assert r.status_code == 403
+        r = await anon.put(f"/api/chat/{cid}/permission_mode", json={"mode": "auto"}, headers=head)
+        assert r.status_code == 200 and await permissions.get_mode(cid) == "auto"
+    r = await client.put(f"/api/chat/{cid}/permission_mode", json={"mode": "yolo-full"})
+    assert r.status_code == 200 and await permissions.get_mode(cid) == permissions.FULL

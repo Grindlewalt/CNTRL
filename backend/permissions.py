@@ -131,6 +131,16 @@ async def set_mode(db, cid: int, mode: str) -> None:
 # "yolo" keeps its old meaning for good: old clients send it as their default.
 
 
+FULL_NEEDS_LOGIN = ("yolo needs your password login: a device token is chat only, and "
+                    "yolo approves everything on its own")
+
+
+def may_set(mode: str, actor: dict) -> bool:
+    """A chat-only device token cannot approve anything, so it cannot turn on the
+    mode that approves everything either. Any other mode, any actor."""
+    return not (actor.get("is_device") and normalize_mode(mode) == FULL)
+
+
 async def never_asks(cid: int | None) -> bool:
     """The conversation (or the nearest ancestor with a mode) is in FULL."""
     return cid is not None and await get_mode(cid) == FULL

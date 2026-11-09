@@ -12534,6 +12534,7 @@ def build_tui(base: str, token: str, **kw):
                 raise CliError(f"permissions: {arg!r} is not one of "
                                f"{', '.join(self.PERM_MODES)}")
             if mode == "yolo" and self.perm_mode != "yolo":
+                self._need_full("yolo")         # the server refuses a device token too
                 ok = await self.push_screen_wait(Confirm(
                     "Switch to yolo? Nothing will ask you any more.",
                     "Packages, network access, pushes anywhere, publishing and secrets "
