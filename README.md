@@ -1,7 +1,7 @@
 # Jav3
 
-A self-hosted personal AI agent with durable file-backed memory, multi-agent
-orchestration and a voice interface, running as a single service on a Raspberry
+A self-hosted personal AI agent with durable file-backed memory, and multi-agent
+orchestration, running as a single service on a Raspberry
 Pi. Its defining constraint is that the agent is treated as untrusted: the entire
 reasoning loop executes inside a disposable KVM guest holding no API key, no
 database and no secrets, and every capability it has — models, tools, filesystem
