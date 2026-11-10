@@ -162,7 +162,8 @@ def _old_install(home: Path) -> None:
     for u in OLD_UNITS:
         (units / u).write_text("[Unit]\n")
     (units / "jav3-gitea-3000.service").write_text(
-        "[Unit]\nDescription=Gitea 1.24 for Jav3 (port 3000)\n")
+        "[Unit]\nDescription=Gitea 1.24 for Jav3 (port 3000)\n"
+        f"[Service]\nWorkingDirectory={st}/gitea\n")
     (units / "jarvis.service.d").mkdir()
     (units / "jarvis.service.d" / "mem.conf").write_text("[Service]\nMemoryMax=2G\n")
     (home / ".config/cntrl").mkdir()
@@ -208,11 +209,16 @@ def test_the_installer_moves_an_old_install_once(tmp_path):
     assert f"WorkingDirectory={ROOT}" in (units / "cntrl.service").read_text()
     assert (units / "cntrl.service.d" / "mem.conf").is_file()      # the drop-in came along
     assert "--user enable cntrl.service" in calls and "--user restart cntrl" in calls
-    # Gitea: the same unit under its new name, started again
+    # Gitea: the same unit under its new name, started again only once its
+    # state has moved, and pointing at it
     assert not (units / "jav3-gitea-3000.service").exists()
-    assert "for CNTRL (port 3000)" in (units / "cntrl-gitea-3000.service").read_text()
-    assert "--user disable --now jav3-gitea-3000.service" in calls
-    assert "--user enable --now cntrl-gitea-3000.service" in calls
+    gitea = (units / "cntrl-gitea-3000.service").read_text()
+    assert "for CNTRL (port 3000)" in gitea
+    assert f"WorkingDirectory={home}/.local/share/cntrl/gitea" in gitea
+    stop = calls.index("--user disable --now jav3-gitea-3000.service")
+    start = calls.index("--user enable --now cntrl-gitea-3000.service")
+    assert stop < start
+    assert all(calls.index(f"--user disable --now {u}") < start for u in OLD_UNITS)
     # the config dir moved in beside the client's credentials, nothing overwritten
     cfg = home / ".config/cntrl"
     assert not (home / ".config/jarvis").exists()
@@ -224,9 +230,12 @@ def test_the_installer_moves_an_old_install_once(tmp_path):
     assert "JARVIS_DEEPSEEK_API_KEY=sk-test" in (cfg / "env.bak").read_text()
     assert oct((cfg / "env").stat().st_mode & 0o777) == "0o600"
     assert oct((cfg / "env.bak").stat().st_mode & 0o777) == "0o600"
-    # the state dir moved
+    # the state dir moved; the old path is a symlink to it, so absolute paths
+    # inside the state (Gitea's app.ini, a box disk's backing file) still resolve
     st = home / ".local/share/cntrl"
-    assert not (home / ".local/share/jarvis").exists()
+    old = home / ".local/share/jarvis"
+    assert st.is_dir() and not st.is_symlink()
+    assert old.is_symlink() and old.resolve() == st.resolve()
     assert (st / "data" / "jarvis.db").read_bytes() == b"db"
     assert (st / "memory" / "note.md").read_text() == "a note"
 

@@ -130,7 +130,8 @@ Phase 0 already settled, and say why you left them out.
    (`--from user@host:path`). An install from before the rename to CNTRL
    (`jarvis.service`, `~/.config/jarvis`, `~/.local/share/jarvis`) upgrades in
    place too: the installer stops the old units, moves the config and state
-   dirs to the new names (never over existing ones) and starts `cntrl.service`.
+   dirs to the new names (never over existing ones; the old state path stays
+   as a link to the new one) and starts `cntrl.service`.
    `--rename-only` does just that move, nothing else.
 3. **Port** for the web UI (default 8000). If 8000 is taken, propose a free
    one, e.g. 8780.

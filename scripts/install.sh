@@ -864,7 +864,7 @@ PY
 #     the new names); install_units installs the new ones
 #   - the config dir and the state dir move only when the new one holds nothing
 #     of the server's; nothing is ever overwritten, and anything that could not
-#     move is named
+#     move is named. The old state dir becomes a symlink to the new one.
 #   - JARVIS_ lines in the env file become CNTRL_ ones (the old file is kept as
 #     env.bak); the mDNS name stays jav3.local, so paired computers still find it
 # A second run finds nothing to do and says so.
@@ -910,11 +910,18 @@ cfg_move_owed() {
     && ! has_server_config "$CFG_DIR"
 }
 state_move_owed() {
-  [ "$STATE_DIR" = "$DEFAULT_STATE_DIR" ] && has_state "$OLD_STATE_DIR" && ! has_state "$STATE_DIR"
+  [ "$STATE_DIR" = "$DEFAULT_STATE_DIR" ] && [ ! -L "$OLD_STATE_DIR" ] \
+    && has_state "$OLD_STATE_DIR" && ! has_state "$STATE_DIR"
 }
 
-# This instance's Gitea unit (backend/gitea_setup.py names it after the port).
-gitea_port() { local p; p="$(env_value GITEA_PORT "$CFG_DIR/env")"; echo "${p:-3000}"; }
+# This instance's Gitea unit (backend/gitea_setup.py names it after the port),
+# its port read from the env file wherever it is right now.
+gitea_port() {
+  local e="$CFG_DIR/env" p
+  [ -f "$e" ] || e="$ENV_SRC"
+  p="$(env_value GITEA_PORT "$e")"
+  echo "${p:-3000}"
+}
 
 rename_pending() {
   local u
@@ -977,7 +984,9 @@ rename_upgrade() {
     return 0
   fi
   step "moving the install from before the rename to the CNTRL names"
-  local u f new rebuild=0
+  # 1. everything of the old install stops first: nothing may run while its
+  #    dirs move
+  local u f new rebuild=0 gitea_old gitea_new=""
   for u in "${OLD_UNITS[@]}"; do
     f="$(old_unit_file "$u")"
     [ -f "$f" ] || continue
@@ -988,18 +997,46 @@ rename_upgrade() {
     case "$u" in image-rebuild.*) rebuild=1 ;; esac
     ok "stopped and removed ${f##*/} (now ${new##*/})"
   done
-  # Gitea: the same unit under its new name, on the same data and config
-  local gitea_old gitea_new=""
   gitea_old="$SYSTEMD_USER_DIR/jav3-gitea-$(gitea_port).service"
   if [ -f "$gitea_old" ]; then
     gitea_new="$SYSTEMD_USER_DIR/cntrl-gitea-$(gitea_port).service"
     systemctl --user disable --now "${gitea_old##*/}" >/dev/null 2>&1 || true
-    [ -e "$gitea_new" ] || sed -e 's/ for Jav3 / for CNTRL /' "$gitea_old" > "$gitea_new"
+  fi
+
+  # 2. the dirs. The state dir leaves a symlink behind: absolute paths inside it
+  #    (Gitea's app.ini, a box disk's backing image, a worktree's gitdir) keep
+  #    resolving, and nothing in the state itself is rewritten.
+  local moved_state=0
+  if cfg_move_owed; then
+    move_dir "$OLD_CFG_DIR" "$CFG_DIR"
+  elif [ -d "$OLD_CFG_DIR" ] && has_server_config "$OLD_CFG_DIR" && [ "$CFG_DIR" = "$HOME/.config/$UNIT" ]; then
+    warn "$OLD_CFG_DIR and $CFG_DIR both hold a server config: $CFG_DIR is used, $OLD_CFG_DIR left as is"
+  fi
+  if state_move_owed; then
+    move_dir "$OLD_STATE_DIR" "$STATE_DIR"
+    if [ ! -e "$OLD_STATE_DIR" ]; then
+      ln -s "$STATE_DIR" "$OLD_STATE_DIR"
+      ok "$OLD_STATE_DIR now points at $STATE_DIR (old absolute paths keep working)"
+    fi
+    moved_state=1
+  elif [ "$STATE_DIR" = "$DEFAULT_STATE_DIR" ] && [ ! -L "$OLD_STATE_DIR" ] && has_state "$OLD_STATE_DIR"; then
+    warn "$OLD_STATE_DIR and $STATE_DIR both hold state: $STATE_DIR is used, $OLD_STATE_DIR left as is"
+  fi
+
+  # 3. the units under their new names: Gitea's (the same Gitea on the same data
+  #    and app.ini; only its own paths follow the state dir) and a monthly image
+  #    rebuild set up by hand (install_units leaves that one to the operator)
+  if [ -n "$gitea_new" ]; then
+    if [ ! -e "$gitea_new" ]; then
+      if [ "$moved_state" = 1 ]; then
+        sed -e 's/ for Jav3 / for CNTRL /' -e "s#$OLD_STATE_DIR/#$STATE_DIR/#g" "$gitea_old" > "$gitea_new"
+      else
+        sed -e 's/ for Jav3 / for CNTRL /' "$gitea_old" > "$gitea_new"
+      fi
+    fi
     rm -f "$gitea_old"
     ok "stopped and removed ${gitea_old##*/} (now ${gitea_new##*/})"
   fi
-  # install_units leaves the monthly image rebuild to the operator: one that was
-  # set up by hand before the rename comes back under its new name
   if [ "$rebuild" = 1 ]; then
     sed -e "s#%h/cntrl#$REPO_DIR#g" scripts/cntrl-image-rebuild.service \
       > "$SYSTEMD_USER_DIR/$UNIT-image-rebuild.service"
@@ -1016,16 +1053,8 @@ rename_upgrade() {
       && ok "$UNIT-image-rebuild.timer installed and enabled" \
       || warn "could not enable $UNIT-image-rebuild.timer"
   fi
-  if cfg_move_owed; then
-    move_dir "$OLD_CFG_DIR" "$CFG_DIR"
-  elif [ -d "$OLD_CFG_DIR" ] && has_server_config "$OLD_CFG_DIR" && [ "$CFG_DIR" = "$HOME/.config/$UNIT" ]; then
-    warn "$OLD_CFG_DIR and $CFG_DIR both hold a server config: $CFG_DIR is used, $OLD_CFG_DIR left as is"
-  fi
-  if state_move_owed; then
-    move_dir "$OLD_STATE_DIR" "$STATE_DIR"
-  elif [ "$STATE_DIR" = "$DEFAULT_STATE_DIR" ] && has_state "$OLD_STATE_DIR"; then
-    warn "$OLD_STATE_DIR and $STATE_DIR both hold state: $STATE_DIR is used, $OLD_STATE_DIR left as is"
-  fi
+
+  # 4. the env file's names
   if [ -f "$CFG_DIR/env" ]; then
     rename_env_names "$CFG_DIR/env" && ok "JARVIS_ settings renamed to CNTRL_ in $CFG_DIR/env (was: env.bak)"
     # the old default mDNS name came from the old app title: keep answering to it
