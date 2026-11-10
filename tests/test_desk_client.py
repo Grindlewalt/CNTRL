@@ -29,7 +29,7 @@ jd = _load()
 @pytest.fixture
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 # --- coordinates ----------------------------------------------------------------------
@@ -1440,3 +1440,12 @@ def test_mac_source_switches_on_chromium_and_electron_accessibility_once_per_app
                      ("app-2", "AXEnhancedUserInterface", "kCFBooleanTrue")]
     src.ax = types.SimpleNamespace(AXUIElementSetAttributeValue=lambda *a: 1 / 0)
     src.wake("app-3", 3)          # a broken call is ignored
+
+
+def test_config_dir_follows_the_terminal_clients_rename(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    assert jd.config_dir() == tmp_path / "cntrl"            # fresh machine
+    (tmp_path / "jav3").mkdir()
+    assert jd.config_dir() == tmp_path / "jav3"             # old install, not moved yet
+    (tmp_path / "cntrl").mkdir()
+    assert jd.config_dir() == tmp_path / "cntrl"            # moved (or both): the new one

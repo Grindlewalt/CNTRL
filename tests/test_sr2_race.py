@@ -441,7 +441,7 @@ jav3 = _load_cli()
 @pytest.fixture
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 @pytest.mark.parametrize("status", [500, 502, 401, 404])

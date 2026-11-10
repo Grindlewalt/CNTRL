@@ -153,7 +153,7 @@ async def test_transcript_copy_puts_the_whole_chat_on_the_clipboard(copied, tmp_
         await app.c_transcript("")                             # bare: copy too
         assert len(copied) == 2 and copied[1] == text
         await app.c_transcript("save")
-        assert "second answer" in (tmp_path / "jav3-7.md").read_text()
+        assert "second answer" in (tmp_path / "cntrl-7.md").read_text()
         with pytest.raises(jav3.CliError, match="/transcript copy"):
             await app.c_transcript("print")
         app.editor.text = "/transcript "

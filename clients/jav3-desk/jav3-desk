@@ -121,8 +121,12 @@ class DeskError(Exception):
 # --- config files -------------------------------------------------------------------
 
 def config_dir() -> Path:
-    base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(base) / "jav3"
+    """~/.config/cntrl, shared with the terminal client. Before the rename it was
+    ~/.config/jav3; while only that one exists (the terminal client, which moves it,
+    not updated yet) it is still used, so a paired desk keeps its token."""
+    base = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
+    new, old = base / "cntrl", base / "jav3"
+    return old if old.is_dir() and not new.exists() else new
 
 
 def _path(name: str) -> Path:
@@ -131,7 +135,7 @@ def _path(name: str) -> Path:
 
 def _ensure_dir() -> int:
     """The config dir as an fd, created 0700; a symlink or foreign dir is
-    refused (same rules as the jav3 CLI's credential store)."""
+    refused (same rules as the cntrl CLI's credential store)."""
     d = config_dir()
     d.parent.mkdir(parents=True, exist_ok=True)
     try:

@@ -613,7 +613,7 @@ def test_jav3_login_password_asks_for_address_user_and_password_TUIB16(monkeypat
 
 def test_the_not_logged_in_hint_names_both_logins_and_a_lapsed_session_the_password_TUIB16(
         monkeypatch):
-    assert "jav3 login --password" in jav3.RELOGIN and "chat only" in jav3.RELOGIN
+    assert "cntrl login --password" in jav3.RELOGIN and "chat only" in jav3.RELOGIN
     monkeypatch.setattr(jav3, "load_credentials", lambda: {"address": "h", "session": "x"})
     assert jav3.relogin() == jav3.RELOGIN_SESSION and "--password" in jav3.relogin()
     monkeypatch.setattr(jav3, "load_credentials", lambda: {"address": "h", "token": "jvd_x"})
