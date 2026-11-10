@@ -13,6 +13,7 @@ import json
 
 import pytest
 
+from backend.vm import boxes
 from backend.vm import guest_turn as gt
 from backend.vm import lifecycle
 
@@ -51,7 +52,12 @@ def _mock_transport(monkeypatch, recv_seq):
 
         def close(self):
             pass
-    monkeypatch.setattr(gt.socket, "socket", lambda *a, **k: FakeSock())
+
+    # the box's transport is the seam (boxes.py): faking it, not socket.socket,
+    # keeps the test off socket.AF_VSOCK, which only Linux's socket module has
+    async def _connect(self, port):
+        return FakeSock()
+    monkeypatch.setattr(boxes.VsockTransport, "connect", _connect)
 
     loop = asyncio.get_running_loop()
 

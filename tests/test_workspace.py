@@ -6,6 +6,7 @@ from backend.config import settings
 from backend.db import get_db, init_db
 from backend.main import app
 from backend.memory import ensure_memory_seeds
+from tests.platform_caps import needs_rlimit_as
 
 
 @pytest.fixture
@@ -46,6 +47,7 @@ async def test_file_roundtrip_and_traversal_guard(client):
     assert r.status_code == 400
 
 
+@needs_rlimit_as
 async def test_run_scratch_code_with_artifact(client):
     r = await client.post("/api/projects/demo/run", json={
         "code": "print(2**10)\nopen('out.txt','w').write('artifact')\n"})

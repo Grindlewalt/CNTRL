@@ -26,6 +26,12 @@ def _utc(monkeypatch):
     from cli_fake import pin_zone      # times on the rows are the machine's zone
     yield from pin_zone(monkeypatch)
 
+
+@pytest.fixture(autouse=True)
+def _own_config(tmp_path, monkeypatch):
+    # the TUI saves tui.json: never into the developer's real client config
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+
 CALL = {"kind": "call", "id": 12, "ts": "2026-09-27 14:03:11", "model": "deepseek/deepseek-flash",
         "op_id": "7f3a", "box_id": "p-homelab", "conversation_id": 42,
         "project_slug": "homelab", "input_tokens": 12431, "output_tokens": 812,

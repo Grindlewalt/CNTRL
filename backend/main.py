@@ -318,7 +318,9 @@ if (settings.frontend_dist / "index.html").exists():
 
     @app.get("/{full_path:path}")
     async def spa(full_path: str):
-        if full_path.startswith("api/"):
+        # the server's own surfaces: a path their routers don't match is a 404,
+        # not the app shell (a git client would get HTML for a missing repo)
+        if full_path.startswith(("api/", "git/")):
             return JSONResponse({"detail": "not found"}, status_code=404)
         candidate = dist_file(full_path)
         if candidate is not None:

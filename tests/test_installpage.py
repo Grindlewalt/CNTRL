@@ -7,6 +7,7 @@ import importlib.util
 import io
 import os
 import re
+import select
 import signal
 import socket
 import subprocess
@@ -223,13 +224,16 @@ def test_slow_head_times_out(serve, monkeypatch):
     with socket.create_connection(srv.server_address[:2], timeout=3) as s:
         # Trickle: every byte arrives well inside a per-recv timeout, but the
         # whole head never does. The deadline is wall-clock, so it still fires.
+        # Between bytes the client waits for the answer, not a blind sleep, and
+        # once it is there stops sending, as a real client would: a byte sent
+        # after the server's bounded drain meets a closed socket, and the RST
+        # that earns may discard the unread 408 (macOS does).
         t0 = time.monotonic()
-        try:
-            for b in b"GET / HTTP/1.1\r\n":
-                s.sendall(bytes([b]))
-                time.sleep(0.1)
-        except OSError:
-            pass
+        for b in b"GET / HTTP/1.1\r\n":
+            s.sendall(bytes([b]))
+            if select.select([s], [], [], 0.1)[0]:
+                break
+        s.shutdown(socket.SHUT_WR)          # done sending: the drain ends at once
         resp = b""
         while chunk := s.recv(65536):
             resp += chunk
@@ -248,17 +252,31 @@ def test_http2_version_is_505(serve):
     assert parse(raw(serve(), b"GET / HTTP/2.0\r\n\r\n"))[0] == 505
 
 
+def _free_slots(srv, n, timeout=10.0):
+    """Wait until the server has exactly n free connection slots: the accept
+    thread takes one per connection, the handler thread frees it when done. A
+    condition, not a guessed sleep, so a loaded machine only makes it slower."""
+    deadline = time.monotonic() + timeout
+    while srv._slots._value != n:
+        assert time.monotonic() < deadline, f"slots never reached {n}"
+        time.sleep(0.01)
+
+
 def test_connection_cap_answers_503(serve):
     srv = serve(max_conns=1)
     hog = socket.create_connection(srv.server_address[:2], timeout=3)
     try:
-        time.sleep(0.2)  # let the hog's thread take the only slot
-        status, h, _ = parse(raw(srv, b"GET / HTTP/1.1\r\n\r\n"))
+        _free_slots(srv, 0)  # the hog's thread holds the only slot
+        # The accept thread answers 503 at once and never waits for a request
+        # (it must not be stallable), so a request racing its close can earn an
+        # RST instead of the 503. This client sends nothing: the bytes asserted
+        # are then always the ones the cap sends.
+        status, h, _ = parse(raw(srv, b""))
         assert status == 503
         assert h["x-content-type-options"] == "nosniff"
     finally:
         hog.close()
-    time.sleep(0.3)
+    _free_slots(srv, 1)      # the hog's handler saw it go and gave the slot back
     assert req(srv)[0] == 200
 
 

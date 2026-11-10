@@ -21,6 +21,7 @@ from backend.auth import COOKIE_NAME, hash_password, make_token, require_same_or
 from backend.config import settings
 from backend.db import get_db, init_db
 from backend.main import app
+from tests.platform_caps import needs_rlimit_as
 
 HOST = "jav3.lan:8000"
 BASE = f"http://{HOST}"
@@ -126,10 +127,20 @@ async def test_poc_same_origin_page_mints_reads_and_redeems_a_login_code(op):
     assert r.status_code == 200          # the real Settings page still works
 
 
+async def _host_runs() -> list:
+    db = await get_db()
+    try:
+        async with db.execute("SELECT project_slug, detail FROM security_events "
+                              "WHERE kind = 'host_run'") as cur:
+            return await cur.fetchall()
+    finally:
+        await db.close()
+
+
 async def test_poc_same_origin_page_runs_code_on_the_host(op, tmp_env):
     """FIXED (containment): the host runner stays (the operator's call), but a
     sandboxed page's `Origin: null` and any other origin are refused before it
-    runs, and every run that does happen is a `host_run` security event."""
+    runs (before its handler: not even a `host_run` event is written)."""
     c, _ = op
     slug = await _project_with_file(c, "code/x.txt", "x")
     marker = tmp_env / "host-side-effect"
@@ -138,16 +149,19 @@ async def test_poc_same_origin_page_runs_code_on_the_host(op, tmp_env):
                          json={"code": f"open({str(marker)!r},'w').write('pwned')"})
         assert r.status_code == 403, origin
     assert not marker.exists()
+    assert await _host_runs() == []
+
+
+@needs_rlimit_as
+async def test_same_origin_run_still_runs_and_is_audited(op, tmp_env):
+    """The other half of the containment: the operator's own page still runs
+    code, and every run that does happen is a `host_run` security event."""
+    c, _ = op
+    slug = await _project_with_file(c, "code/x.txt", "x")
     r = await c.post(f"/api/projects/{slug}/run", headers={"Origin": SELF},
                      json={"code": "print('hi')"})
     assert r.status_code == 200, r.text
-    db = await get_db()
-    try:
-        async with db.execute("SELECT project_slug, detail FROM security_events "
-                              "WHERE kind = 'host_run'") as cur:
-            rows = await cur.fetchall()
-    finally:
-        await db.close()
+    rows = await _host_runs()
     assert len(rows) == 1 and rows[0][0] == slug and "code/scratch.py" in rows[0][1]
 
 

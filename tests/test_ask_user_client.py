@@ -5,6 +5,7 @@ import importlib.util
 import json
 
 import httpx
+import pytest
 
 from client_paths import CLI
 
@@ -18,6 +19,14 @@ def _load():
 
 
 jav3 = _load()
+
+
+@pytest.fixture(autouse=True)
+def _own_config(tmp_path, monkeypatch):
+    # the TUI saves tui.json and history.jsonl: never into the developer's real
+    # client config
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+
 
 QS = [{"question": "Which database?", "options": ["SQLite", "Postgres"],
        "multi_select": False},

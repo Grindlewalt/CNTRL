@@ -18,6 +18,7 @@ from backend.agent.tools import registry
 from backend.vm import broker
 from backend.vm.gateway_server import handle_conn
 from backend.vm.guest_pkg import build_package_tar
+from tests.platform_caps import GUEST_SOCKET_SHIM
 
 PNG = (b"\x89PNG\r\n\x1a\n" + b"\x00" * 32)
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 32
@@ -143,7 +144,7 @@ def test_guest_registry_reattaches_the_inline_image():
         "r = asyncio.run(registry.dispatch('desk_screenshot', {}))\n"
         "text, img = imageresult.split(r)\n"
         "print('OUT', text, img.caption, len(img.data(10000)))\n")
-    r = subprocess.run([sys.executable, "-S", "-c", script], cwd=d,
+    r = subprocess.run([sys.executable, "-S", "-c", GUEST_SOCKET_SHIM + script], cwd=d,
                        env={"PYTHONPATH": d, "PATH": os.environ.get("PATH", "")},
                        capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
