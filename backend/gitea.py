@@ -24,6 +24,7 @@ import logging
 import os
 import re
 import secrets as pysecrets
+import time
 from pathlib import Path
 
 import httpx
@@ -255,13 +256,33 @@ def _protection(o: str) -> dict:
             "enable_status_check": False, "block_on_rejected_reviews": False}
 
 
+ENSURED_TTL_S = 900          # how long one full check of a repo's setup is trusted
+_ensured: dict[tuple[str, str, str], tuple[float, dict]] = {}
+
+
+def forget_ensured() -> None:
+    """Drop the remembered checks (tests; after the operator changes Gitea)."""
+    _ensured.clear()
+
+
 async def ensure_remote_repo(slug: str) -> dict:
     """Idempotent: the private repo `<owner>/<slug>`, the bot as a write
     collaborator (branches only: main is protected against it), every other
     enabled account as a read collaborator (see grant_default_access), and
-    main's protection rule re-asserted every time."""
+    main's protection rule re-asserted. Six API calls, ~0.8 s on the Pi, and it
+    ran on every commit approval: a full check is now trusted for ENSURED_TTL_S."""
     if not _SLUG.match(slug or ""):
         raise ValueError(f"bad project slug {slug!r}")
+    key = (settings.gitea_url, owner(), slug)
+    hit = _ensured.get(key)
+    if hit and 0 <= time.monotonic() - hit[0] < ENSURED_TTL_S:
+        return hit[1]
+    repo = await _ensure_remote_repo(slug)
+    _ensured[key] = (time.monotonic(), repo)
+    return repo
+
+
+async def _ensure_remote_repo(slug: str) -> dict:
     o = owner()
     r = await api("GET", f"/repos/{o}/{slug}", allow=(404,))
     if r.status_code == 404:
@@ -1162,10 +1183,12 @@ async def mirror_merge_request(slug: str, branch: str, sha: str, summary: str) -
     Main goes up first, as the operator (as ensure_repo does): a project only the
     orchestrator had worked on was not on Gitea yet, the bot's branch became its only
     one (and its default), and the PR had no main to go into (Gitea: 404, on the Pi)."""
-    repo = await ensure_remote_repo(slug)
+    await ensure_remote_repo(slug)
     err = await push_main(slug)
     if err and not await _remote_main(slug):
         raise GiteaError(err)
+    # asked fresh: ensure_remote_repo's answer may be a remembered one
+    repo = (await api("GET", f"/repos/{owner()}/{slug}")).json()
     if repo.get("default_branch") not in (None, "main"):
         await api("PATCH", f"/repos/{owner()}/{slug}", json_body={"default_branch": "main"})
     await push_agent_branch(slug, sha, branch)

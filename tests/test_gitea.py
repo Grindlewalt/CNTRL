@@ -8,7 +8,7 @@ import subprocess
 import httpx
 import pytest
 
-from backend import devicetokens, gitea
+from backend import devicetokens, gitea, gitgate
 from backend.agent.tools import registry
 from backend.auth import hash_password
 from backend.config import settings
@@ -306,6 +306,7 @@ async def test_commit_approval_pushes_main_to_gitea(client, fake):
     rid = (await client.get("/api/projects/demo/git/requests")).json()["requests"][0]["id"]
     r = await client.post(f"/api/projects/demo/git/requests/{rid}/approve")
     assert r.status_code == 200 and r.json()["error"] is None, r.text
+    await gitgate.mirror_idle()          # the push follows the approval, in the background
     assert _git("--git-dir", str(fake.bare), "rev-parse", "main") == _head()
 
 
@@ -391,3 +392,64 @@ def test_setup_pins_and_ini():
                  "REQUIRE_SIGNIN_VIEW = true", "OFFLINE_MODE = true",
                  "DISABLE_SSH = true", "DB_TYPE = sqlite3", "HTTP_PORT = 3000"):
         assert line in ini
+
+
+async def test_a_commit_approval_does_not_wait_for_the_push(client, fake, monkeypatch):
+    # on the Pi the push to Gitea took ~1 s and the repo checks ~0.8 s, all inside the
+    # operator's click; the commit itself is ~70 ms. The push now follows it.
+    await gitea.ensure_repo("demo")
+    import asyncio
+    import time
+    gate = asyncio.Event()
+    real = gitea.push_main
+
+    async def slow_push(slug):
+        await gate.wait()
+        return await real(slug)
+    monkeypatch.setattr(gitea, "push_main", slow_push)
+    (_pdir() / "b.txt").write_text("b")
+    await registry.dispatch("git_commit_request", {"message": "Add b"})
+    rid = (await client.get("/api/projects/demo/git/requests")).json()["requests"][0]["id"]
+    t0 = time.perf_counter()
+    r = await client.post(f"/api/projects/demo/git/requests/{rid}/approve")
+    assert r.status_code == 200 and r.json()["status"] == "approved"
+    assert time.perf_counter() - t0 < 5 and not gate.is_set()      # answered before the push
+    gate.set()
+    await gitgate.mirror_idle()
+    assert _git("--git-dir", str(fake.bare), "rev-parse", "main") == _head()
+
+
+async def test_a_failed_push_after_the_commit_lands_on_the_request_and_in_the_queue(
+        client, fake, monkeypatch):
+    await gitea.ensure_repo("demo")
+
+    async def refused(slug):
+        return "push of main to Gitea failed: protected branch"
+    monkeypatch.setattr(gitea, "push_main", refused)
+    (_pdir() / "c.txt").write_text("c")
+    await registry.dispatch("git_commit_request", {"message": "Add c"})
+    rid = (await client.get("/api/projects/demo/git/requests")).json()["requests"][0]["id"]
+    assert (await client.post(f"/api/projects/demo/git/requests/{rid}/approve")).json()[
+        "status"] == "approved"
+    await gitgate.mirror_idle()
+    rows = (await client.get("/api/projects/demo/git/requests")).json()["requests"]
+    assert "protected branch" in next(x for x in rows if x["id"] == rid)["error"]
+    from backend.db import get_db
+    db = await get_db()
+    try:
+        async with db.execute("SELECT summary FROM security_events WHERE kind = "
+                              "'git_mirror_failed'") as cur:
+            assert [r["summary"] for r in await cur.fetchall()] == [
+                f"commit #{rid} in demo landed, but the push after it failed"]
+    finally:
+        await db.close()
+
+
+async def test_a_repos_setup_is_checked_once_then_trusted_for_a_while(client, fake, monkeypatch):
+    await gitea.ensure_remote_repo("demo")
+    n = len(fake.calls)
+    await gitea.ensure_remote_repo("demo")
+    assert len(fake.calls) == n                         # remembered: no API calls
+    monkeypatch.setattr(gitea, "ENSURED_TTL_S", 0)
+    await gitea.ensure_remote_repo("demo")
+    assert len(fake.calls) > n                          # past the window: checked again

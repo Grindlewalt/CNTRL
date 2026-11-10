@@ -955,31 +955,76 @@ async def approve_request(rid: int, slug: str | None = None) -> dict:
             await db.commit()
             raise
         _, sha, _ = await run_git(slug, "rev-parse", "HEAD", check=True)
-        error = None
         async with db.execute("SELECT github_remote FROM projects WHERE slug = ?",
                               (slug,)) as cur:
             prow = await cur.fetchone()
-        if prow and prow["github_remote"]:
-            try:
-                await push_to_remote(slug)
-            except (RuntimeError, ValueError) as e:
-                error = f"push failed: {e}"  # commit stands
-        if gitea.enabled():
-            # main mirrors to Gitea as the operator (protected against the bot)
-            try:
-                await gitea.ensure_remote_repo(slug)
-                gerr = await gitea.push_main(slug)
-            except (RuntimeError, ValueError) as e:
-                gerr = f"committed; main not pushed to Gitea: {gitea.scrub(str(e))}"
-            if gerr:
-                error = f"{error}; {gerr}" if error else gerr
         await db.execute(
-            "UPDATE git_requests SET status = 'approved', commit_sha = ?, error = ?, "
-            "decided_at = datetime('now') WHERE id = ?", (sha.strip(), error, rid))
+            "UPDATE git_requests SET status = 'approved', commit_sha = ?, error = NULL, "
+            "decided_at = datetime('now') WHERE id = ?", (sha.strip(), rid))
         await db.commit()
+        _mirror_later(slug, rid, github=bool(prow and prow["github_remote"]))
         return await _fetch_request(db, rid)
     finally:
         await db.close()
+
+
+# --- after a commit: the pushes, in the background ---------------------------------
+# The commit is the approval; pushing main to the project's GitHub remote and to its
+# Gitea mirror follows it. Inline they held the operator's click for two seconds on
+# the Pi (2026-11-10: the push to Gitea ~1 s, the repo checks ~0.8 s, the commit
+# 70 ms). One push at a time per project (the next one carries every commit since);
+# a failure goes onto the request's error and into the Queue as git_mirror_failed.
+
+_mirror_locks: dict[str, asyncio.Lock] = {}
+_mirror_tasks: set[asyncio.Task] = set()
+
+
+def _mirror_later(slug: str, rid: int, *, github: bool) -> None:
+    task = asyncio.create_task(_mirror(slug, rid, github))
+    _mirror_tasks.add(task)
+    task.add_done_callback(_mirror_tasks.discard)
+
+
+async def _mirror(slug: str, rid: int, github: bool) -> None:
+    from . import gitea
+    async with _mirror_locks.setdefault(slug, asyncio.Lock()):
+        error = None
+        try:
+            if github:
+                try:
+                    await push_to_remote(slug)
+                except (RuntimeError, ValueError) as e:
+                    error = f"committed; push failed: {e}"
+            if gitea.enabled():
+                # main mirrors to Gitea as the operator (protected against the bot)
+                try:
+                    await gitea.ensure_remote_repo(slug)
+                    gerr = await gitea.push_main(slug)
+                except (RuntimeError, ValueError) as e:
+                    gerr = f"committed; main not pushed to Gitea: {gitea.scrub(str(e))}"
+                if gerr:
+                    error = f"{error}; {gerr}" if error else gerr
+        except Exception as e:      # noqa: BLE001 - a background push must not vanish silently
+            error = f"committed; the push after it failed: {type(e).__name__}: {e}"
+        if not error:
+            return
+        db = await get_db()
+        try:
+            await db.execute("UPDATE git_requests SET error = ? WHERE id = ?", (error, rid))
+            await db.commit()
+            from . import security
+            await security.raise_event(
+                db, kind="git_mirror_failed", severity="warn", project=slug,
+                summary=f"commit #{rid} in {slug} landed, but the push after it failed",
+                detail={"request_id": rid, "error": error[:500]})
+        finally:
+            await db.close()
+
+
+async def mirror_idle() -> None:
+    """Wait until the background pushes are done (tests; a clean shutdown)."""
+    while _mirror_tasks:
+        await asyncio.gather(*list(_mirror_tasks), return_exceptions=True)
 
 
 async def reject_request(rid: int, slug: str | None = None) -> dict:

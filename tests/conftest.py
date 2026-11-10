@@ -30,6 +30,15 @@ def no_node_naming(monkeypatch):
     monkeypatch.setattr(agenttree, "NAMING", False)
 
 
+@pytest.fixture(autouse=True)
+def fresh_gitea_checks():
+    """gitea.ensure_remote_repo trusts a full check of a repo for 15 minutes, in the
+    process: a test's fake Gitea must not inherit the previous test's checks."""
+    from backend import gitea
+    gitea.forget_ensured()
+    yield
+
+
 @pytest.fixture
 def tmp_env(tmp_path, monkeypatch):
     """Point all durable-state paths at a temp dir so tests never touch real data."""

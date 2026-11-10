@@ -162,6 +162,7 @@ async def test_approve_pushes_when_remote_set(client, tmp_env):
     row = await gitgate.create_request("demo", "Add a")
     res = await gitgate.approve_request(row["id"])
     assert res["status"] == "approved" and res["error"] is None
+    await gitgate.mirror_idle()          # the push follows the approval, in the background
     remote_sha = subprocess.run(
         ["git", "-C", str(bare), "rev-parse", "--branches"],
         capture_output=True, text=True, check=True).stdout.strip()
