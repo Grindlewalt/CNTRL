@@ -8,7 +8,7 @@ async def run(title: str, description: str = "") -> str:
     except LookupError as e:
         return f"error: {e}"
     if not gitea.enabled():
-        return ("error: Gitea isn't set up on this Jav3, so there is nowhere to "
+        return ("error: Gitea isn't set up on this CNTRL, so there is nowhere to "
                 "push. Nothing was filed. Use git_commit_request to ask the "
                 "operator for a commit instead.")
     try:
@@ -16,7 +16,7 @@ async def run(title: str, description: str = "") -> str:
     except ValueError as e:
         return f"error: {e}"
     except gitea.GiteaOff:
-        return ("error: Gitea isn't set up on this Jav3. Nothing was filed. Use "
+        return ("error: Gitea isn't set up on this CNTRL. Nothing was filed. Use "
                 "git_commit_request to ask the operator for a commit instead.")
     except gitea.GiteaUnreachable as e:
         return (f"error: {gitea.scrub(str(e))}. No pull request was made and your "

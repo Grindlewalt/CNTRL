@@ -1,4 +1,4 @@
-# Jav3 image recipe (format: backend/vm/images.py, "Recipe format").
+# CNTRL image recipe (format: backend/vm/images.py, "Recipe format").
 # `main` IS the golden base: vm/build_base.sh bakes exactly these apt packages
 # into base-vN.qcow2, so a KVM `main` box needs no layer until the operator
 # approves an extra package for it. Docker builds it from debian:trixie-slim.

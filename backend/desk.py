@@ -811,8 +811,8 @@ def is_own_host(host: str, own: frozenset[str]) -> bool:
 
 
 def check_open_url(url: str, own: frozenset[str]) -> str:
-    """desk_open(url): http(s) only, and never the Jav3 server itself. The
-    operator is logged in to Jav3 in the browser this opens, where desk_click
+    """desk_open(url): http(s) only, and never the CNTRL server itself. The
+    operator is logged in to CNTRL in the browser this opens, where desk_click
     can approve queued egress, grants and secrets: the agent must not steer a
     tab there. Refused too: a backslash or user@ part, where a browser and
     urlsplit read a different host."""
@@ -831,7 +831,7 @@ def check_open_url(url: str, own: frozenset[str]) -> str:
     if u.username is not None or u.password is not None:
         raise DeskError("URLs with a user:password@ part are not opened")
     if is_own_host(host, own):
-        raise DeskError("that is the Jav3 server itself; computer use never opens it "
+        raise DeskError("that is the CNTRL server itself; computer use never opens it "
                         "(it is where the operator approves this agent's requests)")
     return url
 

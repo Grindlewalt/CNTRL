@@ -17,7 +17,7 @@
 set -euo pipefail
 
 ACTION="${1:-}"; IFN="${2:-}"; HOST_IP="${3:-}"; GUEST_IP="${4:-}"; TABLE="${5:-jarvis_vm}"
-OWNER="${JARVIS_VM_USER:-${SUDO_USER:-$(id -un)}}"
+OWNER="${CNTRL_VM_USER:-${JARVIS_VM_USER:-${SUDO_USER:-$(id -un)}}}"
 
 die() { echo "net_box.sh: $*" >&2; exit 2; }
 

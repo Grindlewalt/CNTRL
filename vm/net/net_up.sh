@@ -7,7 +7,7 @@
 #   net_up.sh <up|down|up-boxes|down-boxes> [<tap> <host_ip> <pcap 0|1> <table>]
 #
 # Everything comes in ARGV (backend/vm/boxnet.net_up_argv): sudo's env_reset
-# strips JARVIS_*, so env settings were silently ignored and a second instance
+# strips CNTRL_* (and the old JARVIS_*), so env settings were silently ignored and a second instance
 # tore down the default one's jvtap0 and tcpdump (e2e BUG-1). No extra args =
 # the default install: jvtap0, 10.201.0.1, pcap on, table jarvis_vm.
 #

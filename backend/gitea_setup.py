@@ -7,11 +7,11 @@ Idempotent — every step checks before it acts, so a re-run is safe:
   2. write app.ini once (INSTALL_LOCK, no registration, sign-in to view,
      offline, SQLite, HTTP only, SSH off) under <state_dir>/gitea
   3. `gitea migrate`, then the operator's admin account (same username as
-     Jav3) and the `jav3-agent` bot, with the binary's own admin CLI
-  4. an API token for each, 0600 in Jav3's config dir (kept when still valid)
+     CNTRL) and the `jav3-agent` bot, with the binary's own admin CLI
+  4. an API token for each, 0600 in CNTRL's config dir (kept when still valid)
   5. a systemd --user unit, enabled and started; wait for it to answer
   6. the operator's password set through the API (never in argv)
-  7. JARVIS_GITEA_* written to the env file; a repo for every project
+  7. CNTRL_GITEA_* written to the env file; a repo for every project
   8. every enabled account (not the owner, the bot or a site admin) a read
      collaborator on every repo; `--access` runs only this step, against a
      Gitea that is already running
@@ -59,6 +59,11 @@ def gitea_arch(machine: str | None = None) -> str:
 
 
 def unit_name() -> str:
+    return f"cntrl-gitea-{settings.gitea_port}.service"
+
+
+def old_unit_name() -> str:
+    """The same unit's name before the rename to CNTRL (ensure_service retires it)."""
     return f"jav3-gitea-{settings.gitea_port}.service"
 
 
@@ -72,9 +77,9 @@ def paths() -> dict[str, Path]:
 def app_ini(root: Path, port: int, root_url: str, run_user: str,
             secret_key: str, internal_token: str) -> str:
     host = re.sub(r"^https?://", "", root_url).split("/")[0].split(":")[0] or "localhost"
-    return f"""; written by `python -m backend.cli gitea-setup` (Jav3). Safe to edit;
+    return f"""; written by `python -m backend.cli gitea-setup` (CNTRL). Safe to edit;
 ; a re-run never overwrites this file.
-APP_NAME = Jav3 Git
+APP_NAME = CNTRL Git
 RUN_MODE = prod
 RUN_USER = {run_user}
 WORK_PATH = {root}
@@ -139,7 +144,7 @@ ROOT_PATH = {root}/log
 
 def unit_text(p: dict[str, Path]) -> str:
     return f"""[Unit]
-Description=Gitea {GITEA_VERSION} for Jav3 (port {settings.gitea_port})
+Description=Gitea {GITEA_VERSION} for CNTRL (port {settings.gitea_port})
 After=network-online.target
 
 [Service]
@@ -311,6 +316,16 @@ def _healthy() -> bool:
 
 
 def ensure_service(plan: Plan, p) -> None:
+    # A Gitea set up before the rename runs as jav3-gitea-<port>: stopped, disabled
+    # and removed here, so the new unit can take the port. Its data and app.ini
+    # (gitea_dir) are not touched; the new unit runs the same Gitea on them.
+    old = p["unit"].with_name(old_unit_name())
+    if old.exists():
+        plan.say(f"stop and remove {old.name} (now {unit_name()}; data and config stay)")
+        if not plan.dry:
+            _systemctl("disable", "--now", old.name)
+            old.unlink()
+            _systemctl("daemon-reload")
     text = unit_text(p)
     changed = not (p["unit"].exists() and p["unit"].read_text() == text)
     if not changed:
@@ -336,7 +351,9 @@ def ensure_service(plan: Plan, p) -> None:
 
 def set_env(plan: Plan, values: dict[str, str], what: str = "Gitea") -> None:
     lines = ENV_FILE.read_text().splitlines() if ENV_FILE.exists() else []
-    keep = [ln for ln in lines if ln.split("=", 1)[0] not in values]
+    # a CNTRL_ value replaces its JARVIS_ twin from before the rename too
+    names = set(values) | {"JARVIS_" + k.removeprefix("CNTRL_") for k in values}
+    keep = [ln for ln in lines if ln.split("=", 1)[0] not in names]
     new = keep + [f"{k}={v}" for k, v in values.items()]
     if new == lines:
         print(f"  ok    {ENV_FILE} has the {what} settings")
@@ -370,7 +387,7 @@ def _password(args: list[str], interactive: bool) -> tuple[str, bool]:
             raise SystemExit("gitea-setup: password must be at least 8 characters")
         return pw, True
     if interactive:
-        print("  Gitea password for the operator (you can type your Jav3 password to reuse it)")
+        print("  Gitea password for the operator (you can type your CNTRL password to reuse it)")
         pw = getpass.getpass("  password: ")
         if len(pw) >= 8 and getpass.getpass("  again: ") == pw:
             return pw, True
@@ -497,10 +514,10 @@ def run(args: list[str]) -> None:
                 print(f"  note  a random first password is in {pw_file} (0600); sign in "
                       "with it, change it in Gitea (Settings > Account), then delete the file")
 
-    env = {"JARVIS_GITEA_ENABLED": "true", "JARVIS_GITEA_OWNER": login,
-           "JARVIS_GITEA_PORT": str(settings.gitea_port)}
+    env = {"CNTRL_GITEA_ENABLED": "true", "CNTRL_GITEA_OWNER": login,
+           "CNTRL_GITEA_PORT": str(settings.gitea_port)}
     if settings.gitea_url:
-        env["JARVIS_GITEA_URL"] = settings.gitea_url
+        env["CNTRL_GITEA_URL"] = settings.gitea_url
     set_env(plan, env)
     if dry:
         print("dry run: nothing was changed")
@@ -508,4 +525,4 @@ def run(args: list[str]) -> None:
     settings.gitea_enabled, settings.gitea_owner = True, login
     asyncio.run(_ensure_all_repos())
     asyncio.run(_ensure_access(False))
-    print(f"done. Gitea: {root_url}  (restart Jav3 to pick it up: systemctl --user restart jarvis)")
+    print(f"done. Gitea: {root_url}  (restart CNTRL to pick it up: systemctl --user restart cntrl)")

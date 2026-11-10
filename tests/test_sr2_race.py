@@ -213,7 +213,7 @@ async def test_POC_revoked_device_turn_keeps_running_and_streaming(op, monkeypat
 
 
 async def test_POC_revoke_self_stops_own_turns(op, monkeypatch):
-    """`jav3 logout` (DELETE /self) stops the token's own running turn too;
+    """`cntrl logout` (DELETE /self) stops the token's own running turn too;
     the operator's own turns are untouched."""
     code = await _mint(op)
     async with _client("10.0.3.9") as dev:
@@ -412,7 +412,7 @@ def test_POC_single_process_is_not_enforced():
     WEB_CONCURRENCY asks for more than one process (the store, throttle,
     chat._active_turns and the bus are process-local)."""
     from backend.main import require_single_process
-    unit = (ROOT / "scripts" / "jarvis.service").read_text()
+    unit = (ROOT / "scripts" / "cntrl.service").read_text()
     exec_line = next(ln for ln in unit.splitlines() if ln.startswith("ExecStart="))
     assert "--workers 1" in exec_line
     for ok in ({}, {"WEB_CONCURRENCY": ""}, {"WEB_CONCURRENCY": "1"}):
@@ -427,7 +427,7 @@ def test_POC_single_process_is_not_enforced():
 # =============================================================================
 
 def _load_cli():
-    path = ROOT / "clients" / "jav3cli" / "jav3"
+    from client_paths import CLI as path
     loader = importlib.machinery.SourceFileLoader("jav3cli_sr2", str(path))
     spec = importlib.util.spec_from_loader("jav3cli_sr2", loader)
     mod = importlib.util.module_from_spec(spec)
@@ -477,7 +477,7 @@ def test_POC_logout_reports_success_when_revoke_failed(cfg, monkeypatch, status)
 
 def test_POC_concurrent_logins_corrupt_the_credentials_file(cfg, monkeypatch):
     """FIXED: each writer gets its own random O_EXCL temp file in the config
-    dir and renames it into place, so two interleaved `jav3 login`s both
+    dir and renames it into place, so two interleaved `cntrl login`s both
     succeed and credentials.json is one whole record — never a torn mix."""
     real_write = os.write
     both_open = threading.Barrier(2)

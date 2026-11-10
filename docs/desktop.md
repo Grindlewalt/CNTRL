@@ -72,7 +72,7 @@ events, and the taint (a screen is untrusted text).
          "(no elements: the box's desktop has no accessibility tree — click by coordinates)"
     desk(action="open", app="terminal", computer="sandbox")   # an xterm on tmux `desk`
     desk(action="click", x=400, y=300, computer="sandbox")    # coordinates of the latest frame
-    desk(action="type", text="jav3 --server 127.0.0.1:8099", computer="sandbox")
+    desk(action="type", text="cntrl --server 127.0.0.1:8099", computer="sandbox")
     desk(action="key", combo="Return", computer="sandbox")
       -> "key done", changed: yes, the new screenshot
 
@@ -115,19 +115,19 @@ events, and the taint (a screen is untrusted text).
   `run_code` the agent can type with `tmux send-keys -t desk '...' Enter` and read the
   screen exactly with `tmux capture-pane -p -t desk` (no OCR). The desk playbook says so.
 
-### Trying the jav3 terminal client inside the box
+### Trying the cntrl terminal client inside the box
 
-The box cannot reach the real Jav3 server, on purpose and for good. The agent runs the
-client against the test server in the pushed project workspace (the Jav3 repo as the
+The box cannot reach the real CNTRL server, on purpose and for good. The agent runs the
+client against the test server in the pushed project workspace (the CNTRL repo as the
 project), both baked into the desktop image's `/opt/jav3/py` venv (`httpx`, `textual`):
 
     # run_code, from the workspace root; in the background, output redirected
     python tests/tui_fake_http.py 8099 > /tmp/fake.log 2>&1 &
-    cat /tmp/fake.log     # prints  XDG_CONFIG_HOME=/tmp/tui-fake-... python clients/jav3cli/jav3
+    cat /tmp/fake.log     # prints  XDG_CONFIG_HOME=/tmp/tui-fake-... python clients/cntrl/cntrl
     # then, in the desktop terminal (desk type + key Return, or tmux send-keys -t desk):
-    XDG_CONFIG_HOME=/tmp/tui-fake-... python clients/jav3cli/jav3
+    XDG_CONFIG_HOME=/tmp/tui-fake-... python clients/cntrl/cntrl
 
-The fake serves seeded chats, a running turn, boxes and security rows; `jav3 --server
+The fake serves seeded chats, a running turn, boxes and security rows; `cntrl --server
 127.0.0.1:8099` names it too. The screenshot shows the TUI; `tmux capture-pane` reads it.
 
 ## The operator takes over (P3)
@@ -195,7 +195,7 @@ live desktop use `desk(action="screenshot", computer="sandbox")`.
 ## Building the image
 
 The layer adds tigervnc, openbox, xterm, tmux, xdotool, maim, and (in the
-`/opt/jav3/py` venv) `httpx` and `textual`, so the jav3 terminal client can be tried
+`/opt/jav3/py` venv) `httpx` and `textual`, so the cntrl terminal client can be tried
 in the box without PyPI egress. Guest code needs no image rebuild (it is pushed at
 boot); only the packages do:
 

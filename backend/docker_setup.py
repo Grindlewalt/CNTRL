@@ -13,8 +13,8 @@ right:
      Dockerfile + entrypoint already exists (label jav3.src.sha), then tag the
      service and builder images from it.
   4. smoke-test it: as the box user, with no network, read the entrypoint.
-  5. switch the runtime on in Jav3's env file: JARVIS_DOCKER_ENABLED and
-     JARVIS_VM_BOXES_ENABLED (Docker boxes are boxes).
+  5. switch the runtime on in CNTRL's env file: CNTRL_DOCKER_ENABLED and
+     CNTRL_VM_BOXES_ENABLED (Docker boxes are boxes).
 
 Flags: --dry-run (say what would happen), --rebuild (build even if current),
 --yes (no questions; there are none today, accepted for the installer).
@@ -161,10 +161,10 @@ def run(args: list[str]) -> int:
         return 1
     if not ensure_image(plan, "--rebuild" in args) or not smoke(plan):
         return 1
-    set_env(plan, {"JARVIS_DOCKER_ENABLED": "true", "JARVIS_VM_BOXES_ENABLED": "true"},
+    set_env(plan, {"CNTRL_DOCKER_ENABLED": "true", "CNTRL_VM_BOXES_ENABLED": "true"},
             what="Docker")
-    from .doctor import unit_name       # jarvis-<name> for a named instance
-    print("done. Docker boxes are available (restart Jav3 to pick it up: "
+    from .doctor import unit_name       # cntrl-<name> for a named instance
+    print("done. Docker boxes are available (restart CNTRL to pick it up: "
           f"systemctl --user restart {unit_name().removesuffix('.service')}). "
           "A profile set to 'Runs in: own container' uses them.")
     return 0

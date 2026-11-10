@@ -231,7 +231,7 @@ async def test_double_clap_dispatches_music_directly(seeded, monkeypatch):
 
     async def fake_dispatch(name, args):
         calls.append((name, args))
-        return "playing Kickstart My Heart in the Jav3 player on Mac."
+        return "playing Kickstart My Heart in the CNTRL player on Mac."
 
     monkeypatch.setattr(voice, "tool_dispatch", fake_dispatch)
     await session._on_sidecar_json({"type": "clap"})
@@ -242,7 +242,7 @@ async def test_double_clap_dispatches_music_directly(seeded, monkeypatch):
 
     assert calls and calls[0][0] == "music_play"
     assert calls[0][1]["query"] in voice.CLAP_TRACKS
-    assert calls[0][1]["where"] == "jav3"
+    assert calls[0][1]["where"] == "page"
     # no turn, no conversation — the model was never involved
     assert session.turn_task is None and session.cid is None
     clap = [m for m in out if isinstance(m, dict) and m.get("type") == "clap"]
@@ -349,13 +349,13 @@ async def test_music_play_queue_param_appends(tmp_env, monkeypatch):
                         lambda action, tab=None, **f: pushes.append(
                             (action, f)) or 1)
 
-    result = await h.run(ids=[5, 6], queue=True, where="jav3")
+    result = await h.run(ids=[5, 6], queue=True, where="page")
     assert pushes and pushes[0][0] == "queue_add"
     assert len(pushes[0][1]["queue"]) == 2
     assert "queued" in result and "2 track(s)" in result
 
     result = await h.run(ids=[7], queue=True, where="app")
-    assert "only the Jav3 player has a queue" in result
+    assert "only the CNTRL player has a queue" in result
 
 
 async def test_empty_interrupt_markers_are_kept_out_of_model_history(seeded):

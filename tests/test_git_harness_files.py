@@ -68,7 +68,7 @@ def test_a_new_gitignore_is_the_managed_block(tmp_env):
     text = (settings.projects_dir / "p" / ".gitignore").read_text()
     assert text == gitgate.GITIGNORE
     lines = text.splitlines()
-    assert lines[0].startswith("# >>> Jav3 harness files") and lines[-1].startswith("# <<< Jav3 harness files")
+    assert lines[0].startswith("# >>> CNTRL harness files") and lines[-1].startswith("# <<< CNTRL harness files")
     for want in (".plan.json", ".workspace.json", ".todo.md", ".todo-archive.md", "runs/*/*.md"):
         assert any(want in l for l in lines), want
 
@@ -79,11 +79,11 @@ def test_the_block_is_added_after_the_projects_own_rules_and_only_once(tmp_env):
     (d / ".gitignore").write_text("node_modules/\n*.log")          # no trailing newline
     assert gitgate.ensure_gitignore("p") is True
     first = (d / ".gitignore").read_text()
-    assert first.startswith("node_modules/\n*.log\n\n# >>> Jav3 harness files")
+    assert first.startswith("node_modules/\n*.log\n\n# >>> CNTRL harness files")
     assert gitgate.ensure_gitignore("p") is False                  # idempotent: nothing to write
     assert gitgate.ensure_gitignore("p") is False
     assert (d / ".gitignore").read_text() == first
-    assert first.count("# >>> Jav3 harness files") == 1
+    assert first.count("# >>> CNTRL harness files") == 1
 
 
 def test_an_older_block_is_replaced_in_place(tmp_env):
@@ -93,9 +93,19 @@ def test_an_older_block_is_replaced_in_place(tmp_env):
         "before/\n# >>> Jav3 harness files: an older wording\n.staging/\n# <<< Jav3 harness files\nafter/\n")
     assert gitgate.ensure_gitignore("p") is True
     text = (d / ".gitignore").read_text()
-    assert text.startswith("before/\n# >>> Jav3 harness files: managed by Jav3")
-    assert text.endswith("# <<< Jav3 harness files\nafter/\n")
+    assert text.startswith("before/\n# >>> CNTRL harness files: managed by CNTRL")
+    assert text.endswith("# <<< CNTRL harness files\nafter/\n")
     assert ".plan.json" in text and "an older wording" not in text
+
+
+def test_a_current_block_from_before_the_rename_is_left_as_it_is(tmp_env):
+    # rewriting only its markers would change a tracked file in every project
+    d = settings.projects_dir / "p"
+    d.mkdir(parents=True)
+    old = gitgate.GITIGNORE.replace("CNTRL", "Jav3")
+    (d / ".gitignore").write_text("before/\n" + old)
+    assert gitgate.ensure_gitignore("p") is False
+    assert (d / ".gitignore").read_text() == "before/\n" + old
 
 
 def test_a_project_without_a_directory_just_goes_without(tmp_env):

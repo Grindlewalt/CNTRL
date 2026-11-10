@@ -1,4 +1,4 @@
-# Jav3 voice local tier: gemma-4:12b (Google QAT q4_0) on llama.cpp,
+# CNTRL voice local tier: gemma-4:12b (Google QAT q4_0) on llama.cpp,
 # alone on the 12 GB 3060.
 #
 # !! THIS UNIT IS NOT CURRENTLY INSTALLED. !!  As of 2026-08-04 the live voice
@@ -48,16 +48,16 @@
 # The 12B costs +319 ms: 1046 ms speech-end-to-first-audio vs 727 ms, which is
 # over the 880 ms target but inside the 1-1.5 s band research calls acceptable.
 #
-# Keep -c in step with JARVIS_VOICE_LOCAL_CONTEXT_WINDOW on the Pi. Compaction
+# Keep -c in step with CNTRL_VOICE_LOCAL_CONTEXT_WINDOW on the Pi. Compaction
 # sizes the local tier's history against it, and overflowing does not error —
 # it silently drops the front of the prompt, tool definitions first, which
 # looks exactly like a model too dumb to call tools.
 #
 # Rollback to qwen3.5:9b: CUDA_VISIBLE_DEVICES=1, Qwen3.5-9B-Q4_K_M.gguf,
 # --alias qwen3.5:9b, add --chat-template-kwargs '{"enable_thinking":false}',
-# and JARVIS_VOICE_LOCAL_MODEL=qwen3.5:9b on the Pi.
+# and CNTRL_VOICE_LOCAL_MODEL=qwen3.5:9b on the Pi.
 [Unit]
-Description=Jav3 voice LLM tier (llama.cpp, gemma-4:12b, RTX 3060 12GB)
+Description=CNTRL voice LLM tier (llama.cpp, gemma-4:12b, RTX 3060 12GB)
 After=network-online.target
 
 [Service]

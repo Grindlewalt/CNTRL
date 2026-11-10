@@ -1,8 +1,8 @@
-# Installing Jav3: a guide for AI agents
+# Installing CNTRL: a guide for AI agents
 
 You are an AI coding agent with a shell (Claude Code, Codex, OpenCode, OpenClaw,
 Cursor, Aider, Gemini CLI, or anything like them). A person has asked you to
-install and configure **Jav3** for them. Read this whole file before you run
+install and configure **CNTRL** for them. Read this whole file before you run
 anything. It is written so that any agent can follow it, and it tells you
 exactly where to stop and hand control back to the person.
 
@@ -13,11 +13,11 @@ If you are a person: the short version for you is at the bottom
 
 ## What you are installing
 
-Jav3 is a self-hosted **agent harness**: a server that runs AI agents for its
+CNTRL is a self-hosted **agent harness**: a server that runs AI agents for its
 owner and keeps them contained. Your job is to set it up, not to use it.
 
 - A FastAPI server runs on the host as a `systemd --user` service, with a web UI
-  (React) and a terminal client (`jav3`).
+  (React) and a terminal client (`cntrl`).
 - The agents it runs work **inside a sandbox**: a KVM virtual machine (the
   default, strongest isolation) or a hardened Docker container (lighter, for
   hosts without KVM or with little RAM).
@@ -48,9 +48,9 @@ machine you reach over ssh. Ask the person which machine it is.
    outside the installer's own list. On Arch a partial upgrade has already
    broken a production box once. If the installer says "run pacman -Syu
    yourself", stop and tell the person. That decision is theirs.
-4. **Never reboot, and never touch what isn't Jav3's**: the BIOS, the kernel
+4. **Never reboot, and never touch what isn't CNTRL's**: the BIOS, the kernel
    command line, other services, other Docker containers or networks, or
-   firewall rules Jav3 didn't create. If something needs one of these, explain
+   firewall rules CNTRL didn't create. If something needs one of these, explain
    it and stop.
 5. **Secrets never pass through you.** The login password and the model API
    key are typed by the person, in their own terminal or in the browser. Give
@@ -58,7 +58,7 @@ machine you reach over ssh. Ask the person which machine it is.
    don't repeat it back. Pass it only on stdin, never in argv, an env file, a
    log or a file you leave behind. Suggest they rotate it afterwards, because
    it is now in your transcript.
-6. **Don't patch Jav3 to get past an error.** Don't edit its code, the
+6. **Don't patch CNTRL to get past an error.** Don't edit its code, the
    installer or its units. An error you can't fix with a documented command is
    a bug. Report it with the exact output.
 7. **Everything is re-runnable.** `scripts/install.sh`, `backend.cli setup`,
@@ -66,7 +66,7 @@ machine you reach over ssh. Ask the person which machine it is.
    re-run the step or `doctor`. Never "clean up" by deleting state.
 8. **Long commands:** the image build takes about 10 minutes, and some agent
    shells kill commands after 2–10 minutes. If yours does, run long steps with
-   `nohup … > ~/jav3-install.log 2>&1 &` and poll the log.
+   `nohup … > ~/cntrl-install.log 2>&1 &` and poll the log.
 9. **Say what you are doing**, one line per step, so the person can follow
    along and stop you.
 
@@ -81,8 +81,9 @@ uname -m; . /etc/os-release; echo "$PRETTY_NAME"; id -un; id -u
 sudo -n true 2>/dev/null && echo "passwordless sudo" || echo "sudo needs a password (or none)"
 free -h; df -h ~
 ss -ltn | awk 'NR>1{print $4}'                # ports already taken
-ls -d ~/jarvis ~/jav3 ~/.config/jarvis* ~/.local/share/jarvis 2>/dev/null
-systemctl --user list-units 'jarvis*' --no-legend 2>/dev/null
+ls -d ~/cntrl ~/.config/cntrl* ~/.local/share/cntrl 2>/dev/null
+ls -d ~/jarvis ~/.config/jarvis* ~/.local/share/jarvis 2>/dev/null   # from before the rename
+systemctl --user list-units 'cntrl*' 'jarvis*' --no-legend 2>/dev/null
 ls -l /dev/kvm /dev/vhost-vsock 2>&1
 docker info --format '{{.ServerVersion}}' 2>&1 | head -1
 ```
@@ -91,7 +92,7 @@ Then run the installer's own preflight straight from the network. It needs no
 checkout, installs nothing and prints one JSON object:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Grindlewalt/Jav3/main/scripts/install.sh \
+curl -fsSL https://raw.githubusercontent.com/Grindlewalt/cntrl/main/scripts/install.sh \
   | bash -s -- --check --json
 ```
 
@@ -108,7 +109,7 @@ The fields to read:
 (Without a checkout, the checks that depend on one are skipped. That's
 expected.)
 
-**If the root user is running you:** stop. Jav3 runs as a normal user. Ask the
+**If the root user is running you:** stop. CNTRL runs as a normal user. Ask the
 person which user it should run as, and work as that user.
 
 ---
@@ -121,16 +122,21 @@ the questions below **as one numbered list, with the default for each**. The
 person can answer "defaults" to any of them. Leave out questions whose answer
 Phase 0 already settled, and say why you left them out.
 
-1. **Where it goes.** Checkout directory (default `~/jarvis`). It runs as the
+1. **Where it goes.** Checkout directory (default `~/cntrl`). It runs as the
    user `<id -un>`; is that right?
 2. **Existing install** (only if Phase 0 found one): upgrade it in place
    (default); install a **second instance** beside it (`--name <n>`, with its
    own port, config and state); or **migrate** state from another machine
-   (`--from user@host:path`).
+   (`--from user@host:path`). An install from before the rename to CNTRL
+   (`jarvis.service`, `~/.config/jarvis`, `~/.local/share/jarvis`) upgrades in
+   place too: the installer stops the old units, moves the config and state
+   dirs to the new names (never over existing ones; the old state path stays
+   as a link to the new one) and starts `cntrl.service`.
+   `--rename-only` does just that move, nothing else.
 3. **Port** for the web UI (default 8000). If 8000 is taken, propose a free
    one, e.g. 8780.
 4. **Who reaches it:** this machine only, the LAN (default: the server listens
-   on the LAN), or the internet. Jav3 speaks plain HTTP. For the internet, put
+   on the LAN), or the internet. CNTRL speaks plain HTTP. For the internet, put
    it behind something that terminates TLS *and* authenticates, such as a
    Cloudflare Tunnel with Access or a reverse proxy with auth. That is outside
    the installer. Offer to explain it; don't set it up unless asked.
@@ -142,11 +148,11 @@ Phase 0 already settled, and say why you left them out.
      only**. With Docker only, agents run in *projects* set to "own
      container"; plain chats outside a project need KVM.
    - Docker not installed: installing Docker is the person's job (their
-     distro's docs). Jav3 never installs it.
+     distro's docs). CNTRL never installs it.
 6. **Golden VM image:** build it now (default when KVM works; about 10 minutes,
    downloads a Debian cloud image) or later (`--no-image`).
 7. **State directory**, where projects, memory and the database live (default
-   `~/.local/share/jarvis`). Choose a bigger disk if `~` is small.
+   `~/.local/share/cntrl`). Choose a bigger disk if `~` is small.
 8. **Login name** for the web UI and TUI. The person sets the password
    themselves (at least 8 characters).
 9. **Model provider**: DeepSeek, OpenAI, Anthropic, OpenRouter, Google, Groq,
@@ -163,7 +169,7 @@ Phase 0 already settled, and say why you left them out.
 11. **Gitea**, a local git server for agent pull requests: yes (default) or
     skip. Skip it on very small machines.
 12. **Backups** with rclone to a remote. Usually set up later
-    (`JARVIS_BACKUP_REMOTE`, or Settings). Just ask whether they want it.
+    (`CNTRL_BACKUP_REMOTE`, or Settings). Just ask whether they want it.
 13. **Anything special:** other services on this box to keep away from, disk or
     RAM limits, a proxy, an unusual network, a deadline.
 
@@ -177,8 +183,8 @@ wait for an explicit "go". The flags:
 
 | Answer | Installer flag |
 |---|---|
-| checkout dir | `JARVIS_DIR=<dir>` for the bootstrap (or `git clone … <dir>`) |
-| second instance | `--name <n>` (unit `jarvis-<n>.service`, config `~/.config/jarvis-<n>`) |
+| checkout dir | `CNTRL_DIR=<dir>` for the bootstrap (or `git clone … <dir>`) |
+| second instance | `--name <n>` (unit `cntrl-<n>.service`, config `~/.config/cntrl-<n>`) |
 | migrate | `--from user@host:path` |
 | port | `--port <n>` |
 | state dir | `--state-dir <dir>` |
@@ -195,8 +201,8 @@ Get the checkout first. This is safe and doesn't need root. Then re-check with
 the chosen flags:
 
 ```sh
-git clone https://github.com/Grindlewalt/Jav3.git ~/jarvis    # or: git -C ~/jarvis pull --ff-only
-bash ~/jarvis/scripts/install.sh --check --json <flags>
+git clone https://github.com/Grindlewalt/cntrl.git ~/cntrl    # or: git -C ~/cntrl pull --ff-only
+bash ~/cntrl/scripts/install.sh --check --json <flags>
 ```
 
 - If `root_command` is set, show it to the person with what it does:
@@ -218,12 +224,12 @@ bash ~/jarvis/scripts/install.sh --check --json <flags>
 ## Phase 4: install (you run this)
 
 ```sh
-bash ~/jarvis/scripts/install.sh --yes <flags>
+bash ~/cntrl/scripts/install.sh --yes <flags>
 ```
 
 This builds the venv and the web UI, installs and enables the systemd unit,
-also installs and enables the published-pages server (`jarvis-pages.service`,
-port 8090, `JARVIS_PAGES_PORT` to change it; `doctor` has an optional stage for it),
+also installs and enables the published-pages server (`cntrl-pages.service`,
+port 8090, `CNTRL_PAGES_PORT` to change it; `doctor` has an optional stage for it),
 builds the image (unless `--no-image`), sets up Gitea and Docker boxes when
 chosen and possible, and starts the service. A failed check prints its fix
 beside it. Optional steps (Gitea, Docker) only warn and carry on, so don't
@@ -234,7 +240,7 @@ With `--yes` it skips the interactive first-run setup and prints a **one-time
 setup link**, `http://<host>:<port>/setup?token=…`. Print it again any time:
 
 ```sh
-~/jarvis/.venv/bin/python -m backend.cli setup --status
+~/cntrl/.venv/bin/python -m backend.cli setup --status
 ```
 
 ---
@@ -249,7 +255,7 @@ login, the provider and key (and tests the key), and the security profile.
 **B. Their own terminal** (not yours, because the prompts are hidden):
 
 ```sh
-~/jarvis/.venv/bin/python -m backend.cli setup
+~/cntrl/.venv/bin/python -m backend.cli setup
 ```
 
 If your harness can hand the person a terminal, use it. Claude Code users can
@@ -258,7 +264,7 @@ type `! <command>` to run a command in the session themselves.
 Things you can run yourself, because no secret is involved:
 
 ```sh
-PY=~/jarvis/.venv/bin/python
+PY=~/cntrl/.venv/bin/python
 $PY -m backend.cli setup --list-providers            # provider ids for --provider
 $PY -m backend.cli setup --profile-only --yes \
     --network ask --placement shared                 # + --services / --packages if they said yes
@@ -273,7 +279,7 @@ printf '%s\n' "$KEY" | $PY -m backend.cli setup --provider-only --provider deeps
 ```
 
 For a named instance, run these from that instance's checkout. It remembers
-the instance in `.jarvis-instance`.
+the instance in `.cntrl-instance`.
 
 Optional extras, if chosen and the installer skipped them:
 
@@ -283,7 +289,7 @@ $PY -m backend.cli gitea-setup --dry-run    # then without --dry-run
 ```
 
 `gitea-setup` writes a random admin password to
-`~/.config/jarvis/gitea-admin.password`. Tell the person to change it in Gitea,
+`~/.config/cntrl/gitea-admin.password`. Tell the person to change it in Gitea,
 then delete the file.
 
 ---
@@ -291,7 +297,7 @@ then delete the file.
 ## Phase 6: verify
 
 ```sh
-~/jarvis/.venv/bin/python -m backend.cli doctor --json
+~/cntrl/.venv/bin/python -m backend.cli doctor --json
 ```
 
 This prints `ready`, `next`, and `stages[]`. Each stage has `id`, `ok`
@@ -332,11 +338,11 @@ End with a short report the person can keep:
   `who: human`
 - **Upgrading later:** `cd <dir> && git pull --ff-only && bash scripts/install.sh --yes <same flags>`
 - **The terminal client (optional):** on any computer that can reach the server,
-  `curl -fsSL http://<host>:<port>/cli/install.sh | sh`, then `jav3`, which asks
+  `curl -fsSL http://<host>:<port>/cli/install.sh | sh`, then `cntrl`, which asks
   for the line from Settings → Add computer. It keeps itself current from this
-  server: after a server upgrade (the `git pull` above) it says "a newer jav3 is
-  on the server: /update" within the hour, and `/update` in it (or `jav3 update`
-  in a shell) swaps its own file, keeping `jav3.bak-<date>` beside it, and offers
+  server: after a server upgrade (the `git pull` above) it says "a newer cntrl is
+  on the server: /update" within the hour, and `/update` in it (or `cntrl update`
+  in a shell) swaps its own file, keeping `cntrl.bak-<date>` beside it, and offers
   to restart into it (open tabs and chats come back). It never touches its launcher or its venv, refuses to run from
   a git checkout (use `git pull` there), and when the new client needs newer
   libraries it prints the installer line above instead: re-running that line is
@@ -358,7 +364,7 @@ End with a short report the person can keep:
 | `/setup` says it needs the one-time link | `setup --status` prints the link with the token. |
 | Docker "permission denied" | The user isn't in the `docker` group. That's the person's call (the docker group is effectively root). |
 | a Docker box's `--memory` is ignored (Raspberry Pi) | The kernel boots with the memory cgroup off. Fixing it means editing `/boot/firmware/cmdline.txt` and rebooting: the person's call. |
-| `doctor` says a Gitea account "cannot open every repo yet" | A person's Gitea account was enabled or made outside Jav3. Run `$PY -m backend.cli gitea-setup --access` (add `--dry-run` to preview). It only adds read access. |
+| `doctor` says a Gitea account "cannot open every repo yet" | A person's Gitea account was enabled or made outside CNTRL. Run `$PY -m backend.cli gitea-setup --access` (add `--dry-run` to preview). It only adds read access. |
 | disk full during the image build | Pick a state dir on a bigger disk (`--state-dir`), then re-run. |
 
 Anything else: stop and report the exact command and output. Don't improvise
@@ -371,22 +377,22 @@ around it (ground rule 6).
 The one-line install, run as the user the server will run as (not root):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Grindlewalt/Jav3/main/scripts/bootstrap.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Grindlewalt/cntrl/main/scripts/bootstrap.sh | sh
 ```
 
-It clones to `~/jarvis` (`JARVIS_DIR=...` to change that) and runs
+It clones to `~/cntrl` (`CNTRL_DIR=...` to change that) and runs
 `scripts/install.sh`. That checks the machine, prints the one `sudo` command if
 root steps are owed, installs, and walks you through the login and provider.
 Installer flags pass through: `| sh -s -- --port 8780 --no-gitea`.
 
 Or have your coding agent do it. Paste this into Claude Code, Codex, OpenCode,
-OpenClaw or similar, on the machine that will host Jav3:
+OpenClaw or similar, on the machine that will host CNTRL:
 
-> You are installing and configuring Jav3, a self-hosted AI agent harness (a
+> You are installing and configuring CNTRL, a self-hosted AI agent harness (a
 > server that runs AI agents inside a KVM or Docker sandbox, with the model key
 > held on the host, an egress proxy and approval gates), on this Linux machine
 > for me. First fetch and read the whole guide at
-> https://raw.githubusercontent.com/Grindlewalt/Jav3/main/docs/AGENT-INSTALL.md
+> https://raw.githubusercontent.com/Grindlewalt/cntrl/main/docs/AGENT-INSTALL.md
 > and follow it exactly: look around read-only, ask me its setup questions and
 > wait for my go before changing anything, never use sudo, reboot or touch
 > other services without my OK, let me type every password and API key myself,

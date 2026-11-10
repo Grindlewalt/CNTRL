@@ -1,6 +1,6 @@
 """Read-only git smart-HTTP: serve each project's own repo so the operator can
 
-    git clone http://<jav3-host>/git/<slug>
+    git clone http://<cntrl-host>/git/<slug>
     git pull   (thereafter)
 
 over the LAN — no Gitea, no tokens, no external server. Every project is already
@@ -8,7 +8,7 @@ a git repo on disk (`projects/<slug>`, git-initialised at creation), so this jus
 speaks git's HTTP transport against it.
 
 Pull-only by design: only `git-upload-pack` (clone/fetch) is served; a push
-(`git-receive-pack`) is refused. Projects are written THROUGH Jav3, not by
+(`git-receive-pack`) is refused. Projects are written THROUGH CNTRL, not by
 pushing git — so nothing here needs write access, and the attack surface stays a
 read of already-committed content. Gated by HTTP Basic against the same user
 store as the rest of the app (git prompts once and caches), so project source
@@ -51,7 +51,7 @@ def _repo_dir(slug: str):
 
 
 _UNAUTH = HTTPException(status_code=401, detail="authentication required",
-                        headers={"WWW-Authenticate": 'Basic realm="Jav3 git"'})
+                        headers={"WWW-Authenticate": 'Basic realm="CNTRL git"'})
 
 
 async def _require_basic(request: Request) -> None:
@@ -93,7 +93,7 @@ async def index(request: Request) -> str:
     _guard_enabled()
     await _require_basic(request)
     base = str(request.base_url).rstrip("/")
-    lines = ["Jav3 projects available over git (read-only):", ""]
+    lines = ["CNTRL projects available over git (read-only):", ""]
     slugs = []
     if settings.projects_dir.is_dir():
         for d in sorted(settings.projects_dir.iterdir()):

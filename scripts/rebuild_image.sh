@@ -6,7 +6,7 @@
 # edit. Runs standalone (works even if the app is down); driven by the timer.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-# the images live in the state dir, wherever that resolves (JARVIS_STATE_DIR)
+# the images live in the state dir, wherever that resolves (CNTRL_STATE_DIR)
 VM_DIR="$(.venv/bin/python -m backend.cli paths vm_dir)"
 export VM_DIR
 
@@ -15,7 +15,7 @@ latest=$(ls "$VM_DIR"/base-v*.qcow2 2>/dev/null \
 next=$(( ${latest:-0} + 1 ))
 echo "[rebuild] building golden image v${next} (current highest: v${latest:-none})"
 
-JARVIS_VM_IMAGE_VERSION="v${next}" bash vm/build_base.sh
+CNTRL_VM_IMAGE_VERSION="v${next}" bash vm/build_base.sh
 
 if [[ -f "$VM_DIR/base-v${next}.qcow2" ]]; then
   echo "[rebuild] built base-v${next}.qcow2 — auto-activates on next guest boot"

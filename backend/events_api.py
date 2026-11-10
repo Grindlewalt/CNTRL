@@ -1,7 +1,7 @@
 """GET /api/events — every long-lived feed on ONE connection.
 
 A browser allows six HTTP/1.1 connections per host, shared by all its tabs, and
-each Jav3 tab used to hold three or four feeds open for its whole life. Two
+each CNTRL tab used to hold three or four feeds open for its whole life. Two
 tabs over plain http and every ordinary fetch queued forever. The SPA now opens
 this endpoint once per browser (a leader tab, frontend/src/events.js) and fans
 the events out to its tabs over a BroadcastChannel.

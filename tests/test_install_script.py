@@ -52,7 +52,7 @@ def test_check_runs_to_the_end(tmp_path, args):
 @needs_bash
 def test_named_instance_uses_its_own_config_dir(tmp_path):
     out = run(tmp_path, "--check", "--name", "x").stdout
-    assert ".config/jarvis-x/env" in out and "jarvis-x.service" in out
+    assert ".config/cntrl-x/env" in out and "cntrl-x.service" in out
 
 
 @needs_bash
@@ -71,7 +71,7 @@ def test_bad_args_are_named(tmp_path, args, msg):
 
 @needs_bash
 def test_foreign_config_dir_is_a_conflict(tmp_path):
-    cfg = tmp_path / ".config" / "jarvis"
+    cfg = tmp_path / ".config" / "cntrl"
     cfg.mkdir(parents=True)
     (cfg / "config.yaml").write_text("other: app\n")
     out = run(tmp_path, "--check").stdout
@@ -79,8 +79,19 @@ def test_foreign_config_dir_is_a_conflict(tmp_path):
 
 
 @needs_bash
+def test_the_terminal_clients_files_are_not_a_conflict(tmp_path):
+    # the client keeps its credentials in ~/.config/cntrl too
+    cfg = tmp_path / ".config" / "cntrl"
+    cfg.mkdir(parents=True)
+    (cfg / "credentials.json").write_text("{}")
+    (cfg / "themes").mkdir()
+    out = run(tmp_path, "--check").stdout
+    assert "already holds files from something else" not in out
+
+
+@needs_bash
 def test_conflict_does_not_also_advise_creating_the_env(tmp_path):
-    cfg = tmp_path / ".config" / "jarvis"
+    cfg = tmp_path / ".config" / "cntrl"
     cfg.mkdir(parents=True)
     (cfg / "config.yaml").write_text("other: app\n")
     out = run(tmp_path, "--check").stdout
@@ -208,6 +219,8 @@ def test_check_json_is_one_object_on_stdout(tmp_path, args):
               "conflict", "missing_packages", "root_command", "problems", "warnings"):
         assert k in d, k
     assert d["port"] == (8780 if "8780" in args else 8000)
+    from backend.version import __version__
+    assert d["version"] == __version__ and d["unit"] == "cntrl"
     assert all(set(p) == {"message", "fix"} for p in d["problems"])
     assert "MISS" in r.stderr or d["ready"]     # the human report moved to stderr
 

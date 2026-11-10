@@ -224,7 +224,7 @@ NOT_LISTED = "host not on the allowlist (queued for approval)"
 # queueing them, and an old queued row (or a bulk approve) refuses them, so the
 # queue never offers an Allow that would do nothing (WEB-08: the box gateway
 # 10.201.0.1 sat in "Waiting for you" beside pypi.org).
-HOST_REFUSED = "that is the Jav3 host itself: boxes are never let through to it"
+HOST_REFUSED = "that is the CNTRL host itself: boxes are never let through to it"
 PRIVATE_REFUSED = ("a private or reserved address: boxes reach the LAN only through "
                    "the project's LAN access, so an allowlist entry would do nothing")
 

@@ -1,4 +1,4 @@
-"""GUI access to Jav3's memory files: list, read, edit, create notes."""
+"""GUI access to CNTRL's memory files: list, read, edit, create notes."""
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 

@@ -77,8 +77,8 @@ async def rev(git_dir: Path, name: str) -> str | None:
 
 
 def _who() -> dict[str, str]:
-    return {"GIT_AUTHOR_NAME": "Jav3", "GIT_AUTHOR_EMAIL": settings.git_author_email,
-            "GIT_COMMITTER_NAME": "Jav3", "GIT_COMMITTER_EMAIL": settings.git_author_email}
+    return {"GIT_AUTHOR_NAME": "CNTRL", "GIT_AUTHOR_EMAIL": settings.git_author_email,
+            "GIT_COMMITTER_NAME": "CNTRL", "GIT_COMMITTER_EMAIL": settings.git_author_email}
 
 
 # one snapshot at a time per (git dir, ref): the compare-and-swap below would catch a
@@ -139,6 +139,6 @@ async def snapshot(git_dir: Path, work_tree: Path, ref: str, message: str, *,
             args += ["-p", p]
         _, sha, _ = await git(git_dir, *args, env=_who(), stdin=message.encode(), check=True)
         sha = sha.strip()
-        await git(git_dir, "update-ref", "-m", "jav3 snapshot", ref, sha, tip or ZERO,
+        await git(git_dir, "update-ref", "-m", "cntrl snapshot", ref, sha, tip or ZERO,
                   check=True)
         return sha

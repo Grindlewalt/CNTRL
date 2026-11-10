@@ -1,4 +1,4 @@
-"""Back up / restore Jav3's durable state with rclone (https://rclone.org, MIT).
+"""Back up / restore CNTRL's durable state with rclone (https://rclone.org, MIT).
 
 What goes up, under the configured remote path:
   memory/ projects/ agents/ skills/   `rclone sync` of each state dir
@@ -17,7 +17,7 @@ line. Neither configured = the backup refuses.
 
 The rclone config itself stays the user's, at rclone's default path. The
 settings in backend/config.py are defaults; PUT /api/backup/config overlays them
-in ~/.config/jarvis/backup.json (0600, next to the env file and outside the
+in ~/.config/cntrl/backup.json (0600, next to the env file and outside the
 state dir, so it is not itself backed up in the clear).
 """
 import asyncio
@@ -50,7 +50,7 @@ CRYPT_NAME = "JAV3CRYPT"          # the on-the-fly crypt remote's config name
 # A pointer rather than a distro command: the install differs per system.
 INSTALL_HINT = "see https://rclone.org/install/"
 # Restoring must never plant executable git hooks: a restored project's
-# .git/hooks would run on the HOST the next time Jav3 commits there, so a
+# .git/hooks would run on the HOST the next time CNTRL commits there, so a
 # tampered remote would be code execution. Hooks are never backed up either.
 GIT_HOOKS = "**/.git/hooks/**"
 # The rclone setting names a program the server will EXECUTE. Only rclone
@@ -191,7 +191,7 @@ def _secret_files() -> dict[str, Path]:
 
 def _preflight(cfg: dict) -> str:
     if not valid_remote(cfg["remote"]):
-        raise BackupError("no backup remote configured (e.g. myremote:jav3-backup)")
+        raise BackupError("no backup remote configured (e.g. myremote:cntrl-backup)")
     if not valid_rclone(cfg["rclone"] or "rclone"):
         raise BackupError("the rclone setting must be `rclone` or an absolute "
                           "path to an rclone binary")
@@ -311,7 +311,7 @@ def next_scheduled() -> str | None:
     timer, and where set it is a locale-shaped "Thu … BST" nothing parses."""
     try:
         r = subprocess.run(["systemctl", "--user", "list-timers",
-                            "jarvis-backup.timer", "--all", "-o", "json"],
+                            "cntrl-backup.timer", "--all", "-o", "json"],
                            capture_output=True, text=True, timeout=5)
     except (OSError, subprocess.SubprocessError):
         return None
@@ -348,7 +348,7 @@ def restore(from_remote: str | None = None, to_dir: Path | None = None,
             include_secrets: bool | None = None, force: bool = False) -> list[str]:
     """Pull a backup into a state-dir layout at `to_dir` (default: the
     configured state dir). Refuses to land on existing state unless `force`,
-    and refuses while Jav3 runs on it. Restored secrets are installed only
+    and refuses while CNTRL runs on it. Restored secrets are installed only
     where no file exists yet; otherwise they wait in data/.restored-secrets/."""
     cfg = load_config()
     remote = from_remote or cfg["remote"]
@@ -362,7 +362,7 @@ def restore(from_remote: str | None = None, to_dir: Path | None = None,
         raise BackupError(f"rclone is not installed — {INSTALL_HINT}")
     to = Path(to_dir or settings.state_dir).expanduser().resolve()
     if has_any_state(to) and not force:
-        raise BackupError(f"{to} already holds Jav3 state — refusing to "
+        raise BackupError(f"{to} already holds CNTRL state — refusing to "
                           "overwrite it (pass --force to restore over it)")
     why = service_busy(to / "data" / "jarvis.db")
     if why:

@@ -25,7 +25,7 @@ GUI_CHAN = "gui"
 
 # --- who is listening ---------------------------------------------------------
 #
-# Every open Jav3 tab used to be one anonymous subscriber, and a push went to
+# Every open CNTRL tab used to be one anonymous subscriber, and a push went to
 # all of them. For a toast that is right. For MUSIC it is not: asking for a song
 # started it on the laptop, the desktop and the phone at once, all slightly out
 # of sync, and there was no way to say which one you meant because none of them
@@ -147,7 +147,7 @@ def resolve_tab(want: str | None, asked_from: str | None = None) -> tuple[str | 
             return hit[0]["id"], hit[0]["name"]
         if not hit:
             open_now = ", ".join(t["name"] for t in tab_list()) or "none"
-            return None, f"no open Jav3 tab matches {want!r} (open: {open_now})"
+            return None, f"no open CNTRL tab matches {want!r} (open: {open_now})"
         return None, (f"{want!r} matches several open tabs: "
                       + ", ".join(t["name"] for t in hit))
     if asked_from and asked_from in _tabs:
@@ -164,8 +164,8 @@ def resolve_tab(want: str | None, asked_from: str | None = None) -> tuple[str | 
         # deploy that added them. Refusing here would make music silently stop
         # working until every browser was reloaded, so this is the one case
         # where the old behaviour is still the right answer. "" means broadcast.
-        return "", "every open tab (an older Jav3 page — reload it to name it)"
-    return None, "no Jav3 tab is open"
+        return "", "every open tab (an older CNTRL page — reload it to name it)"
+    return None, "no CNTRL tab is open"
 
 
 def push(event: dict, tab: str | None = None) -> int:
@@ -263,7 +263,7 @@ def player_push(action: str, tab: str | None = None, **fields) -> int:
 
 
 def stream_url(track_id) -> str:
-    """Where the browser fetches a library track — Jav3's own origin, which
+    """Where the browser fetches a library track — CNTRL's own origin, which
     proxies the bytes (media_api.tarmac_stream)."""
     return f"/api/media/tarmac/stream/{int(track_id)}"
 
@@ -286,7 +286,7 @@ def media_src(source: str, slug: str | None) -> tuple[str | None, str | None]:
             return None, (
                 f"host '{host}' is not on the media allowlist "
                 f"({', '.join(allowed) or 'empty'}) — the browser would block it. "
-                "The operator can extend JARVIS_MEDIA_HOSTS in the config.")
+                "The operator can extend CNTRL_MEDIA_HOSTS in the config.")
         return s, None
     if not slug:
         return None, ("no active project to resolve that file path against — "
@@ -450,5 +450,5 @@ async def gui_conn_tabs(conn: str, body: ConnTabs):
 
 @router.get("/tabs")
 async def gui_tabs():
-    """Which Jav3 tabs are open, to show and rename."""
+    """Which CNTRL tabs are open, to show and rename."""
     return {"tabs": tab_list()}

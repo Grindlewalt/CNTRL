@@ -192,7 +192,7 @@ def validate_request(args: dict) -> dict:
         if (not isinstance(port, int) or isinstance(port, bool)
                 or not 1024 <= port <= 65535 or port in _RESERVED_PORTS):
             raise ServiceError(f"ports: {port!r} must be 1024..65535 and not "
-                               "one of Jav3's own")
+                               "one of CNTRL's own")
         if port in seen:
             raise ServiceError(f"ports: {port} listed twice")
         seen.add(port)
@@ -578,7 +578,7 @@ def check_exposure(row: dict, expose_ports: list) -> list[dict]:
     """The operator's exposure choice, validated against the request: only a
     port the agent asked to expose, bound no wider than it asked (host ->
     loopback only; lan -> loopback or lan), lan only while services_lan_ip is
-    set and is not an address Jav3 itself uses."""
+    set and is not an address CNTRL itself uses."""
     if not isinstance(expose_ports, list):
         raise ServiceError("expose_ports: a list of {port, bind}", 422)
     asked = {p["port"]: p["expose"] for p in row["ports"]}

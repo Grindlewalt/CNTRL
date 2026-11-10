@@ -36,9 +36,10 @@ def test_desktop_recipe_adds_the_display_stack_and_the_jav3_cli_libs():
                 "xvfb", "chromium", "scrot", "python3-pil"):       # the old ones stay
         assert ("apt", apt) in have, apt
     assert r["min_mem_mb"] == 1280 and r["from"] == "main"
-    # exact pins (the recipe takes no ranges) inside the jav3 client's own ranges
+    # exact pins (the recipe takes no ranges) inside the cntrl client's own ranges
     from packaging.specifiers import SpecifierSet
-    install = (ROOT / "clients/jav3cli/install.sh").read_text()
+    from client_paths import CLI_INSTALL
+    install = CLI_INSTALL.read_text()
     for name, var in (("httpx", "HTTPX_SPEC"), ("textual", "TUI_SPECS")):
         spec = re.search(rf"^{var}='{name}([^']+)'", install, re.M).group(1)
         assert have[("pip", name)] in SpecifierSet(spec), (name, spec)

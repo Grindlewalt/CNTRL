@@ -1,6 +1,6 @@
 # Voice desktop mode
 
-Hands-free Jav3: you talk, he talks back, and interrupting him works the
+Hands-free CNTRL: you talk, he talks back, and interrupting him works the
 way interrupting a person does. The full agent is underneath — voice turns
 ARE chat turns (same persistence, budget, project binding), so
 everything a typed conversation can do, a spoken one can too.
@@ -50,7 +50,7 @@ transcribes what the mic heard.
 
 The verdict is **evidence, not word count** (2026-08-09). It used to be "the
 transcript came back non-empty", which is how someone playing guitar in the
-same room could stop Jav3 mid-sentence: the RMS gate trips on any loud
+same room could stop CNTRL mid-sentence: the RMS gate trips on any loud
 sound, whisper is handed music and returns fluent invented words, and
 non-empty text read as the operator talking. The sidecar now reports what it
 actually knows and `VoiceSession._is_interrupt` weighs all of it:
@@ -104,7 +104,7 @@ both threads are visible in the sidebar.
 
 ## The local fast tier
 
-With `JARVIS_VOICE_LOCAL_MODEL` set (`gemma-4:12b` since 2026-08-04), voice turns run on
+With `CNTRL_VOICE_LOCAL_MODEL` set (`gemma-4:12b` since 2026-08-04), voice turns run on
 the operator's own ollama box by default — conversation, media control,
 quick questions: no API cost, first token in ~120 ms over the LAN. Three ways a turn reaches
 DeepSeek instead:
@@ -255,19 +255,19 @@ box regardless of prompt size, flags, batch size or CUDA graphs (CPU-only is
 
 ## Configuration
 
-Pi (`~/.config/jarvis/env`):
+Pi (`~/.config/cntrl/env`):
 
 ```
-JARVIS_VOICE_ENABLED=true
-JARVIS_VOICE_SIDECAR_URL=ws://10.0.0.58:8100/ws
-JARVIS_VOICE_SIDECAR_TOKEN=<the sidecar's VOICEBOX_TOKEN>
-JARVIS_VOICE_LOCAL_MODEL=gemma-4:12b
-JARVIS_VOICE_LOCAL_BASE_URL=http://10.0.0.58:11436/v1
-# JARVIS_VOICE_MAX_WORKERS=3
+CNTRL_VOICE_ENABLED=true
+CNTRL_VOICE_SIDECAR_URL=ws://10.0.0.58:8100/ws
+CNTRL_VOICE_SIDECAR_TOKEN=<the sidecar's VOICEBOX_TOKEN>
+CNTRL_VOICE_LOCAL_MODEL=gemma-4:12b
+CNTRL_VOICE_LOCAL_BASE_URL=http://10.0.0.58:11436/v1
+# CNTRL_VOICE_MAX_WORKERS=3
 # quiet hours for the double clap — "hey Jav3" is NOT gated (see below)
-# JARVIS_VOICE_CLAP_CURFEW=true
-# JARVIS_VOICE_CLAP_CURFEW_START=22:30
-# JARVIS_VOICE_CLAP_CURFEW_END=07:30
+# CNTRL_VOICE_CLAP_CURFEW=true
+# CNTRL_VOICE_CLAP_CURFEW_START=22:30
+# CNTRL_VOICE_CLAP_CURFEW_END=07:30
 ```
 
 Sidecar (`VOICEBOX_*`, on the main server):
@@ -288,7 +288,7 @@ The clap is the one trigger with no words in it and no confirmation step — a
 dropped book at 3 a.m. starts music. Between 22:30 and 07:30 the gesture is
 ignored (`voice.in_clap_curfew`, window wraps midnight). "Hey Jav3" is
 deliberately *not* gated: it takes a deliberate spoken sentence to fire, so it
-cannot go off by accident, and Jav3 should still work at night.
+cannot go off by accident, and CNTRL should still work at night.
 
 ### STT: why `large-v3-turbo` and adaptive endpointing (2026-08-09)
 
@@ -326,7 +326,7 @@ comes after a full sentence:
 | flat 500 ms | 0/12 | 272 ms |
 | **adaptive 300/500 over 1200 ms** | **0/12** | **92 ms** |
 
-**Vocabulary is pushed, not configured.** The sidecar holds no Jav3 state,
+**Vocabulary is pushed, not configured.** The sidecar holds no CNTRL state,
 so on every connect the Pi sends `{"type":"vocab","words":[…]}` — the music
 library's titles and artists plus project names — and whisper biases its
 decode toward them (WER 4.6% → 2.7% on whole utterances, no invented terms).

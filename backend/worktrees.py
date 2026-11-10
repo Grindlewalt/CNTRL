@@ -103,7 +103,7 @@ async def base_snapshot(slug: str, job_id: str | int) -> str:
     head = await gitsafe.rev(gd, "HEAD")
     sha = await gitsafe.rev(gd, ref)
     if not sha:
-        sha = await gitsafe.snapshot(gd, wt, ref, "jav3 job base", start="HEAD")
+        sha = await gitsafe.snapshot(gd, wt, ref, "cntrl job base", start="HEAD")
         if sha is None:
             sha = head
             if head:

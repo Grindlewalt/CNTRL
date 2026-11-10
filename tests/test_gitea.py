@@ -344,7 +344,7 @@ async def test_gitea_api_operator_only(client, fake):
     assert any(u["login"] == "friend" and u["prohibit_login"] for u in fake.users)
     assert (await client.post("/api/gitea/users/friend/password",
                               json={"password": "short"})).status_code == 400
-    # Jav3's own accounts are not editable from here
+    # CNTRL's own accounts are not editable from here
     assert (await client.post("/api/gitea/users/jav3-agent/disable",
                               json={"disabled": True})).status_code == 400
     users = (await client.get("/api/gitea/users")).json()["users"]
@@ -376,7 +376,7 @@ def test_setup_dry_run_changes_nothing(tmp_env, monkeypatch, capsys):
     assert "would: download https://dl.gitea.com/gitea/1.27.3/" in out
     assert "would: create Gitea user operator (admin)" in out
     assert "would: create Gitea user jav3-agent" in out
-    assert "JARVIS_GITEA_ENABLED" in out and "nothing was changed" in out
+    assert "CNTRL_GITEA_ENABLED" in out and "nothing was changed" in out
     assert not (tmp_env / "gitea").exists() and not (tmp_env / "env").exists()
     assert not (tmp_env / "admin.tok").exists()
 

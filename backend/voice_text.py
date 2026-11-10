@@ -46,11 +46,11 @@ ESCALATE_PREFIX = "[ESCALATE]"
 LOCAL_NOTES_MAX = 240
 
 # The local tier gets a slim context that drops the behaviour bank, so without
-# this it does not know what Jav3 IS — and a model that doesn't know the
+# this it does not know what CNTRL IS — and a model that doesn't know the
 # system has a capability says "I can't do that" instead of escalating. This is
 # the capability map in the smallest form that still routes correctly.
 VOICE_CAPABILITIES = """\
-# What Jav3 can do (you are his fast tier, not all of him)
+# What CNTRL can do (you are its fast tier, not all of it)
 You handle directly: conversation, music and video playback, volume and
 playback control in the music player, and quick web lookups.
 The wider system — which the smart model drives, so ESCALATE rather than

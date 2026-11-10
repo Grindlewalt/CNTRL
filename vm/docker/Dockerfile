@@ -1,4 +1,4 @@
-# Jav3 docker box image (WP8). Build (on the host that runs the boxes):
+# CNTRL docker box image (WP8). Build (on the host that runs the boxes):
 #   docker build -t jav3-guest-turn:latest vm/docker
 #   docker tag jav3-guest-turn:latest jav3-guest-svc:latest      # until WP3 needs more
 #   docker tag jav3-guest-turn:latest jav3-guest-builder:latest

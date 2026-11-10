@@ -4,8 +4,8 @@
                                       [--state-dir DIR] [--dry-run]
 
 Loads the same settings, provider state and secrets store the server would
-(backend.config: JARVIS_CONFIG_DIR / ~/.config/jarvis/{env,secrets.json},
-state under JARVIS_STATE_DIR / ~/.local/share/jarvis), lists the image-capable
+(backend.config: CNTRL_CONFIG_DIR / ~/.config/cntrl/{env,secrets.json},
+state under CNTRL_STATE_DIR / ~/.local/share/cntrl), lists the image-capable
 candidates, asks each one to find every sampled target on the labelled
 fixtures (backend/grounding_fixtures.py), then prints the ranking, the misses
 and where grounding.json went.

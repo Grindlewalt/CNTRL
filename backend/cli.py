@@ -143,7 +143,7 @@ def guest_shell(slug: str | None) -> None:
 
 
 def services_check() -> None:
-    """Which companion services (derived from JARVIS_SERVICES_HOST unless set
+    """Which companion services (derived from CNTRL_SERVICES_HOST unless set
     explicitly) answer a 1s TCP connect from here."""
     from .config import settings
     from .lan import probe

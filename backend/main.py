@@ -23,6 +23,7 @@ from .agent.tools.registry import compile_registry
 from .auth import require_user
 from .config import settings, ensure_dirs
 from .db import init_db
+from .version import __version__
 from .memory import ensure_memory_seeds
 from .vm.egress_proxy import proxy as egress_proxy
 from .vm.gateway_server import gateway
@@ -40,7 +41,7 @@ def require_single_process(env=None) -> None:
     raw = (os.environ if env is None else env).get("WEB_CONCURRENCY", "").strip()
     if raw not in ("", "1"):
         raise RuntimeError(
-            f"WEB_CONCURRENCY={raw!r}: Jav3 must run as a single process "
+            f"WEB_CONCURRENCY={raw!r}: CNTRL must run as a single process "
             "(in-memory login codes, throttles and live turns). Unset it or set "
             "it to 1; the systemd unit passes --workers 1.")
 
@@ -57,12 +58,12 @@ def _warn_missing_guest_devices() -> None:
     if settings.docker_enabled and settings.vm_boxes_enabled:
         # Docker boxes need neither: only a project that runs in the shared KVM
         # guest fails here
-        logging.getLogger("jav3").warning(
+        logging.getLogger("cntrl").warning(
             "no %s: KVM guests are unavailable, so agent turns run in Docker boxes "
             "only; a project that runs in the shared box will fail until it is given "
             "its own box on the docker runtime (Runs in)", " or ".join(missing))
         return
-    logging.getLogger("jav3").warning(
+    logging.getLogger("cntrl").warning(
         "no %s: the web UI works, but agent turns will fail until KVM and "
         "vhost_vsock are available (bash scripts/install.sh --check says why)",
         " or ".join(missing))
@@ -78,11 +79,11 @@ async def _announce_setup_link() -> None:
             setup_api.drop_setup_token()
             return
         from .cli import server_urls
-        logging.getLogger("jav3").warning(
+        logging.getLogger("cntrl").warning(
             "first-run setup is open: finish it at %s",
             setup_api.setup_link(server_urls()[0]))
     except Exception:          # noqa: BLE001 — a hint is never fatal
-        logging.getLogger("jav3").exception("could not announce the setup link")
+        logging.getLogger("cntrl").exception("could not announce the setup link")
 
 
 @asynccontextmanager
@@ -147,12 +148,12 @@ async def lifespan(app: FastAPI):
             await vm.net_down()
 
 
-app = FastAPI(title="Jav3", lifespan=lifespan)
+app = FastAPI(title="CNTRL", version=__version__, lifespan=lifespan)
 
 
 @app.middleware("http")
 async def _security_headers(request, call_next):
-    """Refuse to be framed by another origin (SAMEORIGIN still allows Jav3's
+    """Refuse to be framed by another origin (SAMEORIGIN still allows CNTRL's
     own same-origin previews), so a cookie-authed one-click action — revoking a
     device, minting a login code — can't be clickjacked from a sibling site. Cheap, and it hardens the whole SPA at once."""
     resp = await call_next(request)
@@ -236,7 +237,7 @@ app.include_router(display_api.router)
 
 @app.get("/api/health")
 async def health():
-    return {"ok": True}
+    return {"ok": True, "version": __version__}
 
 
 class ModelSelect(BaseModel):

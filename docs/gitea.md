@@ -1,6 +1,6 @@
-# Gitea on the Jav3 host
+# Gitea on the CNTRL host
 
-Jav3 can run a private [Gitea](https://gitea.com) next to itself so agents
+CNTRL can run a private [Gitea](https://gitea.com) next to itself so agents
 propose work as pull requests and the operator reviews and merges them.
 
 ## Setting it up
@@ -9,7 +9,7 @@ The installer does it by default (`scripts/install.sh`; skip it with
 `--no-gitea`, preview it with `--gitea-dry-run`). On an existing install:
 
     .venv/bin/python -m backend.cli gitea-setup [--dry-run] [--user NAME] [--port N]
-    systemctl --user restart jarvis
+    systemctl --user restart cntrl
 
 What it does, each step skipped when already done (a re-run is safe):
 
@@ -20,16 +20,18 @@ What it does, each step skipped when already done (a re-run is safe):
 2. Writes `<state_dir>/gitea/custom/conf/app.ini` once: SQLite, HTTP on
    `0.0.0.0:<port>` (default 3000), SSH off, `INSTALL_LOCK`,
    `DISABLE_REGISTRATION`, `REQUIRE_SIGNIN_VIEW`, `OFFLINE_MODE`.
-3. Creates the operator's admin account (the same username as the first Jav3
-   login) and the `jav3-agent` bot. The password is prompted (type your Jav3
+3. Creates the operator's admin account (the same username as the first CNTRL
+   login) and the `jav3-agent` bot. The password is prompted (type your CNTRL
    password to reuse it) or read from `--password-stdin`. Without a terminal, a
-   random one goes 0600 to `~/.config/jarvis/gitea-admin.password` and Gitea
+   random one goes 0600 to `~/.config/cntrl/gitea-admin.password` and Gitea
    asks for a new one at first sign-in.
-4. Mints an API token for each: `~/.config/jarvis/gitea-admin.token` and
+4. Mints an API token for each: `~/.config/cntrl/gitea-admin.token` and
    `gitea-bot.token`, both 0600. A token that still works is kept.
-5. Installs and starts `jav3-gitea-<port>.service` (systemd --user).
-6. Writes `JARVIS_GITEA_ENABLED=true`, `JARVIS_GITEA_OWNER`,
-   `JARVIS_GITEA_PORT` to `~/.config/jarvis/env`, then creates a repo for each
+5. Installs and starts `cntrl-gitea-<port>.service` (systemd --user). A
+   Gitea set up before the rename to CNTRL ran as `jav3-gitea-<port>`: that
+   unit is stopped, disabled and removed first; its data and config stay.
+6. Writes `CNTRL_GITEA_ENABLED=true`, `CNTRL_GITEA_OWNER`,
+   `CNTRL_GITEA_PORT` to `~/.config/cntrl/env`, then creates a repo for each
    project.
 7. Makes every enabled account a read collaborator on every repo (see Access).
 
@@ -40,8 +42,8 @@ nothing else. Use it after enabling an account in Gitea's own site admin, or whe
 
 Settings (`backend/config.py`): `gitea_enabled`, `gitea_port`, `gitea_url`
 (the address for browser links; empty means `http://<first LAN IP>:<port>`, which
-does not work from outside the network: set `JARVIS_GITEA_URL` in
-`~/.config/jarvis/env` to the address you reach Gitea at, then restart Jav3),
+does not work from outside the network: set `CNTRL_GITEA_URL` in
+`~/.config/cntrl/env` to the address you reach Gitea at, then restart CNTRL),
 `gitea_owner`, `gitea_bot_user`, `gitea_dir`, and the two token paths.
 
 ## Who can open a repo
@@ -71,7 +73,7 @@ Gitea is ahead; a diverged pair is refused), the agent's pull requests (a diff,
 Approve, Reject), branches, recent commits, the Access row, and the Gitea
 accounts. Approve and Reject are the Review Center's own request routes
 (`/api/projects/<slug>/git/requests/<id>/approve|reject`): the page lists only
-requests Jav3 filed, never an arbitrary pull request in Gitea. Nothing polls:
+requests CNTRL filed, never an arbitrary pull request in Gitea. Nothing polls:
 listing the pull requests asks Gitea about each waiting one.
 
 Operator-only routes under `/api/gitea` (the password session; a device token is
@@ -81,7 +83,7 @@ refused), all host-side with the operator's token:
 - `GET /repos/<slug>/branches`, `/commits?branch=&page=&limit=`
 - `GET /repos/<slug>/pulls`: the agent's pull requests (waiting, and the last few decided)
 - `GET /repos/<slug>/pulls/<n>/diff`: capped at 20000 characters, tokens and secret
-  values replaced; only for a pull request Jav3 filed
+  values replaced; only for a pull request CNTRL filed
 - `GET /repos/<slug>/sync`, `POST /repos/<slug>/push`: host main against Gitea main, and Push main
 - `GET /repos/<slug>/access`, `PUT /repos/<slug>/access/<login>` with `{"permission": "read"|"write"}`
 - `GET /status` (adds `url_configured`), `/users` and the account routes, as before
@@ -123,7 +125,7 @@ an error.
 - Approve when Gitea is down: 502, the request stays pending. When Gitea will not
   merge: 409, the request stays pending with the reason in its `error`. Gitea
   answers `405 Please try again later` both while it checks and for good when the
-  PR conflicts with main, so Jav3 retries twice, then reads the PR's `mergeable`
+  PR conflicts with main, so CNTRL retries twice, then reads the PR's `mergeable`
   flag to say which. The usual conflict is two requests filed from the same main;
   reject the second and have the agent file a new one.
 - A PR deleted in Gitea closes its request. A commit request approved after its
@@ -133,7 +135,7 @@ an error.
 
 - Main is protected. Only the operator can push or merge, and the bot is on
   neither whitelist.
-- The bot can push branches in Gitea's model. Jav3 only ever pushes
+- The bot can push branches in Gitea's model. CNTRL only ever pushes
   `agent/*` as the bot, and checks that before running git.
 - Boxes hold no credentials and their git state is thrown away. The egress
   proxy refuses Gitea's name on any port, and loopback or host addresses on

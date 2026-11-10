@@ -1,5 +1,5 @@
 """scripts/nav_compare.py: task validation, the safety watchdog, scoring and
-the switch verdict, and a whole session against a fake Jav3 server (httpx
+the switch verdict, and a whole session against a fake CNTRL server (httpx
 MockTransport, like tests/test_cli.py) — nothing touches a real desktop."""
 import importlib.util
 import json

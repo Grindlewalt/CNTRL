@@ -281,7 +281,7 @@ def _detect_egress_proxy() -> None:
         # forwarder on loopback (box.json net.proxy), spliced to proxy.sock.
         proxy = n["proxy"]
         local = "localhost,127.0.0.1,::1"
-        os.environ["JARVIS_EGRESS_PROXY"] = proxy
+        os.environ["CNTRL_EGRESS_PROXY"] = proxy
         os.environ.update(HTTP_PROXY=proxy, HTTPS_PROXY=proxy,
                           http_proxy=proxy, https_proxy=proxy,
                           NO_PROXY=local, no_proxy=local)
@@ -299,7 +299,7 @@ def _detect_egress_proxy() -> None:
         local = ""
     if local.startswith("10.201."):
         proxy = n["proxy"]
-        os.environ["JARVIS_EGRESS_PROXY"] = proxy
+        os.environ["CNTRL_EGRESS_PROXY"] = proxy
         local = "localhost,127.0.0.1,::1"    # loopback stays in-guest, never proxied
         os.environ.update(HTTP_PROXY=proxy, HTTPS_PROXY=proxy,
                           http_proxy=proxy, https_proxy=proxy,

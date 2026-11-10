@@ -1,6 +1,6 @@
 ---
 name: browser_back
-description: Go back (or forward, with forward=true) in a Jav3 browser tab's history.
+description: Go back (or forward, with forward=true) in a CNTRL browser tab's history.
 when_to_use: To return to the previous page after following a link, instead of re-navigating by URL.
 enabled: true
 section: browser

@@ -22,7 +22,7 @@ import asyncio
 import logging
 import time
 
-log = logging.getLogger("jav3.balance")
+log = logging.getLogger("cntrl.balance")
 
 # where to add credit, by catalogue provider id; others get a generic pointer
 _TOPUP = {"deepseek": "platform.deepseek.com"}

@@ -6,7 +6,7 @@ catalogue backend/providers.py serves.
 SRC is a models.dev api.json path or URL (default https://models.dev/api.json),
 OUT defaults to backend/providers_catalog.json, DATE to today. Host-side egress
 to models.dev only when SRC is a URL. An operator's own additions belong in
-~/.config/jarvis/providers.json (merged on top at load), not in this file.
+~/.config/cntrl/providers.json (merged on top at load), not in this file.
 """
 import datetime
 import json
@@ -20,7 +20,7 @@ SRC = sys.argv[1] if len(sys.argv) > 1 else "https://models.dev/api.json"
 OUT = sys.argv[2] if len(sys.argv) > 2 else str(REPO / "backend" / "providers_catalog.json")
 DATE = sys.argv[3] if len(sys.argv) > 3 else datetime.date.today().isoformat()
 if SRC.startswith(("http://", "https://")):
-    req = urllib.request.Request(SRC, headers={"User-Agent": "jav3-refresh-providers"})
+    req = urllib.request.Request(SRC, headers={"User-Agent": "cntrl-refresh-providers"})
     with urllib.request.urlopen(req, timeout=60) as r:
         d = json.load(r)
 else:
@@ -99,7 +99,7 @@ for pid, p in d.items():
         label = m["name"]
         if m.get("status") == "deprecated":
             if pid != "deepseek": stats["dropped_deprecated"] += 1; continue
-            label += " (deprecated)"  # keep Jav3's current default id resolvable
+            label += " (deprecated)"  # keep CNTRL's current default id resolvable
         if "text" not in m["modalities"]["output"] or NONCHAT.search(mid): stats["dropped_nontext"] += 1; continue
         ov = m.get("provider") or {}
         mnpm = ov.get("npm", pnpm)

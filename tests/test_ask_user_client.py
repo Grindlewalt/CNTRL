@@ -3,11 +3,10 @@
 import importlib.machinery
 import importlib.util
 import json
-from pathlib import Path
 
 import httpx
 
-CLI = Path(__file__).resolve().parents[1] / "clients" / "jav3cli" / "jav3"
+from client_paths import CLI
 
 
 def _load():

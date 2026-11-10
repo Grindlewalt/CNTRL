@@ -826,7 +826,7 @@ async def _process_board(db, ev, detail, add) -> dict:
 # --- harness_fault -----------------------------------------------------------
 
 async def _fault_board(db, ev, detail, add) -> dict:
-    """An agent's report that one of Jav3's own tools misbehaved. The summary in
+    """An agent's report that one of CNTRL's own tools misbehaved. The summary in
     the queue is cut at 160 characters; this board has all of it."""
     cid = detail.get("conversation_id")
 
@@ -845,7 +845,7 @@ async def _fault_board(db, ev, detail, add) -> dict:
 
     await add(facts)
     return {
-        "title": "An agent reported a problem with Jav3's own tools",
+        "title": "An agent reported a problem with CNTRL's own tools",
         "why": "This is not a security alert. The agent hit a tool that errored on input "
                "it believed valid, or did not do what it says. It is a bug report.",
         "checks": ["Does the tool still do this? Ask an agent to repeat the call.",

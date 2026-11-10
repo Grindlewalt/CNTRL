@@ -30,6 +30,7 @@ from backend import desk, devicetokens, runtime
 from backend.agent import budget as budget_mod
 from backend.agent.tools import registry
 from backend.config import settings
+from client_paths import DESK
 from backend.db import get_db, init_db
 from backend.vm import boxdesk, boxes, broker
 from backend.vm.guest_pkg import build_package_tar
@@ -46,7 +47,7 @@ def _load(name, path):
     return mod
 
 
-jd = _load("jav3desk_box", ROOT / "clients" / "jav3-desk" / "jav3-desk")
+jd = _load("jav3desk_box", DESK)
 deskbox = _load("deskbox_under_test", ROOT / "guest" / "backend" / "deskbox.py")
 
 

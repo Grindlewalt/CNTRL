@@ -19,7 +19,7 @@ but a clipped utterance start costs a mis-transcription.
 
 **Why the utterance carries statistics.** An amplitude gate cannot tell a
 guitar from a person, which is how a brother playing in the same room could
-stop Jav3 mid-sentence: the browser's RMS VAD trips, whisper is handed music
+stop CNTRL mid-sentence: the browser's RMS VAD trips, whisper is handed music
 and returns confident-looking words, and the Pi treated non-empty text as the
 operator talking. Silero is a speech model, not a loudness meter — sustained
 music sits low and erratic where speech sits high and steady — so the mean

@@ -6,7 +6,7 @@ stored, so the DB never holds anything usable if it leaks; verification hashes
 the presented token and looks the hash up.
 
 A token is not forever. It stops verifying when any of these holds:
-- it was revoked (Settings -> Devices, or `jav3 logout`);
+- it was revoked (Settings -> Devices, or `cntrl logout`);
 - `expires_at` has passed (`device_token_ttl_days` after minting);
 - it went unused for `device_token_idle_days` (`last_used_at`);
 - the user it was minted for no longer exists (`user_id` joins `users`).

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-CLIENT = Path(__file__).resolve().parent.parent / "clients" / "jav3-desk" / "jav3-desk"
+from client_paths import DESK as CLIENT
 
 
 def _load():

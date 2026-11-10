@@ -38,7 +38,7 @@ def serve():
     started = []
 
     def start(**kw):
-        opts = dict(title="Jav3", command=ip.DEFAULT_COMMAND,
+        opts = dict(title="CNTRL", command=ip.DEFAULT_COMMAND,
                     bootstrap=BOOTSTRAP.read_bytes(), rate_per_minute=1000,
                     log_stream=io.StringIO())
         opts.update(kw)
@@ -87,7 +87,7 @@ def test_page_is_bare_html_with_title_and_one_liner(serve):
     assert int(h["content-length"]) == len(body)
     page = body.decode()
     assert page.startswith("<!doctype html><html lang=en><head><meta charset=utf-8>")
-    assert "<title>Jav3</title>" in page and "<h1>Jav3</h1>" in page
+    assert "<title>CNTRL</title>" in page and "<h1>CNTRL</h1>" in page
     assert f"<pre>{ip.DEFAULT_COMMAND}</pre>" in page
     for banned in ("<style", "style=", "<script", "<link", "src=", "http://", "<img"):
         assert banned not in page.replace(ip.DEFAULT_COMMAND, "")

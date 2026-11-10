@@ -66,7 +66,7 @@ async def commits(slug: str, branch: str = "main", page: int = 1, limit: int = 1
 
 @router.get("/repos/{slug}/pulls")
 async def pulls(slug: str):
-    """The agent's pull requests (Jav3's own requests of kind push), waiting
+    """The agent's pull requests (CNTRL's own requests of kind push), waiting
     and recently decided. Reconciles with Gitea, so read it on open or on a
     click, not on a timer."""
     _need()

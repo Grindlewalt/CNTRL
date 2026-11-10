@@ -33,7 +33,7 @@ from .vm.guest_turn import guest_turn
 # require_actor: the operator's cookie OR an enrolled device's Bearer token, so
 # a paired CLI can drive chat. Sensitive control-plane routers stay require_user.
 router = APIRouter(prefix="/api", tags=["chat"], dependencies=[Depends(require_actor)])
-log = logging.getLogger("jav3.chat")
+log = logging.getLogger("cntrl.chat")
 
 
 class ChatRequest(BaseModel):
@@ -49,7 +49,7 @@ class ChatRequest(BaseModel):
     # slug pins, no slug follows the globally-loaded project.
     project_mode: Literal["follow", "none", "pin"] | None = None
     # run this NEW conversation as an agent (agents/<slug>/AGENT.md) instead of
-    # as central Jav3. Like `project`, it binds at creation and is ignored for
+    # as central CNTRL. Like `project`, it binds at creation and is ignored for
     # an existing conversation: a thread's identity is what its transcript is
     # attributable to, so it must not shift mid-conversation. With no
     # project/project_mode given, the definition's own `project` pins the thread.
@@ -802,10 +802,10 @@ async def _journal_later(conversation_id: int, user_msg: str, final: str,
 
 
 def _agent_def(slug: str | None) -> dict | None:
-    """The AGENT.md behind a conversation's identity, or None for Jav3.
+    """The AGENT.md behind a conversation's identity, or None for CNTRL.
 
     A missing or unparseable definition is an ERROR, not a silent fallback:
-    running a thread the operator opened as `scout` under Jav3's own prompt
+    running a thread the operator opened as `scout` under CNTRL's own prompt
     would be the wrong agent answering under the right name. The exception
     surfaces on the turn's bus channel like any other turn failure."""
     if not slug:
@@ -841,7 +841,7 @@ async def _run_chat_turn(conversation_id: int, ephemeral: bool,
     wtoken = runtime.web_session.set(f"turn:{conversation_id}:{uuid.uuid4().hex[:8]}")
     cidtoken = runtime.conversation_id.set(conversation_id)
     # the tab this was asked from, so anything the turn plays comes out of that
-    # machine rather than every open Jav3 tab at once
+    # machine rather than every open CNTRL tab at once
     tabtoken = runtime.gui_tab.set(tab or None)
     if tab:
         gui.touch_tab(tab)
@@ -1812,7 +1812,7 @@ def _stop(conversation_id: int) -> bool:
     return True
 
 
-# Who started each in-flight turn: "device:<token id>" for a `jav3` device
+# Who started each in-flight turn: "device:<token id>" for a `cntrl` device
 # token, "session" for the operator's cookie. require_actor runs once, when the
 # POST arrives, and the turn it admits is a detached task — so revoking a device
 # token must also stop what that token already started (devices_api calls
@@ -1836,7 +1836,7 @@ def stop_actor_turns(key: str) -> int:
     return sum(_stop(cid) for cid, who in list(_turn_actors.items()) if who == key)
 
 
-# Bulk stop (/stop-all and /stop-project in the jav3 TUI). A device token stops
+# Bulk stop (/stop-all and /stop-project in the cntrl TUI). A device token stops
 # only the chat turns it started itself; the operator's session (full access)
 # stops every chat turn, interactive agent run and plan runner. Stopping a
 # parent turn cancels what it is awaiting (its agents), and each cancelled task
@@ -2055,7 +2055,7 @@ async def _post_chat(body: ChatRequest, actor: dict):
                                         detail="mode orchestrate cannot be a temporary chat")
                 if body.agent:
                     raise HTTPException(status_code=400,
-                                        detail="mode orchestrate runs as Jav3, not an agent")
+                                        detail="mode orchestrate runs as CNTRL, not an agent")
             agent_def = None
             if body.agent:
                 from .agents_api import _read as read_agent_def

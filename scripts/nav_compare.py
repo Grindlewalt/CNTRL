@@ -5,7 +5,7 @@ baseline (DeepSeek V4.1 Flash) at desktop navigation on a paired Mac?
         --agents navigator,navigator-qwen --runs 3 --tasks scripts/nav_tasks.yaml \\
         [--only id,...] [--out DIR] [--desk-pid-file FILE] [--dry-run]
 
-Runs ON the paired Mac (the one running clients/jav3-desk), against a Jav3
+Runs ON the paired Mac (the one running clients/jav3-desk), against a CNTRL
 server reached over the operator's ssh tunnel. For every (agent, task, run):
 
   setup (local shell, inside ~/jav3-nav-scratch)  ->  one agent chat turn
@@ -423,8 +423,8 @@ def stop_desk(pid_file: str | None) -> str:
             return f"SIGTERM to pid in {pid_file}"
         except (OSError, ValueError) as e:
             return f"could not signal pid in {pid_file}: {e}"
-    subprocess.run(["pkill", "-TERM", "-f", "jav3-desk"], capture_output=True)
-    return "pkill -f jav3-desk"
+    subprocess.run(["pkill", "-TERM", "-f", "(cntrl|jav3)-desk"], capture_output=True)
+    return "pkill -f '(cntrl|jav3)-desk'"
 
 
 # --- local shell (setup / check / cleanup) --------------------------------------
@@ -742,7 +742,10 @@ def probe_row(api: Api, model: str) -> dict | None:
 # --- main ----------------------------------------------------------------------
 
 def session_cookie() -> str:
-    s = json.load(open(Path.home() / ".config/jav3/credentials.json"))["session"]
+    cred = Path.home() / ".config/cntrl/credentials.json"
+    if not cred.exists():                 # a client from before the rename
+        cred = Path.home() / ".config/jav3/credentials.json"
+    s = json.load(open(cred))["session"]
     return "jarvis_token=" + (s[8:] if s.startswith("session:") else s)
 
 

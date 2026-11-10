@@ -33,5 +33,5 @@ is waiting for review, and carry on.
 
 Never run `git push`, `git remote`, or put credentials anywhere: the box has
 none, it cannot reach Gitea (curl to it will only fail), and its git state is
-thrown away. If Gitea is not set up on this Jav3, or is down, the tool says
+thrown away. If Gitea is not set up on this CNTRL, or is down, the tool says
 so and files nothing — use git_commit_request instead.

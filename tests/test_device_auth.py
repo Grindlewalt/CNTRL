@@ -257,7 +257,7 @@ async def test_revoke_kills_token_and_self_revoke(clients):
     # operator revokes #1 from Settings
     assert (await op.delete(f"/api/devices/{t1['device_id']}")).status_code == 200
     assert (await dev.get("/api/devices/whoami", headers=h1)).status_code == 401
-    # #2 revokes itself (jav3 logout) — and only itself
+    # #2 revokes itself (cntrl logout) — and only itself
     assert (await dev.delete("/api/devices/self", headers=h2)).status_code == 200
     assert (await dev.get("/api/devices/whoami", headers=h2)).status_code == 401
     # a device cannot use the operator's revoke-by-id route

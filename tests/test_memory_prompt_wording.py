@@ -22,7 +22,7 @@ def test_memory_discipline_says_curate_in_place_not_log():
 
 def test_memory_discipline_keeps_harness_behaviour_out_of_memory():
     text = " ".join(_section("Memory discipline").split())
-    assert "how Jav3's own tools or sandbox behave" in text
+    assert "how CNTRL's own tools or sandbox behave" in text
     assert "report_harness_fault" in text
 
 

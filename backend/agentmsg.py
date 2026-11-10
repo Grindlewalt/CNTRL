@@ -225,7 +225,7 @@ async def live_peers(db, *, exclude_cid: int | None = None) -> list[dict]:
         r = rows.get(cid) or {}
         item = plan_mod.live_item(cid)
         out.append({"conversation_id": cid,
-                    "agent": r.get("agent_slug") or "jav3",
+                    "agent": r.get("agent_slug") or "cntrl",
                     "kind": r.get("kind") or "chat",
                     "project": r.get("project"),
                     # a plan item is addressed by its stable item id, so the
@@ -326,7 +326,7 @@ async def _sender(db, cid: int) -> dict:
     else:
         # a plan head has no agent identity; what it sends (a nudge) comes
         # from "the orchestrator", which is what its recipient should read
-        label = r.get("agent_slug") or {"chat": "jav3", "head": "orchestrator"}.get(kind, kind)
+        label = r.get("agent_slug") or {"chat": "cntrl", "head": "orchestrator"}.get(kind, kind)
     return {"conversation_id": cid, "label": label, "project": r.get("project")}
 
 

@@ -85,7 +85,7 @@ table inet {table} {{
     }}
 
     chain forward {{
-        # policy ACCEPT: this table polices Jav3's guest taps only. A drop policy
+        # policy ACCEPT: this table polices CNTRL's guest taps only. A drop policy
         # here also dropped every other forwarded packet on the host (Docker's
         # bridge: image builds and the operator's own containers, 2026-09-27).
         type filter hook forward priority -10; policy accept;
@@ -117,11 +117,11 @@ _TAP_RE = re.compile(r"^jvtap(0|[1-9][0-9]{0,2})$")
 def instance() -> str:
     """This install's host-network instance name: "" for the default install,
     settings.instance when set, else a short hash of a non-default
-    JARVIS_CONFIG_DIR. Names the nft table, pid files, dns log and pcaps."""
+    CNTRL_CONFIG_DIR. Names the nft table, pid files, dns log and pcaps."""
     name = (settings.instance or "").strip()
     if name:
         if not _INSTANCE_RE.match(name):
-            raise ValueError(f"JARVIS_INSTANCE {name!r}: 1-12 of [a-z0-9]")
+            raise ValueError(f"CNTRL_INSTANCE {name!r}: 1-12 of [a-z0-9]")
         return name
     if config.CONFIG_DIR.resolve() != config.DEFAULT_CONFIG_DIR.resolve():
         return hashlib.sha1(str(config.CONFIG_DIR.resolve()).encode()).hexdigest()[:8]
@@ -148,8 +148,8 @@ def shared_net() -> dict:
     if instance() and (n == 0 or settings.vm_guest_cid == 3):
         raise ValueError(
             "a named instance must not use the default install's jvtap0 / CID 3: "
-            "set JARVIS_VM_EGRESS_TAP=jvtapN, JARVIS_VM_EGRESS_HOST_IP=10.201.N.1 "
-            "and JARVIS_VM_GUEST_CID")
+            "set CNTRL_VM_EGRESS_TAP=jvtapN, CNTRL_VM_EGRESS_HOST_IP=10.201.N.1 "
+            "and CNTRL_VM_GUEST_CID")
     return {"tap": tap, "host_ip": settings.vm_egress_host_ip}
 
 

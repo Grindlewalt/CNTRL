@@ -5,12 +5,12 @@ started with setsid, a container, a box directory or a socket directory can
 outlive it. `scan()` lists them with why; `clean()` removes only what it can
 positively identify as THIS server's:
 
-    container  a docker container with Jav3's label (jav3.managed=1), named
+    container  a docker container with CNTRL's label (jav3.managed=1), named
                jav3-<its jav3.box label>, whose socket bind mount is under this
-               server's <vm_dir>/sock. A container of another Jav3 install on
+               server's <vm_dir>/sock. A container of another CNTRL install on
                the same daemon (its mount elsewhere) is not listed; anything
                without the label is never looked at. The operator runs
-               portainer, jellyfin and the rest beside Jav3.
+               portainer, jellyfin and the rest beside CNTRL.
     qemu       a qemu-system-* process whose working directory is this
                server's vm_dir (the shared box) or <vm_dir>/boxes/<id>, that
                no box controller here started.
@@ -174,7 +174,7 @@ async def _containers() -> list[dict]:
         if not any(isinstance(m, dict) and m.get("Type") == "bind"
                    and _under(_resolved(m.get("Source") or "/nonexistent"), sock_root)
                    for m in ms):
-            continue                       # another Jav3 install's container
+            continue                       # another CNTRL install's container
         found.append({"name": name, "box_id": bid, "status": status})
     return found
 

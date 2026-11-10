@@ -27,7 +27,7 @@ i=${SR5_FROM:-1}
 while [ "$i" -le "$size" ]; do
   rm -rf "$work/home" "$work/ran.log"; mkdir -p "$work/home"
   head -c "$i" "$src" | env -i PATH="$work/bin:/usr/bin:/bin" HOME="$work/home" \
-    SR5_WORK="$work" JARVIS_DIR="$work/home/jarvis" sh -s -- --no-image --yes \
+    SR5_WORK="$work" CNTRL_DIR="$work/home/cntrl" sh -s -- --no-image --yes \
     >"$work/out" 2>&1
   if [ -s "$work/ran.log" ]; then
     ran=$((ran + 1))

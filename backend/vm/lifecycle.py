@@ -316,28 +316,28 @@ class GuestVM:
         run_vm = settings.base_dir / "vm" / "run_vm.sh"
         env = {**os.environ,
                "VM_DIR": str(settings.vm_dir),
-               "JARVIS_VM_BASE": _base_image().name,
-               "JARVIS_VM_MEM_MB": str(settings.vm_memory_mb),
-               "JARVIS_VM_CPUS": str(settings.vm_cpus),
-               "JARVIS_VM_CID": str(settings.vm_guest_cid),
-               "JARVIS_VM_EGRESS": "1" if settings.vm_egress else "0"}
+               "CNTRL_VM_BASE": _base_image().name,
+               "CNTRL_VM_MEM_MB": str(settings.vm_memory_mb),
+               "CNTRL_VM_CPUS": str(settings.vm_cpus),
+               "CNTRL_VM_CID": str(settings.vm_guest_cid),
+               "CNTRL_VM_EGRESS": "1" if settings.vm_egress else "0"}
         if settings.vm_egress and self.box is None:
             # the shared box attaches to ITS tap (vm_egress_tap), never a
             # hard-coded jvtap0 that may belong to another instance
             from . import boxnet
             try:
-                env["JARVIS_VM_TAP"] = boxnet.shared_net()["tap"]
+                env["CNTRL_VM_TAP"] = boxnet.shared_net()["tap"]
             except ValueError as e:
                 raise VMError(f"egress network misconfigured: {e}")
         if self.box is not None:
             # a non-shared box: its own dir, image path, CID, tap and MAC
             env.update({"VM_DIR": str(self._dir),
-                        "JARVIS_VM_BASE": str(self._image()),
-                        "JARVIS_VM_MEM_MB": str(self.box.mem_mb),
-                        "JARVIS_VM_CPUS": str(self.box.cpus),
-                        "JARVIS_VM_CID": str(self.box.cid),
-                        "JARVIS_VM_TAP": self.box.tap,
-                        "JARVIS_VM_MAC": self.box.mac})
+                        "CNTRL_VM_BASE": str(self._image()),
+                        "CNTRL_VM_MEM_MB": str(self.box.mem_mb),
+                        "CNTRL_VM_CPUS": str(self.box.cpus),
+                        "CNTRL_VM_CID": str(self.box.cid),
+                        "CNTRL_VM_TAP": self.box.tap,
+                        "CNTRL_VM_MAC": self.box.mac})
         self._proc = await asyncio.create_subprocess_exec(
             "bash", str(run_vm), env=env, preexec_fn=os.setsid,
             stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
@@ -418,7 +418,7 @@ class GuestVM:
     async def _run_rebuild(self, version: str) -> None:
         from .. import bus
         chan, script = "vm-rebuild", settings.base_dir / "vm" / "build_base.sh"
-        env = {**os.environ, "JARVIS_VM_IMAGE_VERSION": version,
+        env = {**os.environ, "CNTRL_VM_IMAGE_VERSION": version,
                "VM_DIR": str(settings.vm_dir)}
         bus.publish(chan, {"type": "rebuild", "phase": "start", "version": version})
         lines: list[str] = []

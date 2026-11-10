@@ -295,7 +295,7 @@ async def test_pull_diff_is_scrubbed_capped_and_only_for_the_agents_requests(cli
     d = (await client.get("/api/gitea/repos/demo/pulls/1/diff")).json()
     assert d["truncated"] is True and d["diff"].endswith("[truncated]")
     assert len(d["diff"]) < 80
-    # a pull request Jav3 did not file is not served, even if Gitea has it
+    # a pull request CNTRL did not file is not served, even if Gitea has it
     pg.base.pulls[9] = {"number": 9, "head": "agent/00000000", "base": "main",
                         "title": "someone else's", "state": "open", "merged": False,
                         "merge_commit_sha": None}
