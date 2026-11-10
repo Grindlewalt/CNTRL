@@ -79,8 +79,8 @@ function ImportedCard({ t, onChanged }) {
       {reason && <div className="tool-meta tool-lock">{reason}</div>}
       {/* one line: a URL broken anywhere read as "skills/weat / her" */}
       <div className="tool-meta tool-src"
-           title={[t.pin?.source, t.pin?.ref].filter(Boolean).join(' · ') || undefined}>
-        {t.pin?.source}{ref && ` · ${ref}`}
+           title={[t.pin?.source, t.pin?.ref].filter(Boolean).join(', ') || undefined}>
+        {t.pin?.source}{ref && `, ${ref}`}
       </div>
       <details className="output-fold tool-text">
         <summary>View text</summary>
@@ -131,7 +131,7 @@ function ImportBar({ onDone, onClose }) {
           method: 'POST', body: JSON.stringify({ source: link.trim() }),
         })
       }
-      const flags = r.flags?.length ? ` · ${r.flags.length} flagged` : ''
+      const flags = r.flags?.length ? `, ${r.flags.length} flagged` : ''
       notify(`Imported ${r.name} — not granted${flags}`,
              r.flags?.length ? { sev: 'warn' } : {})
       onDone()

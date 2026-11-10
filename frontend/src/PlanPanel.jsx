@@ -99,8 +99,8 @@ export default function PlanPanel({ slug, state, setState }) {
             {plan.items.length > 0 && (
               <span className="dim small plan-progress" title="items finished of all">
                 {tally.finished}/{plan.items.length} done
-                {tally.running > 0 && ` · ${tally.running} running`}
-                {tally.failed > 0 && <span className="plan-failed"> · {tally.failed} failed</span>}
+                {tally.running > 0 && `, ${tally.running} running`}
+                {tally.failed > 0 && <span className="plan-failed">, {tally.failed} failed</span>}
               </span>
             )}
             {running

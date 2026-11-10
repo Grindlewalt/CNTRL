@@ -76,9 +76,9 @@ export default function DeskPanel() {
                 <code className="desk-cmd">{p.command}</code>
               </div>
               <div className="settings-actions">
+                <Button variant="ghost" onClick={() => decide(p.id, 'deny')}>Deny</Button>
+                <Button variant="ghost" onClick={() => decide(p.id, 'always')}>Always allow</Button>
                 <Button onClick={() => decide(p.id, 'once')}>Allow once</Button>
-                <Button variant="ghost" onClick={() => decide(p.id, 'always')}>Always</Button>
-                <Button variant="ghost" danger onClick={() => decide(p.id, 'deny')}>Deny</Button>
               </div>
             </li>
           ))}

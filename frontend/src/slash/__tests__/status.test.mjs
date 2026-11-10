@@ -7,9 +7,9 @@ import {
 
 test('usageLine: tokens, cost, calls', () => {
   assert.equal(usageLine({ input_tokens: 41000, output_tokens: 1200, cost_usd: 0.004, calls: 4 }),
-               '41,000 in · 1,200 out · $0.0040 · 4 calls')
+               '41,000 in, 1,200 out, $0.0040, 4 calls')
   assert.equal(usageLine({ input_tokens: 5, output_tokens: 0, cost_usd: 0, calls: 1 }),
-               '5 in · 0 out · $0.0000 · 1 call')
+               '5 in, 0 out, $0.0000, 1 call')
   assert.equal(usageLine(null), '')
 })
 
@@ -33,7 +33,7 @@ test('boxesLine: running of all, with the RAM budget; the legacy shared VM', () 
     { id: 'p-old', kind: 'project', state: 'stopped' },
   ]
   assert.equal(boxesLine({ enabled: true, boxes, budget: { ram_mb_used: 1536, ram_mb_cap: 6144 } }),
-               '2 of 3 running: shared, p-demo · RAM 1,536 / 6,144 MB')
+               '2 of 3 running: shared, p-demo, RAM 1,536 / 6,144 MB')
   assert.equal(boxesLine({ enabled: true, boxes, budget: null }), '2 of 3 running: shared, p-demo')
   assert.equal(boxesLine({ enabled: true, boxes: [{ id: 'x', state: 'stopped' }] }),
                '0 of 1 running')
@@ -65,7 +65,7 @@ test('statusRows: the five that always answer, the rest only with something to s
   assert.deepEqual(Object.fromEntries(full), {
     server: 'https://j.example', 'signed in as': 'grant', chat: '#9 config tweak',
     model: 'Flash (deepseek/deepseek-flash)', project: 'demo', agent: 'coder',
-    usage: '41,000 in · 1,200 out · $0.0040 · 4 calls',
+    usage: '41,000 in, 1,200 out, $0.0040, 4 calls',
     context: '41,000 of 100,000 tokens (41%)', files: 'app/config.py',
     boxes: '1 of 1 running: shared',
   })

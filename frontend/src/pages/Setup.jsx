@@ -215,7 +215,7 @@ export default function Setup({ onDone }) {
                     onChange={(e) => setModel(e.target.value)}
                     options={models.map((x) => {
                       const cap = modelCaption(x)
-                      return { value: x.id, label: cap ? `${x.label} · ${cap}` : x.label }
+                      return { value: x.id, label: cap ? `${x.label}, ${cap}` : x.label }
                     })} />
           )}
           {entry && (

@@ -17,7 +17,7 @@ assert.equal(idleTimer({ ...proj, state: 'stopped' }), null)
 assert.equal(idleTimer({ ...proj, stop_action: null, stop_after_s: null }), null)
 
 assert.equal(idlePolicy({ project_stop_s: 600, shared_scrub_s: 900 }, true),
-  'project boxes stop after 10m idle · the shared box is scrubbed after 15m idle')
+  'project boxes stop after 10m idle, the shared box is scrubbed after 15m idle')
 assert.equal(idlePolicy({ project_stop_s: 600, shared_scrub_s: null }, false),
   'the shared box is never scrubbed')
 assert.equal(idlePolicy(null, true), '')

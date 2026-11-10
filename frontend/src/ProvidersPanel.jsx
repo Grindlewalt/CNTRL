@@ -340,7 +340,7 @@ function TestLine({ p, onTested }) {
     try {
       const r = await api(`/api/providers/${enc(p.id)}/test`, { method: 'POST' })
       const n = r.models_found?.length ?? 0
-      setRes(r.ok ? { ok: true, text: `ok · ${n} model${n === 1 ? '' : 's'}` }
+      setRes(r.ok ? { ok: true, text: `ok, ${n} model${n === 1 ? '' : 's'}` }
         : { ok: false, text: r.detail || 'failed' })
       if (r.ok && n) onTested()          // found models join the list
     } catch (e) {
@@ -399,7 +399,7 @@ function ModelList({ p, models: all, putModel }) {
             <li key={m.id} className="prov-model">
               <div className="prov-model-main">
                 <span className="ellipsis" title={m.id}>{m.label || m.id}</span>
-                {meta.length > 0 && <span className="dim small">{meta.join(' · ')}</span>}
+                {meta.length > 0 && <span className="dim small">{meta.join(', ')}</span>}
               </div>
               <label className={canDefault ? 'prov-default' : 'prov-default off'}
                      title={canDefault ? 'the model new turns use'

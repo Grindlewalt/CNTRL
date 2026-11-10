@@ -459,7 +459,7 @@ const routes = [
     const e = S.environments.find((x) => x.id === Number(id)) || fail(404, 'no such environment request')
     if (e.status !== 'pending') fail(409, `cannot approve a ${e.status} request`)
     return Object.assign(e, { status: 'approved', decided_by: 'operator', decided_at: now(),
-      profile: { id: 9, name: `${e.project_slug} · ${e.name}` },
+      profile: { id: 9, name: `${e.project_slug}, ${e.name}` },
       build: { version: 'v1', status: 'building', error: null }, build_started: true })
   }],
   ['POST', /^\/api\/environments\/(\d+)\/reject$/, ([id]) => {

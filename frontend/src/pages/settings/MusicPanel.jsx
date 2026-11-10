@@ -46,7 +46,7 @@ export default function MusicPanel() {
       {test && (
         <p className={`small settings-note ${test.ok ? 'dim' : 'error'}`}>
           {test.testing ? 'Asking…' : test.ok
-            ? `${test.status?.tracks ?? '?'} tracks · `
+            ? `${test.status?.tracks ?? '?'} tracks, `
               + `${test.status?.players_connected ?? 0} player(s) open`
             : test.error}
         </p>

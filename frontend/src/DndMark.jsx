@@ -24,7 +24,7 @@ export default function DndMark({ dnd }) {
             onClick={() => navigate('/settings/alerts#notifications')}>
       <span className="dnd-dot" aria-hidden="true" />
       <span>DND</span>
-      {left && <span className="dnd-left">· {left}</span>}
+      {left && <span className="dnd-left">{left}</span>}
     </button>
   )
 }

@@ -13,7 +13,7 @@ export function usageLine(info) {
   const parts = [`${num(info.input_tokens)} in`, `${num(info.output_tokens)} out`,
                  `$${Number(info.cost_usd || 0).toFixed(4)}`]
   if (info.calls) parts.push(`${info.calls} call${info.calls === 1 ? '' : 's'}`)
-  return parts.join(' · ')
+  return parts.join(', ')
 }
 
 // "41,000 of 100,000 tokens (41%)"; just the used count when the window is unknown
@@ -45,7 +45,7 @@ export function boxesLine(r) {
   let s = `${running.length} of ${boxes.length} running${names ? `: ${names}` : ''}`
   if (running.length > 3) s += ` and ${running.length - 3} more`
   const b = r.budget
-  if (b && b.ram_mb_cap) s += ` · RAM ${num(b.ram_mb_used)} / ${num(b.ram_mb_cap)} MB`
+  if (b && b.ram_mb_cap) s += `, RAM ${num(b.ram_mb_used)} / ${num(b.ram_mb_cap)} MB`
   return s
 }
 

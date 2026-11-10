@@ -61,11 +61,11 @@ export default function JobTree({ cid, onFinal }) {
       <div className="run-summary dim small">
         {live ? <span className="run-live">● live</span> : <span>finished</span>}
         {all.length === 0
-          ? <span>{live ? ' · waiting for agents…' : ' · no agents recorded'}</span>
-          : <span> · {all.length} agent{all.length === 1 ? '' : 's'}
-              {live && working > 0 ? ` · ${working} working` : ''}
-              {finished > 0 ? ` · ${finished} done` : ''}</span>}
-        {failed > 0 && <span className="run-failed"> · {failed} failed</span>}
+          ? <span>{live ? ', waiting for agents' : ', no agents recorded'}</span>
+          : <span>, {all.length} agent{all.length === 1 ? '' : 's'}
+              {live && working > 0 ? `, ${working} working` : ''}
+              {finished > 0 ? `, ${finished} done` : ''}</span>}
+        {failed > 0 && <span className="run-failed">, {failed} failed</span>}
       </div>
       {order.map((id) => {
         const n = nodes[id]; if (!n) return null

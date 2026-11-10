@@ -114,7 +114,7 @@ export function allowedLine(e) {
   const unit = e?.unit || ''
   const what = e?.exe === '*' ? `everything in ${unit}` : `${e?.exe}${unit ? ` in ${unit}` : ''}`
   const at = String(e?.at || '').slice(0, 10)
-  return { what, when: [e?.by, at].filter(Boolean).join(' · ') }
+  return { what, when: [e?.by, at].filter(Boolean).join(', ') }
 }
 
 const UNDO_WHERE = 'You can take it off again under Security, Persistent, "Allowed from alerts".'

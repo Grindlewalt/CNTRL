@@ -42,7 +42,7 @@ export default function TaskBoardPanel({ slug, state, setState }) {
                 placeholder="what is this session trying to achieve?"
                 onChange={(e) => setState({ goal: e.target.value })} />
       <div className="row">
-        <span className="dim small grow">plan · {doneCount}/{todos.length} done</span>
+        <span className="dim small grow">plan, {doneCount}/{todos.length} done</span>
       </div>
       <ul className="todo-list grow-scroll">
         {todos.map((t, i) => (

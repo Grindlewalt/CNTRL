@@ -3,11 +3,11 @@ import Button from '../components/Button.jsx'
 // One thing waiting on the operator, inline in the transcript, with the
 // decisions its API actually offers:
 //
-//   network host   Allow · Deny     approve adds the host to the allowlist
+//   network host   Deny, Allow     approve adds the host to the allowlist
 //                                    that governs this project (its own, or
 //                                    the shared one) — there is no allow-once
 //                                    in the egress API, so none is offered
-//   git request    Approve · Reject  commit (or connect-and-push) happens on
+//   git request    Reject, Approve  commit (or connect-and-push) happens on
 //                                    approve, server-side, never from a tool
 //   plan question  Retry · Done · Skip   the item asked for the operator
 //
@@ -34,10 +34,10 @@ export default function ApprovalRow({ a, acting, onDecide, onReview }) {
           )}
         </div>
         <div className="sh-approval-acts">
+          <Button variant="ghost" disabled={busy}
+                  onClick={() => onDecide(a, 'reject')}>Deny</Button>
           <Button disabled={busy} onClick={() => onDecide(a, 'approve')}
                   title="add this host to the allowlist that governs this project">Allow</Button>
-          <Button variant="ghost" danger disabled={busy}
-                  onClick={() => onDecide(a, 'reject')}>Deny</Button>
         </div>
       </div>
     )
@@ -70,9 +70,9 @@ export default function ApprovalRow({ a, acting, onDecide, onReview }) {
             <a className="sh-approval-note" href={a.pr_url} target="_blank"
                rel="noreferrer">Open in Gitea</a>)}
           {onReview && <Button variant="ghost" onClick={() => onReview(a)}>Review</Button>}
-          <Button disabled={busy} onClick={() => onDecide(a, 'approve')}>Approve</Button>
-          <Button variant="ghost" danger disabled={busy}
+          <Button variant="ghost" disabled={busy}
                   onClick={() => onDecide(a, 'reject')}>Reject</Button>
+          <Button disabled={busy} onClick={() => onDecide(a, 'approve')}>Approve</Button>
         </div>
       </div>
     )

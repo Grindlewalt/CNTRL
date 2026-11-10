@@ -7,8 +7,8 @@ import {
 
 // the header's counts, as the sketch words them
 assert.equal(countsLine({ need: 2, filtered: 47, reports: 1 }),
-  '2 need you · 47 filtered as normal work · 1 agent report')
-assert.equal(countsLine({ need: 1, filtered: 0, reports: 3 }), '1 need you · 3 agent reports')
+  '2 need you, 47 filtered as normal work, 1 agent report')
+assert.equal(countsLine({ need: 1, filtered: 0, reports: 3 }), '1 need you, 3 agent reports')
 assert.equal(countsLine({ need: 0, filtered: 0, reports: 0 }), '')
 assert.equal(countsLine(), '')
 // only the filtered count is a "(show)"

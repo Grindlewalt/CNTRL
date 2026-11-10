@@ -32,7 +32,7 @@ assert.equal(pickBox(rows, null, null), null)
 const stopped = { supported: true, session: 'stopped', state: 'stopped', need_mb: 1424,
                   free_mb: 1034, fits: false }
 assert.equal(needLine(stopped), 'needs 1424 MB, 1034 MB free')
-assert.equal(startLabel(stopped), 'Start desktop · needs 1424 MB, 1034 MB free')
+assert.equal(startLabel(stopped), 'Start desktop, needs 1424 MB, 1034 MB free')
 assert.equal(startBlocked(stopped), 'needs 1424 MB, 1034 MB free: stop another box first')
 assert.equal(startBlocked({ ...stopped, fits: true, free_mb: 2000 }), null)
 
@@ -121,7 +121,7 @@ assert.equal(statusLabel('you', 41), 'YOU have control: agent paused 00:41')
 assert.equal(statusLabel('agent', 0), '● agent driving')
 assert.equal(statusLabel('watching', 0), 'watching')
 assert.equal(statusLabel('other', 0), 'another window has control')
-assert.equal(takeLine('agent'), 'Agent is driving · click the screen to take over')
+assert.equal(takeLine('agent'), 'Agent is driving, click the screen to take over')
 assert.match(takeLine('watching'), /click the screen to take over/i)
 assert.match(takeLine('other'), /Another window/)
 

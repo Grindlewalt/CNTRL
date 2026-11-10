@@ -62,9 +62,9 @@ export function statusLabel(view, held) {
 
 // the line above the screen while the operator does not hold it
 export function takeLine(view) {
-  if (view === 'agent') return 'Agent is driving · click the screen to take over'
+  if (view === 'agent') return 'Agent is driving, click the screen to take over'
   if (view === 'other') return 'Another window has control of this desktop'
-  return 'Click the screen to take over · the agent is paused while you have it'
+  return 'Click the screen to take over, the agent is paused while you have it'
 }
 
 // a click or key in the viewer takes control only from these states, and only
@@ -111,7 +111,7 @@ export const needLine = (st) => `needs ${st.need_mb} MB, ${st.free_mb} MB free`
 // screen, so there are no numbers to show then.
 export function startLabel(st) {
   if (!st) return 'Start desktop'
-  return st.need_mb > 0 ? `Start desktop · ${needLine(st)}` : 'Start desktop'
+  return st.need_mb > 0 ? `Start desktop, ${needLine(st)}` : 'Start desktop'
 }
 
 // Why Start cannot be pressed, or null.
