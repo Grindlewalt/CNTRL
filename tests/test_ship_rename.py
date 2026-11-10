@@ -60,8 +60,8 @@ def test_the_old_folders_are_used_when_only_they_hold_an_install(tmp_path, monke
     (old_cfg / "env").write_text("JARVIS_LAN_PORT=8000\n")
     (old_st / "data").mkdir(parents=True)
     (old_st / "data" / "jarvis.db").write_bytes(b"")
-    # the terminal client shares ~/.config/cntrl and ~/.local/share/cntrl: its
-    # files there are not a server install
+    # the terminal client keeps its files in ~/.config/cntrl too (and an early build
+    # put its venv in ~/.local/share/cntrl): neither is a server install
     new_cfg.mkdir(parents=True)
     (new_cfg / "credentials.json").write_text("{}")
     (new_st / "venv").mkdir(parents=True)

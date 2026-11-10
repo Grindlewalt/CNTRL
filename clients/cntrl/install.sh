@@ -4,7 +4,9 @@
 #   curl -fsSL <server>/cli/install.sh | sh
 #
 # The server fills in BASE when it serves this file. Installs into
-# ~/.local/share/cntrl and puts `cntrl` and `jav3` (the old name) launchers in
+# ~/.local/share/cntrl-cli (not ~/.local/share/cntrl: that is a server's state
+# dir, and its backups must not sweep up this venv) and puts `cntrl` and `jav3`
+# (the old name) launchers in
 # ~/.local/bin (override with CNTRL_BIN; JAV3_BIN still works). Its libraries (httpx, and textual for the TUI) come
 # from the system python if it already has both, else from a private venv —
 # never `pip install` into the system interpreter.
@@ -22,7 +24,7 @@ main() {
   BASE="@@BASE@@"
   bin_dir="${CNTRL_BIN:-${JAV3_BIN:-$HOME/.local/bin}}"
   data="${XDG_DATA_HOME:-$HOME/.local/share}"
-  share="$data/cntrl"
+  share="$data/cntrl-cli"
   old="$data/jav3"
 
   command -v python3 >/dev/null 2>&1 || { echo "cntrl needs python3 (3.11+)" >&2; exit 1; }

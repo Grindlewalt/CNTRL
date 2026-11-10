@@ -32,3 +32,5 @@ collection-claude-code-source-code/
 
 # install.sh --name: which instance this checkout belongs to
 /.jarvis-instance
+# a named install's marker in its checkout (scripts/install.sh --name)
+/.cntrl-instance
