@@ -61,13 +61,13 @@ def test_startup_line_does_not_say_turns_fail_when_docker_boxes_run_them(monkeyp
     _no_kvm(monkeypatch)
     monkeypatch.setattr(settings, "docker_enabled", True)
     monkeypatch.setattr(settings, "vm_boxes_enabled", True)
-    with caplog.at_level(logging.WARNING, logger="jav3"):
+    with caplog.at_level(logging.WARNING, logger="cntrl"):
         main._warn_missing_guest_devices()
-    (line,) = [r.getMessage() for r in caplog.records if r.name == "jav3"]
+    (line,) = [r.getMessage() for r in caplog.records if r.name == "cntrl"]
     assert "Docker boxes" in line and "agent turns will fail" not in line
     caplog.clear()
     monkeypatch.setattr(settings, "docker_enabled", False)      # KVM is the only way: as before
-    with caplog.at_level(logging.WARNING, logger="jav3"):
+    with caplog.at_level(logging.WARNING, logger="cntrl"):
         main._warn_missing_guest_devices()
-    (line,) = [r.getMessage() for r in caplog.records if r.name == "jav3"]
+    (line,) = [r.getMessage() for r in caplog.records if r.name == "cntrl"]
     assert "agent turns will fail" in line
