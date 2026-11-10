@@ -72,7 +72,7 @@ export default function DeskPanel() {
           {data.pending.map((p) => (
             <li key={p.id} className="desk-ask">
               <div className="desk-ask-main">
-                <span className="dim small">{p.name} · {p.reason}</span>
+                <span className="dim small">{p.name}: {p.reason}</span>
                 <code className="desk-cmd">{p.command}</code>
               </div>
               <div className="settings-actions">
@@ -142,7 +142,7 @@ function DeskRow({ d, minutes, put, stop }) {
           <Select aria-label={`Shell mode on ${d.name}`} value={g.shell}
                   onChange={(e) => put({ shell: e.target.value })}
                   options={[{ value: 'ask', label: 'Ask' },
-                            { value: 'trusted', label: `Trusted · ${minutes} min` }]} />
+                            { value: 'trusted', label: `Trusted for ${minutes} min` }]} />
         )}
         {g.shell !== 'off' && localShell === false && (
           <span className="warn small">off until enabled at the computer</span>
