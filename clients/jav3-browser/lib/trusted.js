@@ -11,11 +11,11 @@
 //   d.send(tabId, params)      one Input.dispatchMouseEvent (sw.js refuses any other method)
 //   d.inject(frameId, fn, args)  run a lib/page.js function in a frame
 //   d.consent(url)             ask the operator to allow a frame's site (throws VerbError)
-//   d.isDenied(url)            a frame of the Jav3 server itself
+//   d.isDenied(url)            a frame of the CNTRL server itself
 //   d.sleep(ms) d.now() d.cancelled()
 //
 // The debugger is attached only for the click and detached right after: Chrome
-// shows "Jav3 Browser started debugging this browser" for exactly that long
+// shows "CNTRL Browser started debugging this browser" for exactly that long
 // (the time comes back as debugMs and is reported with every click). Attaching
 // puts that bar above the page and resizes the viewport under it, so geometry
 // is measured AFTER the attach, once it holds still.
@@ -205,7 +205,7 @@ export async function clickElementTrusted(d, req) {
       if (got.down && got.down.onEl === false) {
         text += `; the mouse landed on ${got.down.hit}, not on it — something is over it`;
       } else if (!got.lost && !got.down && !got.click) {
-        text += '; the page took the mouse events itself (no mousedown or click reached Jav3)';
+        text += '; the page took the mouse events itself (no mousedown or click reached CNTRL)';
       }
       return { ok: true, text, trusted: true, lost: !!got.lost };
     } finally {
@@ -250,7 +250,7 @@ export async function clickPointTrusted(d, req) {
   if (!first.ok) return first;
   for (const src of first.srcs) {
     if (src && d.isDenied(src)) {
-      return { ok: false, err: 'that point is inside a frame of the Jav3 server itself; Jav3 never uses it' };
+      return { ok: false, err: 'that point is inside a frame of the CNTRL server itself; CNTRL never uses it' };
     }
     if (frameConsentNeeded(topHost, hostOf(src))) await d.consent(src);
   }

@@ -758,9 +758,9 @@ if __name__ == "__main__":   # pragma: no cover
     srv = SeededServer()
     with HttpFake(srv.handle, int(sys.argv[1]) if len(sys.argv) > 1 else 0) as http:
         cfg = Path(tempfile.mkdtemp(prefix="tui-fake-", dir="/tmp"))
-        (cfg / "jav3").mkdir(mode=0o700)
-        (cfg / "jav3" / "credentials.json").write_text(json.dumps(
+        (cfg / "cntrl").mkdir(mode=0o700)
+        (cfg / "cntrl" / "credentials.json").write_text(json.dumps(
             {"address": http.address, "session": "fake-session", "username": USERNAME}))
-        print(f"fake Jav3 server on http://{http.address}; try the client against it with\n"
-              f"  XDG_CONFIG_HOME={cfg} python clients/jav3cli/jav3", flush=True)
+        print(f"fake CNTRL server on http://{http.address}; try the client against it with\n"
+              f"  XDG_CONFIG_HOME={cfg} python clients/cntrl/cntrl", flush=True)
         threading.Event().wait()

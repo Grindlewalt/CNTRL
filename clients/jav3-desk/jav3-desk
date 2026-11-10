@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""jav3-desk — lets a Jav3 server see and drive this computer, when allowed.
+"""jav3-desk — lets a CNTRL server see and drive this computer, when allowed.
 
     jav3-desk login          paste the line from Settings → Add computer
     jav3-desk run            connect and serve (what the service runs)
@@ -3202,7 +3202,7 @@ class Session:
                         await ws.send(json.dumps({"type": "state", **st}))
                     raise DeskError(why)
             if time.time() - self.last_action > 300:
-                self.b.notify("Jav3 is using this computer")
+                self.b.notify("CNTRL is using this computer")
             self.last_action = time.time()
             if verb == "shell":
                 if self.shell_busy:
@@ -3411,7 +3411,7 @@ def cmd_status(args) -> int:
 def systemd_unit(script: Path) -> str:
     return f"""\
 [Unit]
-Description=jav3-desk (Jav3 computer use)
+Description=jav3-desk (CNTRL computer use)
 After=graphical-session.target network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=0
@@ -3484,7 +3484,7 @@ def cmd_uninstall(args) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="jav3-desk",
-                                description="Let a Jav3 server use this computer.")
+                                description="Let a CNTRL server use this computer.")
     p.add_argument("--server", help="server address, overriding the saved one")
     p.add_argument("--backend", choices=sorted(BACKENDS))
     sub = p.add_subparsers(dest="cmd", required=True)

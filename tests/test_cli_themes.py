@@ -1,4 +1,4 @@
-"""The terminal client's themes (clients/jav3cli/jav3): the 256-colour mapping,
+"""The terminal client's themes (clients/cntrl/cntrl): the 256-colour mapping,
 the readability checks every theme is held to, the /theme picker (live preview,
 revert on esc, kept across restarts), the editor at 80x24, and export/import
 round trips."""
@@ -11,7 +11,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-CLI = Path(__file__).resolve().parent.parent / "clients" / "jav3cli" / "jav3"
+CLI = Path(__file__).resolve().parent.parent / "clients" / "cntrl" / "cntrl"
 
 
 def _load():
@@ -33,7 +33,7 @@ def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     (tmp_path / "home").mkdir()
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 def _server():
@@ -76,7 +76,7 @@ def _all_themes() -> dict:
     out = {n: replace(BUILTIN_THEMES[n], **jav3.THEME_TUNE.get(n, {})) for n in jav3.THEME_KEEP}
     for spec in jav3.jav3_theme_specs(True):
         out[spec["name"]] = Theme(**spec)
-    out["jav3"] = Theme(name="jav3", primary="#5fd7af", secondary="#af87ff", accent="#ffaf5f",
+    out["cntrl"] = Theme(name="cntrl", primary="#5fd7af", secondary="#af87ff", accent="#ffaf5f",
                         foreground="#e4e4e4", background="#0e1014", surface="#161a20",
                         panel="#1e232b", warning="#ffaf00", error="#ff6b6b",
                         success="#5fd787", dark=True)
@@ -132,8 +132,8 @@ def test_256_variant_is_palette_only_and_stable(name):
     assert (steps[1] - steps[0]) * (steps[2] - steps[1]) > 0        # one direction
 
 
-def test_jav3_default_survives_snapping():
-    src = jav3.resolved_theme_spec(ALL["jav3"])
+def test_cntrl_default_survives_snapping():
+    src = jav3.resolved_theme_spec(ALL["cntrl"])
     once = jav3.terminal_theme_spec(src, False)
     # the colours Rich already picked for it, now exact (#ff6b6b was drawn as #ff5f5f)
     assert (once["primary"], once["error"], once["success"]) == ("#5fd7af", "#ff5f5f", "#5fd787")
@@ -150,7 +150,7 @@ def test_every_theme_reads_on_both_kinds_of_terminal(name):
 
 
 def test_theme_problems_names_what_reads_badly():
-    fine = jav3.resolved_theme_spec(ALL["jav3"])
+    fine = jav3.resolved_theme_spec(ALL["cntrl"])
     assert jav3.theme_problems(fine) == []
     pale = {**fine, "warning": "#0e1015"}                      # the background, nearly
     assert any(p.startswith("warning is hard to read") for p in jav3.theme_problems(pale))
@@ -219,12 +219,12 @@ async def test_theme_picker_previews_as_you_arrow_and_reverts_on_esc(cfg):
     app = _app()
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause(0.2)
-        assert app.theme == "jav3"
+        assert app.theme == "cntrl"
         app.dispatch("/theme")
         assert await _modal(pilot, app, "ThemePicker")
         rows = app.theme_rows()
-        assert rows[0][0] == "jav3" and rows[1][0].startswith("jav3-")       # Jav3's own first
-        assert dict((v, m) for v, _, m in rows)["jav3-light"] == "light"
+        assert rows[0][0] == "cntrl" and rows[1][0].startswith("cntrl-")       # CNTRL's own first
+        assert dict((v, m) for v, _, m in rows)["cntrl-light"] == "light"
         seen = [app.theme]
         for _ in range(3):
             await pilot.press("down")
@@ -232,7 +232,7 @@ async def test_theme_picker_previews_as_you_arrow_and_reverts_on_esc(cfg):
             seen.append(app.theme)
         assert len(set(seen)) == 4 and seen[-1] == rows[3][0]      # each arrow shows that theme
         await pilot.press("escape")
-        assert await _until(pilot, lambda: app.theme == "jav3")    # the old one is back
+        assert await _until(pilot, lambda: app.theme == "cntrl")    # the old one is back
         assert "theme" not in json.loads((cfg / "tui.json").read_text()) \
             if (cfg / "tui.json").exists() else True                # and nothing was saved
 
@@ -246,7 +246,7 @@ async def test_theme_choice_is_kept_and_survives_a_restart(cfg):
         await pilot.press("down", "down")
         await pilot.pause(0.1)
         picked = app.theme
-        assert picked != "jav3"
+        assert picked != "cntrl"
         await pilot.press("enter")
         assert await _until(pilot, lambda: type(app.screen).__name__ != "ThemePicker")
         assert app.theme == picked
@@ -257,13 +257,22 @@ async def test_theme_choice_is_kept_and_survives_a_restart(cfg):
         assert again.theme == picked
 
 
-async def test_a_theme_that_no_longer_exists_falls_back_to_jav3(cfg):
+async def test_a_theme_that_no_longer_exists_falls_back_to_cntrl(cfg):
     cfg.mkdir(parents=True)
     (cfg / "tui.json").write_text(json.dumps({"theme": "gone"}))
     app = _app()
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause(0.2)
-        assert app.theme == "jav3"
+        assert app.theme == "cntrl"
+
+
+async def test_a_theme_saved_under_the_old_name_still_loads(cfg):
+    cfg.mkdir(parents=True)
+    (cfg / "tui.json").write_text(json.dumps({"theme": "jav3-amber"}))
+    app = _app()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause(0.2)
+        assert app.theme == "cntrl-amber"
 
 
 # --- the editor at 80x24 ------------------------------------------------------------------------
@@ -292,7 +301,7 @@ async def test_theme_editor_fits_80x24_and_the_mode_toggle_works(cfg):
         await pilot.press("left")
         assert toggle.dark is True
         await pilot.press("escape")
-        assert await _until(pilot, lambda: app.theme == "jav3")
+        assert await _until(pilot, lambda: app.theme == "cntrl")
 
 
 async def test_theme_editor_preview_follows_every_keystroke_not_just_the_first(cfg):
@@ -393,7 +402,7 @@ async def test_a_created_theme_survives_export_delete_import(cfg, tmp_path):
     again = _app()                                        # a restart without it: gone
     async with again.run_test(size=(100, 30)) as pilot:
         await pilot.pause(0.2)
-        assert "Round trip" not in again.theme_names() and again.theme == "jav3"
+        assert "Round trip" not in again.theme_names() and again.theme == "cntrl"
         await again.c_theme(f"import {tmp_path / 'rt.json'}")
         assert again.theme == "Round trip"
         assert json.loads(stored.read_text()) == original
@@ -413,7 +422,7 @@ def _screen_colours(theme: str, colorterm: bool, tmp_path):
     import os
     import sys
     import time
-    d = tmp_path / "cfg" / "jav3"
+    d = tmp_path / "cfg" / "cntrl"
     d.mkdir(parents=True)
     (d / "tui.json").write_text(json.dumps({"theme": theme}))
     env = {k: v for k, v in os.environ.items()

@@ -1,4 +1,4 @@
-"""The Calls tab of /security in the terminal client (clients/jav3cli/jav3): the
+"""The Calls tab of /security in the terminal client (clients/cntrl/cntrl): the
 pure row / detail / header markup, and the tab itself against a fake server."""
 import importlib.machinery
 import importlib.util
@@ -7,7 +7,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-CLI = Path(__file__).resolve().parent.parent / "clients" / "jav3cli" / "jav3"
+CLI = Path(__file__).resolve().parent.parent / "clients" / "cntrl" / "cntrl"
 
 
 def _load():

@@ -9,7 +9,7 @@ from test_cli_running import Feed, _plain, _start, _until, jav3
 @pytest.fixture
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 def test_live_text_puts_the_tail_last_and_fits_the_width():

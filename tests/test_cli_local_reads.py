@@ -17,10 +17,10 @@ def world(tmp_path, monkeypatch):
     home = tmp_path / "home"
     work = tmp_path / "work"
     other = tmp_path / "other"
-    for d in (home / ".ssh", home / ".config" / "jav3", work, other):
+    for d in (home / ".ssh", home / ".config" / "cntrl", work, other):
         d.mkdir(parents=True)
     (home / ".ssh" / "id_ed25519").write_text("PRIVATE KEY")
-    (home / ".config" / "jav3" / "credentials.json").write_text('{"token": "jvd_secret"}')
+    (home / ".config" / "cntrl" / "credentials.json").write_text('{"token": "jvd_secret"}')
     (home / "notes.txt").write_text("my notes")
     (work / "a.py").write_text("x = 1\n")
     (work / ".env").write_text("KEY=inside-ok")
@@ -105,7 +105,7 @@ async def test_no_approver_fails_closed_for_outside_reads(world):
     assert ok
 
 
-@pytest.mark.parametrize("where", ["~/.ssh/id_ed25519", "~/.config/jav3/credentials.json"])
+@pytest.mark.parametrize("where", ["~/.ssh/id_ed25519", "~/.config/cntrl/credentials.json"])
 async def test_secret_places_are_refused_and_never_even_asked(world, where):
     ex, asked = executor(world, {"read": "always", "write": "always", "edit": "always"})
     ok, out = await ex.run("local_read_file", {"path": where})

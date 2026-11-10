@@ -13,7 +13,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-CLI = Path(__file__).resolve().parent.parent / "clients" / "jav3cli" / "jav3"
+CLI = Path(__file__).resolve().parent.parent / "clients" / "cntrl" / "cntrl"
 
 
 def _load():
@@ -36,7 +36,7 @@ def _utc(monkeypatch):
 @pytest.fixture
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 async def _until(pilot, cond, tries=80):

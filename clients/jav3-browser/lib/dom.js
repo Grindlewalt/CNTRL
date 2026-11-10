@@ -352,7 +352,7 @@
   async function typeInto(win, doc, el, text, submit) {
     const tag = el.tagName;
     if (tag === 'INPUT' && (el.type === 'password' || el.type === 'file')) {
-      return { ok: false, err: 'Jav3 does not type into password or file fields' };
+      return { ok: false, err: 'CNTRL does not type into password or file fields' };
     }
     const field = tag === 'TEXTAREA' ||
       (tag === 'INPUT' && !/^(button|submit|reset|checkbox|radio|file|image|range|color|hidden)$/i.test(el.type));

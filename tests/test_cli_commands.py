@@ -1,4 +1,4 @@
-"""Slash commands in the terminal client (clients/jav3cli/jav3): Enter on a bare
+"""Slash commands in the terminal client (clients/cntrl/cntrl): Enter on a bare
 /command runs it (its bare form opens the picker) instead of turning into a
 second, different command; /project checks the name (TUI-02, TUI-03)."""
 import pytest
@@ -12,7 +12,7 @@ jav3 = load_client("jav3cli_commands")
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     monkeypatch.setenv("HOME", str(tmp_path))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 def notes(app) -> list[str]:

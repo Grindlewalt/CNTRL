@@ -1,6 +1,6 @@
 """A dialog that opens by itself while the operator is typing (an agent's ask, a
 /local approval) takes none of the keys aimed at the prompt: no answer, no skip.
-The keys it turns away go back to the prompt (clients/jav3cli/jav3, class Inert)."""
+The keys it turns away go back to the prompt (clients/cntrl/cntrl, class Inert)."""
 import pytest
 
 from cli_fake import (FakeServer, ask, composer, finish, load_client, open_chat, plain,
@@ -12,7 +12,7 @@ jav3 = load_client("jav3cli_dialog_keys")
 @pytest.fixture(autouse=True)
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 async def test_an_ask_that_just_opened_takes_no_keys_and_they_go_back_to_the_prompt():
