@@ -14,7 +14,7 @@ from pathlib import Path
 from backend.config import settings
 from backend.vm import workspace_xfer
 from backend.vm.guest_pkg import build_package_tar
-from tests.platform_caps import needs_vsock_names
+from tests.platform_caps import GUEST_SOCKET_SHIM
 
 
 def _tar_dir(root: Path) -> bytes:
@@ -26,7 +26,6 @@ def _tar_dir(root: Path) -> bytes:
     return buf.getvalue()
 
 
-@needs_vsock_names
 async def test_workspace_roundtrip_edit_in_guest_reconciled(tmp_env):
     # host: a project with one canonical file
     proj = settings.projects_dir / "demo"
@@ -44,13 +43,20 @@ async def test_workspace_roundtrip_edit_in_guest_reconciled(tmp_env):
     with tarfile.open(fileobj=io.BytesIO(merged), mode="r:gz") as t:
         t.extractall(gproj, filter="data")
 
+    # write_file is gated in the guest: it asks the host's permission gate over
+    # the broker first. Answered here as the host's default mode does, so the
+    # test never opens a vsock socket to the host.
     script = (
         "import asyncio\n"
         "from backend.agent.tools import registry, toolctx\n"
+        "async def gate(name, args):\n"
+        "    assert name == registry.PERMISSION_GATE, name\n"
+        "    return 'allow'\n"
+        "registry._broker_dispatch = gate\n"
         "toolctx.set_active('demo')\n"
         "print(asyncio.run(registry.dispatch('write_file', "
         "{'path': 'notes/new.txt', 'content': 'edited from the guest'})))\n")
-    r = subprocess.run([sys.executable, "-S", "-c", script], cwd=gdir,
+    r = subprocess.run([sys.executable, "-S", "-c", GUEST_SOCKET_SHIM + script], cwd=gdir,
                        env={"PYTHONPATH": gdir, "PATH": os.environ.get("PATH", "")},
                        capture_output=True, text=True)
     assert r.returncode == 0 and "wrote notes/new.txt" in r.stdout, r.stdout + r.stderr

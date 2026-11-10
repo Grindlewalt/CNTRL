@@ -10,10 +10,9 @@ import tarfile
 import tempfile
 
 from backend.vm.guest_pkg import build_package_tar
-from tests.platform_caps import needs_vsock_names
+from tests.platform_caps import GUEST_SOCKET_SHIM
 
 
-@needs_vsock_names
 def test_guest_package_assembles_and_imports_stdlib_only():
     data = build_package_tar()
     d = tempfile.mkdtemp()
@@ -28,7 +27,7 @@ def test_guest_package_assembles_and_imports_stdlib_only():
     # copied module (codeindex) or shim imported anything but stdlib + the guest
     # backend, these imports fail.
     r = subprocess.run(
-        [sys.executable, "-S", "-c",
+        [sys.executable, "-S", "-c", GUEST_SOCKET_SHIM +
          "import backend.server; from backend.agent.loop import run_turn; "
          "import backend.writes, backend.codeindex, backend.fsutil; print('GUEST-OK')"],
         cwd=d, env={"PYTHONPATH": d, "PATH": os.environ.get("PATH", "")},
@@ -43,7 +42,6 @@ def _extract_pkg():
     return d
 
 
-@needs_vsock_names
 def test_in_guest_tool_runs_locally_against_pushed_workspace():
     """M3: a clean tool (read_file) loads its handler from the pushed package and
     runs IN the guest against a pushed workspace — its `from backend.X` imports
@@ -61,7 +59,7 @@ def test_in_guest_tool_runs_locally_against_pushed_workspace():
         "toolctx.set_active('demo')\n"
         "registry.set_registry([], [])\n"
         "print('OUT:' + asyncio.run(registry.dispatch('read_file', {'path': 'hello.txt'})))\n")
-    r = subprocess.run([sys.executable, "-S", "-c", script], cwd=d,
+    r = subprocess.run([sys.executable, "-S", "-c", GUEST_SOCKET_SHIM + script], cwd=d,
                        env={"PYTHONPATH": d, "PATH": os.environ.get("PATH", "")},
                        capture_output=True, text=True)
     assert r.returncode == 0, r.stderr

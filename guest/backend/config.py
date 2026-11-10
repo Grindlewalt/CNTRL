@@ -20,6 +20,7 @@ class _Settings:
     plan_recheck_every = 6
     web_handroll_nudge = 6
     tool_result_max_chars = 12000
+    read_file_max_chars = 48_000    # read_file's own cap (pushed per turn like the rest)
     tool_result_keep_recent = 2
     tool_result_evict_chars = 4000
     tool_result_pressure_chars = 250000

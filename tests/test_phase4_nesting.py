@@ -18,7 +18,7 @@ import tarfile
 import tempfile
 
 from backend.vm.guest_pkg import build_package_tar
-from tests.platform_caps import needs_vsock_names
+from tests.platform_caps import GUEST_SOCKET_SHIM
 
 
 def _extract_pkg():
@@ -28,7 +28,6 @@ def _extract_pkg():
     return d
 
 
-@needs_vsock_names
 def test_guest_turn_state_is_task_local():
     """Two concurrent turns bind different op_id/specs/rules/slug via turnctx and
     read back their OWN values throughout — the fix that makes one guest safe for a
@@ -59,7 +58,7 @@ def test_guest_turn_state_is_task_local():
         "        turn('guest:9', 'projB', [{'b': 2}], '', 8))\n"
         "    print('OUT:' + ','.join(res))\n"
         "asyncio.run(main())\n")
-    r = subprocess.run([sys.executable, "-S", "-c", script], cwd=d,
+    r = subprocess.run([sys.executable, "-S", "-c", GUEST_SOCKET_SHIM + script], cwd=d,
                        env={"PYTHONPATH": d, "PATH": os.environ.get("PATH", "")},
                        capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
