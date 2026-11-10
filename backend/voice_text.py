@@ -140,7 +140,7 @@ The operator will be asked out loud whether to send it to the smart model."""
 # --- wake / standby phrases ---------------------------------------------------
 
 # openwakeword gives a fast "hey jarvis" flip, but it is one fixed pretrained
-# model — there is no "hey jav3" (the spoken name, from before the rename) equivalent to swap in, so the acoustic trigger
+# model — there is no "hey jav3" equivalent to swap in, so the acoustic trigger
 # still fires on the OLD name and could not be renamed with the agent. It also
 # does not fire on a bare name, and whisper cheerfully renders the name as
 # Dervis/Jervis/Charvis (all observed live). The sidecar transcribes every

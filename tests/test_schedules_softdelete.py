@@ -152,7 +152,7 @@ async def test_purge_requires_the_bin_first(client):
 
 
 async def test_delete_clears_a_pending_proposal_from_the_bell(client):
-    """A Jav3-proposed schedule sits in the bell until decided; deleting it
+    """A CNTRL-proposed schedule sits in the bell until decided; deleting it
     IS a decision, so the bell must stop counting it."""
     sid = await _make(client, "proposed")
     await _sql("UPDATE schedules SET enabled = 0, pending_approval = 1 "

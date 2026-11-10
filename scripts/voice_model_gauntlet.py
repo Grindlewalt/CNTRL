@@ -26,7 +26,7 @@ FAKE_RESULTS = {
     "music_search": ("11 matches:\n  [22] Yellow — Coldplay #drive\n  [19] Hey "
                      "Driver — Zach Bryan #drive\n  [15] Motorcycle Drive By — "
                      "Zach Bryan #drive"),
-    "music_status": ("library: 30 tracks\nJav3 player: playing Yellow — "
+    "music_status": ("library: 30 tracks\nCNTRL player: playing Yellow — "
                      "Coldplay at 1:02 of 4:29 at 80% volume\nmusic app: "
                      "nothing actually playing (no player open)"),
     "music_control": "paused in the CNTRL player on Mac · Chrome.",

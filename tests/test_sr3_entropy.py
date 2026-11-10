@@ -30,7 +30,7 @@ from backend.main import app
 LOGIN = "/api/devices/login"
 MINT = "/api/devices/login-code"
 URLSAFE = set(string.ascii_letters + string.digits + "-_")
-CLI = Path(__file__).resolve().parent.parent / "clients" / "jav3cli" / "jav3"
+from client_paths import CLI
 
 
 def _load_cli():
@@ -329,7 +329,7 @@ async def test_poc_xff_from_loopback_rewrites_peer_and_bypasses_per_peer_throttl
     default) is not installed and client.host stays the TCP peer. Without it,
     a loopback peer forging a fresh XFF per request shares ONE budget."""
     await _operator()
-    unit = (Path(__file__).resolve().parent.parent / "scripts" / "jarvis.service").read_text()
+    unit = (Path(__file__).resolve().parent.parent / "scripts" / "cntrl.service").read_text()
     exec_line = next(ln for ln in unit.splitlines() if ln.startswith("ExecStart="))
     assert "--no-proxy-headers" in exec_line
     transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 40000))
@@ -360,7 +360,7 @@ async def test_poc_default_login_line_is_cleartext_http(clients, monkeypatch, ca
     """RESIDUAL, now LOUD: a LAN install is plain http unless cookie_secure
     (TLS in front) — that stays, and is in SECURITY-RESIDUAL-RISK.md. What
     changed: the mint response says `plain_http` (Settings shows a warning)
-    and `jav3 login` warns on stderr before sending the code."""
+    and `cntrl login` warns on stderr before sending the code."""
     op, dev = clients
     m = (await op.post(MINT, json={})).json()
     assert "://" not in m["address"] and m["plain_http"] is True

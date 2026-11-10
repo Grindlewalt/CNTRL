@@ -129,7 +129,7 @@ async def test_chat_thread_runs_as_the_agent(client, monkeypatch):
 
 
 async def test_plain_chat_is_untouched(client, monkeypatch):
-    """No agent = central Jav3, exactly as before."""
+    """No agent = central CNTRL, exactly as before."""
     from backend import chat as chat_mod
     await _make_agent(client, tools_exclude=["web_search"])
     seen: list[dict] = []
@@ -382,7 +382,7 @@ async def test_chat_thread_opens_in_the_definition_project(client, monkeypatch):
 
 async def test_spawned_children_get_parent_and_identity(client, monkeypatch):
     """spawn_agent / spawn_temp_agent children used to open with parent=None,
-    disconnecting the tree exactly where Jav3 delegates. A named child runs
+    disconnecting the tree exactly where CNTRL delegates. A named child runs
     AS its definition (agent_slug); a temp child has no definition, so none —
     it is reachable from its parent instead."""
     from backend import agents_run, runtime
@@ -526,7 +526,7 @@ async def test_all_outputs_endpoint(client):
     await _make_agent(client)
     a = await _open_chat(agent="builder")
     b = await _open_chat(agent="critic")                  # a deleted agent's past
-    plain = await _open_chat()                             # central Jav3
+    plain = await _open_chat()                             # central CNTRL
     db = await get_db()
     try:
         head = await open_conversation(db, project=None, title="[head] y",

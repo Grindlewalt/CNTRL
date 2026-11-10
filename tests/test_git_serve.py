@@ -1,4 +1,4 @@
-"""Jav3 serves each project's repo read-only over git smart-HTTP so the operator
+"""CNTRL serves each project's repo read-only over git smart-HTTP so the operator
 can `git clone/pull http://<host>/git/<slug>` over the LAN. Basic-auth gated,
 pull-only (upload-pack), path-safe."""
 import subprocess

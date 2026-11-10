@@ -66,7 +66,7 @@ machine you reach over ssh. Ask the person which machine it is.
    re-run the step or `doctor`. Never "clean up" by deleting state.
 8. **Long commands:** the image build takes about 10 minutes, and some agent
    shells kill commands after 2–10 minutes. If yours does, run long steps with
-   `nohup … > ~/jav3-install.log 2>&1 &` and poll the log.
+   `nohup … > ~/cntrl-install.log 2>&1 &` and poll the log.
 9. **Say what you are doing**, one line per step, so the person can follow
    along and stop you.
 
@@ -81,8 +81,9 @@ uname -m; . /etc/os-release; echo "$PRETTY_NAME"; id -un; id -u
 sudo -n true 2>/dev/null && echo "passwordless sudo" || echo "sudo needs a password (or none)"
 free -h; df -h ~
 ss -ltn | awk 'NR>1{print $4}'                # ports already taken
-ls -d ~/cntrl ~/jav3 ~/.config/cntrl* ~/.local/share/cntrl 2>/dev/null
-systemctl --user list-units 'jarvis*' --no-legend 2>/dev/null
+ls -d ~/cntrl ~/.config/cntrl* ~/.local/share/cntrl 2>/dev/null
+ls -d ~/jarvis ~/.config/jarvis* ~/.local/share/jarvis 2>/dev/null   # from before the rename
+systemctl --user list-units 'cntrl*' 'jarvis*' --no-legend 2>/dev/null
 ls -l /dev/kvm /dev/vhost-vsock 2>&1
 docker info --format '{{.ServerVersion}}' 2>&1 | head -1
 ```
@@ -126,7 +127,11 @@ Phase 0 already settled, and say why you left them out.
 2. **Existing install** (only if Phase 0 found one): upgrade it in place
    (default); install a **second instance** beside it (`--name <n>`, with its
    own port, config and state); or **migrate** state from another machine
-   (`--from user@host:path`).
+   (`--from user@host:path`). An install from before the rename to CNTRL
+   (`jarvis.service`, `~/.config/jarvis`, `~/.local/share/jarvis`) upgrades in
+   place too: the installer stops the old units, moves the config and state
+   dirs to the new names (never over existing ones) and starts `cntrl.service`.
+   `--rename-only` does just that move, nothing else.
 3. **Port** for the web UI (default 8000). If 8000 is taken, propose a free
    one, e.g. 8780.
 4. **Who reaches it:** this machine only, the LAN (default: the server listens
@@ -178,7 +183,7 @@ wait for an explicit "go". The flags:
 | Answer | Installer flag |
 |---|---|
 | checkout dir | `CNTRL_DIR=<dir>` for the bootstrap (or `git clone … <dir>`) |
-| second instance | `--name <n>` (unit `jarvis-<n>.service`, config `~/.config/cntrl-<n>`) |
+| second instance | `--name <n>` (unit `cntrl-<n>.service`, config `~/.config/cntrl-<n>`) |
 | migrate | `--from user@host:path` |
 | port | `--port <n>` |
 | state dir | `--state-dir <dir>` |
@@ -273,7 +278,7 @@ printf '%s\n' "$KEY" | $PY -m backend.cli setup --provider-only --provider deeps
 ```
 
 For a named instance, run these from that instance's checkout. It remembers
-the instance in `.jarvis-instance`.
+the instance in `.cntrl-instance`.
 
 Optional extras, if chosen and the installer skipped them:
 
@@ -334,9 +339,9 @@ End with a short report the person can keep:
 - **The terminal client (optional):** on any computer that can reach the server,
   `curl -fsSL http://<host>:<port>/cli/install.sh | sh`, then `cntrl`, which asks
   for the line from Settings → Add computer. It keeps itself current from this
-  server: after a server upgrade (the `git pull` above) it says "a newer jav3 is
+  server: after a server upgrade (the `git pull` above) it says "a newer cntrl is
   on the server: /update" within the hour, and `/update` in it (or `cntrl update`
-  in a shell) swaps its own file, keeping `jav3.bak-<date>` beside it, and offers
+  in a shell) swaps its own file, keeping `cntrl.bak-<date>` beside it, and offers
   to restart into it (open tabs and chats come back). It never touches its launcher or its venv, refuses to run from
   a git checkout (use `git pull` there), and when the new client needs newer
   libraries it prints the installer line above instead: re-running that line is

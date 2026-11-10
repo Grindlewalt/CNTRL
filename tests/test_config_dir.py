@@ -1,5 +1,5 @@
 """A second instance with its own JARVIS_CONFIG_DIR reads its OWN env file and
-secrets (not the live ~/.config/jarvis ones), and JARVIS_DEEPSEEK_BASE_URL
+secrets (not the live ~/.config/cntrl ones), and JARVIS_DEEPSEEK_BASE_URL
 routes the default model (e2e BUG-2)."""
 import json
 import os

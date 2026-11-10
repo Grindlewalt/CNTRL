@@ -283,7 +283,7 @@ async def test_ceiling_narrows_what_settings_grants(env):
         out = await _tool("desk_click")(x=10, y=10)
         assert "switched off on the computer" in out
         out = await _tool("desk_shell")(cmd="ls")
-        assert "jav3-desk allow-shell" in out
+        assert "cntrl-desk allow-shell" in out
         assert [r["verb"] for r in fd.reqs] == ["screenshot"]
         # the client flipping its own flag is reported live
         await fd.ws.send({"type": "ceiling", "ceiling": {"screen": True,
@@ -1298,7 +1298,7 @@ async def test_desk_open_refuses_the_jav3_server_itself(env, monkeypatch):
             _free(env)
             out = await _tool("desk_open")(url=url)
             assert out.startswith("error:"), (url, out[:100])
-            assert "Jav3" in out or "@" in url or "\\" in url, (url, out[:100])
+            assert "CNTRL" in out or "@" in url or "\\" in url, (url, out[:100])
         assert not any(r["verb"] == "open" for r in fd.reqs)
         # the refusals are security events, like every other desk refusal
         ev = [e for e in await _events("desk_refused") if "open refused" in e["summary"]]

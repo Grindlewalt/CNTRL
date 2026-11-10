@@ -47,7 +47,7 @@ async def test_snapshot_commits_onto_a_ref_and_touches_nothing_else(repo):
     two = await gitsafe.snapshot(git_dir, repo, worktrees.HISTORY_REF, "turn 2")
     assert _g(repo, "rev-parse", f"{two}^") == sha
     assert "b.txt" not in _g(repo, "ls-tree", "-r", "--name-only", two)
-    assert _g(repo, "log", "-1", "--format=%an %s", two) == "Jav3 turn 2"
+    assert _g(repo, "log", "-1", "--format=%an %s", two) == "CNTRL turn 2"
     # the hidden ref is not a branch
     assert "jav3" not in _g(repo, "branch", "-a")
 

@@ -57,10 +57,10 @@ async def test_errors_and_secret_refusal(proj, monkeypatch):
 
 
 def test_unit_and_installer_step():
-    unit = (ROOT / "scripts" / "jarvis-pages.service").read_text()
+    unit = (ROOT / "scripts" / "cntrl-pages.service").read_text()
     assert "backend.pages_server" in unit and "--workers" not in unit
     inst = (ROOT / "scripts" / "install.sh").read_text()
-    assert "jarvis-pages.service" in inst and "$UNIT-pages.service" in inst
+    assert "cntrl-pages.service" in inst and "$UNIT-pages.service" in inst
 
 
 def test_doctor_has_an_optional_pages_stage(monkeypatch):

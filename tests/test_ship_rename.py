@@ -264,3 +264,12 @@ def test_check_reports_an_old_install_instead_of_advising_a_fresh_one(tmp_path):
     assert "an install from before the rename to CNTRL (jarvis.service" in out
     assert "touch" not in out and "service not installed" not in out
     assert (home / ".config/jarvis" / "env").exists()          # --check moves nothing
+
+
+def test_a_setting_setup_writes_replaces_its_old_twin(tmp_path, monkeypatch):
+    from backend import gitea_setup
+    env = tmp_path / "env"
+    env.write_text("JARVIS_GITEA_PORT=3000\nOTHER=1\n")
+    monkeypatch.setattr(gitea_setup, "ENV_FILE", env)
+    gitea_setup.set_env(gitea_setup.Plan(dry=False), {"CNTRL_GITEA_PORT": "3001"})
+    assert env.read_text().splitlines() == ["OTHER=1", "CNTRL_GITEA_PORT=3001"]

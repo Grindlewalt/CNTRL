@@ -351,7 +351,9 @@ def ensure_service(plan: Plan, p) -> None:
 
 def set_env(plan: Plan, values: dict[str, str], what: str = "Gitea") -> None:
     lines = ENV_FILE.read_text().splitlines() if ENV_FILE.exists() else []
-    keep = [ln for ln in lines if ln.split("=", 1)[0] not in values]
+    # a CNTRL_ value replaces its JARVIS_ twin from before the rename too
+    names = set(values) | {"JARVIS_" + k.removeprefix("CNTRL_") for k in values}
+    keep = [ln for ln in lines if ln.split("=", 1)[0] not in names]
     new = keep + [f"{k}={v}" for k, v in values.items()]
     if new == lines:
         print(f"  ok    {ENV_FILE} has the {what} settings")

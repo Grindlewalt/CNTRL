@@ -6,7 +6,7 @@ destroy/controller), QMP and the svcd RPC are stubbed. What is pinned is the
 host-side policy: what a request may contain, that the host snapshots and
 hashes the files and refuses secrets, the approve state machine with its
 REQUIRED explicit placement and exposure, the exact hardened unit argv, the
-relay's refusal to bind Jav3's own address, deny-by-default service egress,
+relay's refusal to bind CNTRL's own address, deny-by-default service egress,
 and /persist's freeze + import + timed delete.
 """
 import asyncio
@@ -224,7 +224,7 @@ def test_validate_canonical(tmp_env):
     ({"env": {"KEY": "{{secret:TOKEN}}"}}, "placeholders"),
     ({"env": {"KEY": 5}}, "printable string"),
     ({"ports": [{"port": 80, "purpose": "x"}]}, "1024..65535"),
-    ({"ports": [{"port": 5558, "purpose": "x"}]}, "Jav3's own"),
+    ({"ports": [{"port": 5558, "purpose": "x"}]}, "CNTRL's own"),
     ({"ports": [{"port": 8080, "purpose": "x"}, {"port": 8080, "purpose": "y"}]}, "twice"),
     ({"ports": [{"port": 8080, "purpose": "x", "protocol": "udp"}]}, "tcp"),
     ({"ports": [{"port": 8080, "purpose": "x", "expose": "world"}]}, "expose"),
@@ -666,14 +666,14 @@ def test_lan_ip_refusals(monkeypatch):
     monkeypatch.setattr(settings, "csrf_allowed_hosts", ["10.0.0.91:8000"])
     for bad, why in (("", "not set"), ("127.0.0.1", "private"), ("0.0.0.0", "private"),
                      ("8.8.8.8", "private"), ("10.201.50.1", "guests"),
-                     ("10.0.0.82", "Jav3's own"), ("10.0.0.90", "Jav3's own"),
-                     ("10.0.0.91", "Jav3's own"), ("10.0.0.84", "dedicated"),
+                     ("10.0.0.82", "CNTRL's own"), ("10.0.0.90", "CNTRL's own"),
+                     ("10.0.0.91", "CNTRL's own"), ("10.0.0.84", "dedicated"),
                      ("fe80::1", "private"), ("nonsense", "not an IP")):
         with pytest.raises(portfwd.PortfwdError, match=why):
             portfwd.check_lan_ip(bad)
     assert portfwd.check_lan_ip("10.0.0.83") == "10.0.0.83"
     monkeypatch.setattr(settings, "services_lan_ip", "10.0.0.82")
-    with pytest.raises(portfwd.PortfwdError, match="Jav3's own"):
+    with pytest.raises(portfwd.PortfwdError, match="CNTRL's own"):
         portfwd.bind_address("lan")
     assert portfwd.bind_address("loopback") == "127.0.0.1"
 
@@ -681,7 +681,7 @@ def test_lan_ip_refusals(monkeypatch):
 def test_lan_ip_default_route_without_iproute(monkeypatch):
     monkeypatch.setattr(portfwd, "host_addresses", lambda: None)
     monkeypatch.setattr(portfwd, "_default_route_ip", lambda: "192.168.1.5")
-    with pytest.raises(portfwd.PortfwdError, match="Jav3's own"):
+    with pytest.raises(portfwd.PortfwdError, match="CNTRL's own"):
         portfwd.check_lan_ip("192.168.1.5")
 
 
@@ -705,7 +705,7 @@ async def test_approval_refuses_lan_on_jav3_address(client, monkeypatch):
     r = await client.post(f"/api/services/{sid}/approve",
                           json={"acknowledge": True, "placement": "per_project",
                                 "expose_ports": [{"port": 8080, "bind": "lan"}]})
-    assert r.status_code == 409 and "Jav3's own" in r.json()["detail"]
+    assert r.status_code == 409 and "CNTRL's own" in r.json()["detail"]
     monkeypatch.setattr(portfwd, "host_addresses",
                         lambda: [("10.0.0.82", "eth0"), ("10.0.0.83", "eth0:jsvc")])
     monkeypatch.setattr(portfwd, "_default_route_ip", lambda: "10.0.0.82")
@@ -719,7 +719,7 @@ async def test_approval_refuses_lan_on_jav3_address(client, monkeypatch):
 async def test_relay_refuses_jav3_port(monkeypatch):
     monkeypatch.setattr(settings, "lan_port", 18123)
     r = portfwd.Relay(1, 18123, "loopback", "s-demo")
-    with pytest.raises(portfwd.PortfwdError, match="Jav3's own"):
+    with pytest.raises(portfwd.PortfwdError, match="CNTRL's own"):
         await r.start()
 
 

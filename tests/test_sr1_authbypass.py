@@ -14,8 +14,6 @@ Run:
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import httpx
 import pytest
 
@@ -291,7 +289,7 @@ def test_BLOCKED_cli_never_follows_redirects():
     downgraded endpoint can never replay the bearer token elsewhere."""
     import importlib.util
     from importlib.machinery import SourceFileLoader
-    src = Path(__file__).resolve().parent.parent / "clients" / "jav3cli" / "jav3"
+    from client_paths import CLI as src
     loader = SourceFileLoader("jav3cli", str(src))
     spec = importlib.util.spec_from_loader("jav3cli", loader)
     mod = importlib.util.module_from_spec(spec)

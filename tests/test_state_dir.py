@@ -42,7 +42,7 @@ def _legacy_repo(root: Path) -> Path:
     subprocess.run(["git", "init", "-q", str(root)], check=True)
     subprocess.run(["git", "-C", str(root), "add", "."], check=True)
     # now the runtime state git ignores/never saw
-    (root / "memory" / "soul.md").write_text("I am Jav3")
+    (root / "memory" / "soul.md").write_text("I am CNTRL")
     (root / "memory" / "notes").mkdir()
     (root / "memory" / "notes" / "rule.md").write_text("be brief")
     (root / "projects" / "p" / "code").mkdir(parents=True)
@@ -203,7 +203,7 @@ def test_migrate_moves_state_and_verifies(legacy):
     lines = statemigrate.migrate_state()
     assert any("verified" in line for line in lines)
 
-    assert (st / "memory" / "soul.md").read_text() == "I am Jav3"
+    assert (st / "memory" / "soul.md").read_text() == "I am CNTRL"
     assert (st / "memory" / "notes" / "rule.md").exists()
     assert (st / "projects" / "p" / "project.md").exists()
     assert (st / "projects" / "p" / "code").is_dir()
@@ -238,7 +238,7 @@ def test_migrate_to_explicit_dir(legacy, tmp_path):
     repo, _ = legacy
     lines = statemigrate.migrate_state(tmp_path / "other")
     assert (tmp_path / "other" / "memory" / "soul.md").exists()
-    assert any("JARVIS_STATE_DIR" in line for line in lines)
+    assert any("CNTRL_STATE_DIR" in line for line in lines)
 
 
 def test_migrate_refuses_while_service_runs(legacy, monkeypatch):

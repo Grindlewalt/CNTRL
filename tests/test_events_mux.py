@@ -1,6 +1,6 @@
 """One connection for every live feed: GET /api/events.
 
-The operator's report: with two Jav3 tabs open over plain http, the Work page's
+The operator's report: with two CNTRL tabs open over plain http, the Work page's
 "+ window" never opened. Each tab held three or four SSE feeds for its whole
 life, a browser allows six connections per host across ALL tabs, and the
 layout GET queued forever behind them. These tests pin the multiplexer that

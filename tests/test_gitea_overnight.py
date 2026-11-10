@@ -409,7 +409,7 @@ async def test_unknown_request_and_wrong_project_are_404_without_quotes(client, 
 async def test_status_says_what_is_missing(client, tmp_env, monkeypatch):
     st = (await client.get("/api/gitea/status")).json()
     assert st["configured"] is False
-    assert "JARVIS_GITEA_ENABLED is off" in st["missing"]
+    assert "CNTRL_GITEA_ENABLED is off" in st["missing"]
     assert "the operator's token file" in st["missing"]
     monkeypatch.setattr(settings, "gitea_enabled", True)
     monkeypatch.setattr(settings, "gitea_owner", "operator")
