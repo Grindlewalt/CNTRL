@@ -63,3 +63,13 @@
 :root .bx-orphans { border-left-color: var(--bad); }
 :root .bx-warn-box { border-left-color: var(--warn); }
 :root .bx-d-add { color: var(--ok); }
+
+/* ---- Profiles ---- */
+:root .prof-kv { display: grid; grid-template-columns: max-content 1fr; gap: var(--sp-2) var(--sp-7);
+  font-size: var(--fs-md); margin-top: var(--sp-3); }
+:root .prof-k { color: var(--slate); }
+:root .bx-prof-main { gap: var(--sp-2); }
+@media (max-width: 520px) {
+  :root .prof-kv { grid-template-columns: 1fr; gap: 0; }
+  :root .prof-k { margin-top: var(--sp-3); }
+}

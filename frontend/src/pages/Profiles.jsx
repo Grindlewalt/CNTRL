@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, EmptyState, Input, Select, Tag } from '../components/index.js'
+import './runtime.css'
 import { notify, notifyError } from '../notify.js'
 import { useAsk } from '../ask.jsx'
 import {
@@ -90,22 +91,19 @@ export default function Profiles() {
             <li key={p.id} className={editing?.id === p.id ? 'active' : ''}>
               <span className="bx-prof-main grow">
                 <span><b>{p.name}</b> {p.is_default && <Tag>default</Tag>}</span>
-                <span className="small">
-                  New sites: {newSitesText(p)}
-                  {' · '}{(p.allow_hosts || []).length} always allowed
-                  {' · '}{(p.deny_hosts || []).length} always blocked
+                <span className="prof-kv">
+                  <span className="prof-k">New sites</span>
+                  <span>{newSitesText(p)}; {(p.allow_hosts || []).length} always allowed, {(p.deny_hosts || []).length} always blocked</span>
+                  <span className="prof-k">Secrets</span>
+                  <span>{(p.secrets || []).length ? p.secrets.join(', ') : 'none'}</span>
+                  <span className="prof-k">Runs in</span>
+                  <span title="where the project's boxes run unless the project picks its own under Network, Runs in">{runsInText(p)}</span>
+                  <span className="prof-k">Auto review</span>
+                  <span>{p.auto_handle ? 'may handle its alerts and site requests' : 'leaves everything to you'}</span>
+                  <span className="prof-k">Used by</span>
+                  <span><ProjectList slugs={p.projects} empty="no project" /></span>
                 </span>
-                <span className="small">
-                  Secrets: {(p.secrets || []).length ? p.secrets.join(', ') : 'none'}
-                  {' · '}<span title="where the project's boxes run unless the project picks its own under Network, Runs in">
-                    Runs in: {runsInText(p)}</span>
-                </span>
-                <span className="small">
-                  Auto review: {p.auto_handle
-                    ? 'may handle its alerts and site requests' : 'leaves everything to you'}
-                </span>
-                <span className="dim small">used by: <ProjectList slugs={p.projects} empty="no project" /></span>
-                {deleteBlock(p) && <span className="dim small">cannot delete: {deleteBlock(p)}</span>}
+                {deleteBlock(p) && <span className="dim small">Cannot delete: {deleteBlock(p)}</span>}
               </span>
               <Button variant="ghost" onClick={() => setEditing({ ...p })}>Edit</Button>
               <Button variant="ghost" onClick={() => setEditing({
