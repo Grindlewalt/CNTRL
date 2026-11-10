@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import './runtime.css'
 import { api } from '../api.js'
 import { notify, notifyError } from '../notify.js'
 import { useAsk } from '../ask.jsx'
@@ -127,32 +128,32 @@ export default function Schedules() {
               onSubmit={save}>
           <input placeholder="schedule name" aria-label="schedule name" value={form.name}
                  onChange={(e) => set({ name: e.target.value })} />
-          <label className="mini">what runs
+          <label className="mini">What runs
             <select value={form.kind} onChange={(e) => set({ kind: e.target.value })}>
               <option value="jarvis">CNTRL (main)</option>
               <option value="agent">an agent</option>
             </select>
           </label>
           {form.kind === 'agent' && (
-            <label className="mini">agent
+            <label className="mini">Agent
               <select value={form.agent_slug} onChange={(e) => set({ agent_slug: e.target.value })}>
-                <option value="">— pick —</option>
+                <option value="">Pick an agent</option>
                 {agents.map((a) => <option key={a.slug} value={a.slug}>{a.name}</option>)}
               </select>
             </label>
           )}
-          <label className="mini">project context (optional)
+          <label className="mini">Project (optional)
             <select value={form.project_slug} onChange={(e) => set({ project_slug: e.target.value })}>
-              <option value="">— none —</option>
+              <option value="">No project</option>
               {projects.map((p) => <option key={p.slug} value={p.slug}>{p.name}</option>)}
             </select>
           </label>
-          <textarea rows={3} placeholder="task — what should it do?" value={form.task}
+          <textarea rows={3} placeholder="What should it do?" value={form.task}
                     onChange={(e) => set({ task: e.target.value })} />
-          <label className="mini">cadence
+          <label className="mini">Repeats
             <select value={form.cadence_kind} onChange={(e) => set({ cadence_kind: e.target.value })}>
-              <option value="daily">daily at a time</option>
-              <option value="interval">every N minutes</option>
+              <option value="daily">Every day at a time</option>
+              <option value="interval">Every N minutes</option>
             </select>
           </label>
           {form.cadence_kind === 'daily'
@@ -160,36 +161,36 @@ export default function Schedules() {
             : <input type="number" min="15" value={form.interval_minutes}
                      onChange={(e) => set({ interval_minutes: e.target.value })} />}
           {form.cadence_kind === 'daily' && (
-            <span className="dim small">the server's clock{tz?.name ? ` (${tz.name})` : ''}, not necessarily yours</span>)}
-          <button type="submit">{editing ? 'save changes' : '+ create'}</button>
-          {editing && <button type="button" className="ghost" onClick={cancelEdit}>cancel</button>}
+            <span className="dim small">Uses the server's clock{tz?.name ? ` (${tz.name})` : ''}, which may differ from yours.</span>)}
+          <button type="submit">{editing ? 'Save changes' : 'Create schedule'}</button>
+          {editing && <button type="button" className="ghost" onClick={cancelEdit}>Cancel</button>}
         </form>
       </aside>
       <main className="editor-pane sched-pane">
         {schedules.length === 0 && (
-          <EmptyState>none yet — set one up on the left</EmptyState>)}
+          <EmptyState>No schedules yet. Create one on the left.</EmptyState>)}
         <ul className="sched-list">
           {schedules.map((s) => (
             <li key={s.id} className={s.enabled ? '' : 'off'}>
               <div className="sched-head">
                 <span className="grow"><strong>{s.name}</strong>
-                  <span className="tag">{s.kind === 'agent' ? s.agent_slug : 'cntrl'}</span>
+                  {s.kind === 'agent' && <span className="tag">{s.agent_slug}</span>}
                   {s.project_slug && <span className="tag">{s.project_slug}</span>}
-                  {!!s.pending_approval && <span className="tag pending">awaiting approval</span>}
+                  {!!s.pending_approval && <span className="tag pending">waiting for you</span>}
                   {!s.enabled && !s.pending_approval && <span className="tag">paused</span>}
                 </span>
                 <button className="ghost" disabled={busy === s.id}
-                        onClick={() => runNow(s)}>{busy === s.id ? '…' : 'run now'}</button>
-                <button className="ghost" onClick={() => openEdit(s)}>edit</button>
+                        onClick={() => runNow(s)}>{busy === s.id ? 'Running…' : 'Run now'}</button>
+                <button className="ghost" onClick={() => openEdit(s)}>Edit</button>
                 <button className="ghost" onClick={() => toggle(s)}>
-                  {s.enabled ? 'pause' : (s.pending_approval ? 'approve' : 'resume')}</button>
-                <button className="ghost danger" onClick={() => del(s)}>delete</button>
+                  {s.enabled ? 'Pause' : (s.pending_approval ? 'Approve' : 'Resume')}</button>
+                <button className="ghost danger" onClick={() => del(s)}>Delete</button>
               </div>
               <div className="dim small">{s.task}</div>
               <div className="dim small">{cadence(s)}
                 {/* a paused schedule keeps its old next_run: it will not fire */}
-                {s.enabled ? ` · next ${serverTime(s.next_run, tz)}` : ' · not scheduled'}
-                {s.last_run && ` · last ${serverTime(s.last_run, tz)}`}</div>
+                {s.enabled ? `; next ${serverTime(s.next_run, tz)}` : '; not scheduled'}
+                {s.last_run && `; last ${serverTime(s.last_run, tz)}`}</div>
               {s.last_result && <SchedResult text={s.last_result} />}
             </li>
           ))}
@@ -206,14 +207,14 @@ export default function Schedules() {
                 <li key={s.id} className="deleted">
                   <div className="sched-head">
                     <span className="grow"><strong>{s.name}</strong>
-                      <span className="tag">{s.kind === 'agent' ? s.agent_slug : 'cntrl'}</span>
+                      {s.kind === 'agent' && <span className="tag">{s.agent_slug}</span>}
                       {s.project_slug && <span className="tag">{s.project_slug}</span>}
                     </span>
-                    <button className="ghost" onClick={() => restore(s)}>restore</button>
-                    <button className="ghost danger" onClick={() => purge(s)}>delete forever</button>
+                    <button className="ghost" onClick={() => restore(s)}>Restore</button>
+                    <button className="ghost danger" onClick={() => purge(s)}>Delete forever</button>
                   </div>
                   <div className="dim small">{s.task}</div>
-                  <div className="dim small">{cadence(s)} · deleted {utcTime(s.deleted_at)}</div>
+                  <div className="dim small">{cadence(s)}; deleted {utcTime(s.deleted_at)}</div>
                 </li>
               ))}
             </ul>
@@ -245,7 +246,7 @@ function SchedResult({ text }) {
       {long && (
         <button type="button" className="link sched-more" aria-expanded={open}
                 onClick={() => setOpen((o) => !o)}>
-          {open ? 'show less' : 'show more'}</button>
+          {open ? 'Show less' : 'Show more'}</button>
       )}
     </>
   )

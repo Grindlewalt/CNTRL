@@ -73,3 +73,30 @@
   :root .prof-kv { grid-template-columns: 1fr; gap: 0; }
   :root .prof-k { margin-top: var(--sp-3); }
 }
+
+/* ---- Schedules ---- */
+:root .sched-list li { background: none; border: 0; border-bottom: 1px solid var(--line);
+  border-radius: 0; padding: var(--sp-6) 0; margin: 0; }
+:root .sched-list li.off { opacity: 1; }
+:root .sched-list li.off .sched-head strong, :root .sched-list li.off > .dim { color: var(--faint); }
+:root .sched-head { gap: var(--sp-3); flex-wrap: wrap; }
+:root .sched-head strong { font-size: var(--fs-lg); letter-spacing: var(--track-head); margin-right: var(--sp-3); }
+:root .sched-list li > .dim.small { margin-top: var(--sp-2); font-size: var(--fs-md); max-width: 72ch;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+:root .sched-list li > .dim.small + .dim.small { display: block; -webkit-line-clamp: unset; }
+:root .sched-head .ghost.danger { color: var(--slate); border-color: var(--line-strong); }
+:root .sched-head .ghost.danger:hover { color: var(--bad); border-color: var(--bad); }
+:root .sched-form label.mini { color: var(--slate); font-size: var(--fs-sm); font-weight: 600;
+  text-transform: none; letter-spacing: 0; }
+:root .sched-form button[type="submit"] { width: 100%; }
+
+/* ---- Artifacts ---- */
+:root .artifact-group { padding: var(--sp-6) 0; border-bottom: 1px solid var(--line); }
+:root .artifact-group .side-title { font-size: var(--fs-md); color: var(--ink); text-transform: none;
+  letter-spacing: 0; font-weight: 600; }
+:root .art-del { color: var(--slate); font-size: var(--fs-sm); }
+:root .art-del:hover { color: var(--bad); }
+:root .artifact-group .file-list li { gap: var(--sp-5); }
+:root .artifact-group .file-list li { display: flex; align-items: baseline; justify-content: space-between; }
+:root .artifact-group .file-list .grow { flex: 1; min-width: 0; }
+:root .artifact-group .row { margin-top: var(--sp-4); }
