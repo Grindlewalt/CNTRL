@@ -1628,10 +1628,14 @@ async def test_tui_local_approval_ignores_keys_typed_before_it_opened(cfg):
             answers.append(await app.local_approve("shell", "$ rm -rf build"))
         app.run_worker(ask())
         assert await _until(pilot, lambda: type(app.top).__name__ == "LocalApprove")
+        dlg = app.top
+        # the dialog's clock, faked: its pause is held open, so however slowly
+        # a loaded machine delivers the keys below they land inside it...
+        dlg.GRACE = dlg.MAX_INERT = 3600
         await pilot.press("a", "enter")                # the tail of a sentence
         await pilot.pause(0.1)
-        assert type(app.top).__name__ == "LocalApprove" and not answers
-        await pilot.pause(0.6)
+        assert app.top is dlg and not answers
+        dlg._last_key -= 3600                          # ...and the operator pauses
         await pilot.press("n")
         assert await _until(pilot, lambda: answers == ["no"])
 
