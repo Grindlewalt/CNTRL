@@ -497,7 +497,9 @@ check_user_side() {
     warn "no CNTRL checkout here — skipping install-state checks"
     return 0
   fi
-  if [ -x "$REPO_DIR/.venv/bin/python" ]; then ok "python venv built"
+  if "$REPO_DIR/.venv/bin/python" -m pip --version >/dev/null 2>&1; then ok "python venv built"
+  elif [ -e "$REPO_DIR/.venv" ]; then
+    bad ".venv is half-made (no pip): the install rebuilds it"; fix "bash $REPO_DIR/scripts/install.sh"; MISSING_USER+=("venv")
   else bad "no .venv"; fix "bash $REPO_DIR/scripts/install.sh"; MISSING_USER+=("venv"); fi
 
   if [ -f "$REPO_DIR/frontend/dist/index.html" ]; then ok "frontend built"
@@ -1115,6 +1117,11 @@ user_phase() {
   cd "$REPO_DIR"
 
   step "python venv"
+  # a venv left half-made by a run that failed (no python3-venv yet: python, no
+  # pip) is rebuilt, not reused
+  if [ -d .venv ] && ! .venv/bin/python -m pip --version >/dev/null 2>&1; then
+    python3 -m venv --clear .venv
+  fi
   [ -d .venv ] || python3 -m venv .venv
   .venv/bin/pip install -q --upgrade pip
   .venv/bin/pip install -q -r requirements.txt
@@ -1422,12 +1429,12 @@ fi
 # fail deep inside pip. Only ask if the operator has not seen the list yet.
 if [ ${#MISSING_ROOT[@]} -gt 0 ]; then
   needs=()
-  if [ ! -x "$REPO_DIR/.venv/bin/python" ]; then
+  if ! "$REPO_DIR/.venv/bin/python" -m pip --version >/dev/null 2>&1; then
     vt=$(mktemp -d)
     python3 -m venv "$vt/v" >/dev/null 2>&1 || needs+=("a python that can make a venv (python3-venv)")
     rm -rf "$vt"
   fi
-  command -v npm >/dev/null 2>&1 || needs+=("npm")
+  [ "$BUILD_FRONTEND" != 1 ] || command -v npm >/dev/null 2>&1 || needs+=("npm")
   [ ${#needs[@]} -eq 0 ] || die "the unprivileged install needs ${needs[*]}, which the root block above installs: run it, then run this again"
 fi
 if [ ${#MISSING_ROOT[@]} -gt 0 ] && [ "$ASSUME_YES" != 1 ]; then
