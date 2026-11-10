@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
 import Wordmark from '../components/Wordmark.jsx'
 import { Button, Checkbox, Input, Select } from '../components/index.js'
+import './runtime.css'
 import { modelCaption } from '../modelInfo.js'
 
 // First run: the one page a fresh server shows before anyone can log in.
@@ -47,8 +48,8 @@ function strength(pw) {
   const classes = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((r) => r.test(pw)).length
   const score = (pw.length >= 12) + (pw.length >= 16) + (classes >= 3) + (/\s/.test(pw))
   if (score >= 2) return { label: 'strong', tone: 'good' }
-  if (score === 1) return { label: 'fair — longer is stronger', tone: '' }
-  return { label: 'weak — a few unrelated words beat one clever one', tone: 'warn' }
+  if (score === 1) return { label: 'fair, longer is stronger', tone: '' }
+  return { label: 'weak, a few unrelated words beat one clever one', tone: 'warn' }
 }
 
 // The one-time token from the setup link the installer printed
@@ -130,11 +131,11 @@ export default function Setup({ onDone }) {
         body: JSON.stringify({ provider, api_key: apiKey, base_url: baseUrl, token }),
       })
       const n = r.models_found?.length || 0
-      setTest(r.ok ? { ok: true, text: `ok · ${n} model${n === 1 ? '' : 's'}` }
+      setTest(r.ok ? { ok: true, text: `Works. ${n} model${n === 1 ? '' : 's'} found.` }
                    : { ok: false, text: r.detail || 'test failed' })
     } catch (err) {
       setTest({ ok: false, text: err.status === 404
-        ? 'this server cannot test providers yet — finish and add the key in Settings'
+        ? 'This server cannot test providers yet. Finish, then add the key in Settings.'
         : (err.detail || 'test failed') })
     }
   }
@@ -168,6 +169,7 @@ export default function Setup({ onDone }) {
     <div className="setup-wrap">
       <form className="login setup" onSubmit={finish}>
         <h1><Wordmark big /></h1>
+        <p className="login-lede">Set up this server. Three short steps; all of it can be changed later in Settings.</p>
         {!token && (
           <div className="error" role="alert">
             Open the one-time setup link the installer printed (it ends in
@@ -195,11 +197,11 @@ export default function Setup({ onDone }) {
           <h2><span className="setup-num">2</span>Connect a model provider</h2>
           <Select label="Provider" value={provider} disabled={!providers}
                   onChange={(e) => pick(e.target.value)}
-                  options={[{ value: '', label: 'Skip for now' },
+                  options={[{ value: '', label: 'Skip, I will add one later' },
                             ...(providers || []).map((p) => ({ value: p.id, label: p.label }))]} />
           {entry?.needs_key && (
             <Input label="API key" type="password" value={apiKey}
-                   autoComplete="off" spellCheck={false} placeholder="paste it here"
+                   autoComplete="off" spellCheck={false} placeholder="Paste the key"
                    onChange={(e) => { setApiKey(e.target.value); setTest(null) }} />
           )}
           {showBase && (
@@ -248,8 +250,10 @@ export default function Setup({ onDone }) {
               <Select label="Where projects run" value={prof.placement}
                       onChange={(e) => setProf({ ...prof, placement: e.target.value })}
                       options={whereOptions}
-                      hint={whereMissing.length ? whereMissing.map((w) =>
-                        `${w.value === 'vm' ? 'Own VM' : 'Own container'}: ${profState.options[w.value].reason || 'not available here'}`).join(' · ') : null} />
+                      hint={whereMissing.length ? whereMissing.map((w) => (
+                        <span key={w.value} className="setup-miss">
+                          {w.value === 'vm' ? 'Own VM' : 'Own container'}: {profState.options[w.value].reason || 'not available here'}
+                        </span>)) : null} />
               <Checkbox label="Agents may request services" checked={!!prof.services}
                         onChange={(e) => setProf({ ...prof, services: e.target.checked })} />
               <Checkbox label="Agents may request packages" checked={!!prof.packages}
@@ -263,7 +267,7 @@ export default function Setup({ onDone }) {
 
         {error && <div className="error" role="alert">{error}</div>}
         <Button type="submit" disabled={!ready || busy}>
-          {busy ? 'Finishing…' : 'Finish'}</Button>
+          {busy ? 'Setting up…' : 'Finish setup'}</Button>
       </form>
     </div>
   )

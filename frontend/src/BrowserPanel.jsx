@@ -55,7 +55,7 @@ export default function BrowserPanel() {
       {data === null ? <EmptyState>loading…</EmptyState>
         : data.browsers.length === 0 ? (
           <EmptyState>No browsers. Install the extension from{' '}
-            <a href="/cli/jav3-browser.zip">jav3-browser.zip</a> and pair it with the
+            <a href="/cli/cntrl-browser.zip">cntrl-browser.zip</a> and pair it with the
             Add computer line.</EmptyState>
         ) : (
           <ul className="device-list desk-list">

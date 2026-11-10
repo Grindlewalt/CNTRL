@@ -1,0 +1,24 @@
+/* Login and first-run setup. Loaded after styles.css, overrides by order. */
+
+/* the card sits on paper with a hairline, no floating glow */
+.login { background: var(--surface); box-shadow: none; border-color: var(--line-strong); }
+.login-lede { margin: 0 0 var(--sp-4); text-align: center; color: var(--slate);
+  font-size: var(--fs-md); line-height: 1.45; }
+.login .login-title { margin: 0; font-size: var(--fs-xl); font-weight: 600;
+  letter-spacing: var(--track-head); text-align: left; }
+.login .login-sub { margin: calc(var(--sp-4) * -1) 0 0; color: var(--slate);
+  font-size: var(--fs-md); }
+.login-foot { margin: 0; color: var(--faint); font-size: var(--fs-sm); text-align: center; }
+.login .error { color: var(--bad); font-size: var(--fs-md); }
+.login button[type="submit"] { width: 100%; }
+
+.setup-num { font-weight: 600; background: var(--wash); border-color: transparent;
+  color: var(--ink); }
+.setup-step h2 { letter-spacing: var(--track-head); }
+.setup-step .field-hint { line-height: 1.45; }
+.setup-miss { display: block; margin: 0; color: var(--slate); font-size: var(--fs-sm); }
+.setup-miss + .setup-miss { margin-top: var(--sp-2); }
+@media (max-width: 520px) {
+  .setup-wrap { padding-left: var(--sp-5); padding-right: var(--sp-5); }
+  .login, .login.setup { padding: var(--sp-8) var(--sp-7); }
+}
