@@ -29,7 +29,7 @@ Base: branch `ship` at the commit that adds this file. Every agent starts with
 | Client served by the server | `/cli/jav3` | `/cli/cntrl` | `/cli/jav3` serves the same file for good (old clients update from it) |
 | Client config dir | `~/.config/jav3` | `~/.config/cntrl` (shared with the server's config; no name clashes) | moved by the new client on first start, file by file when the server's upgrade made the dir first (credentials stay 0600) |
 | Client install dir | `~/.local/share/jav3` | `~/.local/share/cntrl-cli` (apart from the server's state dir, 52ba5f6) | an old install keeps working and updates in place |
-| GitHub repo | `Grindlewalt/Jav3` | `Grindlewalt/cntrl` | renamed at ship time by the orchestrator; write the new URL everywhere now |
+| GitHub repo | `Grindlewalt/Jav3` | `Grindlewalt/CNTRL` (links written lowercase, `Grindlewalt/cntrl`: GitHub matches either case) | renamed by the operator 2026-11-10; the old URL redirects |
 | Version | none | `backend/version.py` `__version__ = "0.1.0"` | server: `/api/health` and the doctor show it; client: `cntrl --version` and `/status` |
 
 **Unchanged on purpose** (internal, and changing them would log people out or break
