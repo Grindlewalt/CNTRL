@@ -22,12 +22,16 @@ owner and keeps them contained. Your job is to set it up, not to use it.
   default, strongest isolation) or a hardened Docker container (lighter, for
   hosts without KVM or with little RAM).
 - The model API key stays on the host. The sandbox reaches the model only
-  through a gateway, and the internet only through an egress proxy that asks
-  the owner about new sites.
+  through a gateway. It has no internet access at all until the owner turns
+  egress on (`CNTRL_VM_EGRESS`, off by default; this installer does not turn
+  it on), and then only through an egress proxy that asks the owner about new
+  sites.
 - Optional pieces: Gitea (a local git server that agents open pull requests
   on), Docker boxes, backups with rclone.
 
-The host is **Linux only** (Debian/Ubuntu, Arch, Fedora; arm64 or x86_64).
+The host is **Linux only** (Debian/Ubuntu or Arch; arm64 or x86_64). The
+installer also has a dnf branch for Fedora that no test covers; on arm64 it
+names the x86 firmware package (`edk2-ovmf`), so tell the person it is untried.
 About 4 GB of RAM is the practical minimum (a Raspberry Pi 4 with 4 GB runs it).
 If you are running on macOS or Windows, the install target has to be a Linux
 machine you reach over ssh. Ask the person which machine it is.
@@ -161,9 +165,16 @@ Phase 0 already settled, and say why you left them out.
    They can skip this and add it later in Settings.
 10. **Default security profile**, which new projects use:
     - Network for agents: **ask me about each new site** (default), allow new
-      sites, or no network.
+      sites, or no network. This is the profile's rule for when egress is on.
+      Egress itself stays off after the install (no network for any agent)
+      until the person sets `CNTRL_VM_EGRESS=1` and gives the host nftables,
+      dnsmasq, tcpdump and a passwordless sudo rule for
+      `vm/net/net_up.sh`; the installer does none of that. Say so.
     - Where projects run: **the shared box** (default), each in its own VM, or
-      each in its own container (needs Docker).
+      each in its own container (needs Docker). A project's own VM or
+      container needs boxes on (`CNTRL_VM_BOXES_ENABLED=true`): the installer's
+      Docker step sets it when Docker works; without it every project runs in
+      the shared box whatever this answer says.
     - May agents request background services? (default no)
     - May agents request extra packages? (default no)
 11. **Gitea**, a local git server for agent pull requests: yes (default) or

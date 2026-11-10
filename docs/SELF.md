@@ -6,8 +6,8 @@ system you are running inside right now.
 
 ## architecture
 
-FastAPI backend + SQLite (`data/jarvis.db`) on the operator's Raspberry Pi,
-React SPA in front. Everything durable is a plain file on the host: `memory/`
+FastAPI backend + SQLite (`data/jarvis.db` in the state dir) on the operator's
+Linux host, React SPA in front. Everything durable is a plain file on the host: `memory/`
 (soul, user, env, all-projects, `notes/`), `projects/<slug>/` (a git repo from
 creation: project.md, code, `.workspace.json` board layout, `.context.json`
 opt-ins), `skills/<name>/SKILL.md`, `agents/<slug>/AGENT.md`,
@@ -15,10 +15,11 @@ opt-ins), `skills/<name>/SKILL.md`, `agents/<slug>/AGENT.md`,
 GUI edit are the same data.
 
 Your reasoning loop (the ReAct loop: model call → tool calls → repeat) runs
-inside a disposable box (a KVM guest VM; with `docker_enabled` a hardened
-Docker container instead) with no keys, no DB, no secrets, reachable only over
-vsock (KVM) or the broker socket (Docker). The host is a thin supervisor: a model gateway (the only path
-to DeepSeek) and a tool broker (the only path to tools). `run_code` executes
+inside a disposable box (a KVM guest VM; for a project set to run in its own
+container, with `docker_enabled`, a hardened Docker container instead) with no
+keys, no DB, no secrets, reachable only over vsock (KVM) or the broker socket
+(Docker). The host is a thin supervisor: a model gateway (the only path to the
+model provider) and a tool broker (the only path to tools). `run_code` executes
 inside the guest only; every other tool executes host-side behind its gates.
 One shared token Budget rides the whole operation (all subagents included) and
 stops it when exhausted.
@@ -116,16 +117,19 @@ into the chat so you can answer questions about CNTRL itself.
 ## boxes and images
 
 By default one shared box runs every project's turns. With `vm_boxes_enabled`
-(off by default) each project gets its own box, stopped after
-`vm_box_idle_stop_seconds` (600) idle. `vm_idle_scrub_seconds` (0 = off) wipes
+(off by default) a project whose profile or "Runs in" setting says so gets its
+own box, stopped after `vm_box_idle_stop_seconds` (600) idle; with it off,
+every project runs in the shared box whatever that setting says. `vm_idle_scrub_seconds` (0 = off) wipes
 the shared box. Docker boxes need `docker_enabled`. Anything installed with
 `pip install` or `npm install` in `run_code` is wiped after each turn; package
 requests and an approved `/persist` disk survive. Images: `main` is the base;
 `desktop` adds a screen and browser. If a tool says it needs the desktop image
 (screenshot), call `environment_request(use="desktop", reason=...)`; it is
 filed for approval and nothing changes until the operator approves.
-`headless_browser` reads pages that need JavaScript. Egress is off by default
-(`vm_egress`): the box has no network until hosts are approved.
+`headless_browser` (shipped to the box only with boxes on) reads
+pages that need JavaScript. Egress is off by default (`vm_egress`): the box has
+no network at all until the operator turns it on, and then a new host waits for
+approval unless the project's profile allows it.
 
 ## approvals
 
@@ -195,7 +199,9 @@ You only ever see secret NAMES; values live host-side. Use
 
 A 401/403 after substitution means the ORIGIN rejected the real key (wrong /
 expired / not yet activated) — the error text shows the placeholder because
-values are scrubbed from everything you see. Never ask the operator to paste a
+web_read puts the placeholder back in place of the value before you see the
+response. (That is not a general scrub: files and run_code output reach you
+as they are.) Never ask the operator to paste a
 key value into chat.
 
 ## egress and security
@@ -251,9 +257,10 @@ count on Security = pending approvals and alerts; the badge on Memory = notes
 and changes waiting for approval.
 
 The workspace board is draggable panels: chat, journal (project.md), editor,
-renderer (html/pdf/images), organizer, run (python sandbox), todos, git,
+renderer (html/pdf/images), organizer, run, todos, git,
 board (goal/plan/runs), context files, agent, research, review, network,
-secrets (key grants). The operator adds panels via double-click or the +
+secrets (key grants). The run panel is the operator's: it runs a project
+Python file on the host, outside any box. The operator adds panels via double-click or the +
 menu; panels snap and tile.
 
 ## driving the gui
@@ -275,12 +282,13 @@ sandbox your run_code executes in (no secrets, no DB, nukeable). Two front
 doors, both through the host broker (backend/guest_shell.py): a **Terminal
 panel** on the project board (WebSocket /api/guest/shell) and a **CLI**
 (`python -m backend.cli guest-shell [slug]`) for an operator already SSH'd to
-the Pi. The broker pins the guest for the session (idle-scrub can't reap a live
+the host. The broker pins the guest for the session (idle-scrub can't reap a live
 shell) and primes the active project's files so they land beside your file
 tools. It is a debug/exploration seat: edits there do NOT auto-reconcile to the
 host project — durable changes still go through the file tools / editor. This
-does not weaken containment: the guest is still NIC-less and secret-free,
-reachable only through the supervisor. Kill switch: settings.guest_shell_enabled.
+does not weaken containment: the guest is still secret-free, its network (if
+egress is on) still crosses the host proxy, and it is reachable only through
+the supervisor. Kill switch: settings.guest_shell_enabled.
 
 ## multi-agent
 
