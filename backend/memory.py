@@ -368,6 +368,21 @@ def restore_trash(tid: str, notes=None) -> str:
     return name
 
 
+_trusted_cache: dict[str, tuple[int, int, bool]] = {}     # path -> (mtime_ns, size, trusted)
+
+
+def _note_trusted_at(p) -> bool:
+    """note_trusted for the note file p, remembered until the file changes: the
+    badge is asked every few seconds by every open page."""
+    st = p.stat()
+    hit = _trusted_cache.get(str(p))
+    if hit and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
+        return hit[2]
+    trusted = note_trusted(parse_note(p.read_text())[0])
+    _trusted_cache[str(p)] = (st.st_mtime_ns, st.st_size, trusted)
+    return trusted
+
+
 def pending_counts(notes=None) -> dict:
     """What waits on the operator in memory: agent notes not yet approved, and
     agent changes proposed to notes that are binding. The Memory nav badge."""
@@ -375,7 +390,7 @@ def pending_counts(notes=None) -> dict:
     n = 0
     for p in (notes.glob("*.md") if notes.is_dir() else ()):
         try:
-            if not note_trusted(parse_note(p.read_text())[0]):
+            if not _note_trusted_at(p):
                 n += 1
         except OSError:
             continue
@@ -914,7 +929,9 @@ def parse_note(text: str) -> tuple[dict, str]:
         return dict(_UNREADABLE_META), text.strip()
     import yaml
     try:
-        meta = yaml.safe_load(m.group(1))
+        # the C loader when PyYAML has one: same safe constructors, ~10x faster (every
+        # turn parses every note; on the Pi the pure-Python one took ~2.5 ms a note)
+        meta = yaml.load(m.group(1), Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader))
     except yaml.YAMLError:
         return dict(_UNREADABLE_META), m.group(2).strip()
     if meta is None:
