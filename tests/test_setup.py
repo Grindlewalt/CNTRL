@@ -667,3 +667,15 @@ async def test_web_setup_change_profile_rewrites_the_default(client, no_provider
                                               "profile": {"network": "allow"}})
     assert r.json()["profile"]["action"] == "changed"
     assert await _default() == ({"name": "Default", **SAFE, "network": "allow"}, 1)
+
+
+_real_where_options = setup_api.where_options      # the autouse `where` fixture fakes it
+
+
+async def test_own_vm_and_container_are_not_offered_while_boxes_are_off(monkeypatch):
+    from backend.vm import boxes
+    monkeypatch.setattr(boxes, "enabled", lambda: False)
+    opts = await _real_where_options()
+    assert opts["shared"]["available"]
+    for k in ("vm", "container"):
+        assert not opts[k]["available"] and "boxes are off" in opts[k]["reason"]

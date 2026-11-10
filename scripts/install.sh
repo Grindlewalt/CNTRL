@@ -161,11 +161,11 @@ case "$ARCH" in
   aarch64|arm64)
     ARCH=aarch64
     QEMU_ARCH_PKG_APT=qemu-system-arm; FW_PKG_APT=qemu-efi-aarch64
-    QEMU_PKG_PAC=qemu-system-aarch64;  FW_PKG_PAC=edk2-aarch64 ;;
+    QEMU_PKG_PAC=qemu-system-aarch64;  FW_PKG_PAC=edk2-aarch64; FW_PKG_DNF=edk2-aarch64 ;;
   x86_64|amd64)
     ARCH=x86_64
     QEMU_ARCH_PKG_APT=qemu-system-x86; FW_PKG_APT=ovmf
-    QEMU_PKG_PAC=qemu-base;            FW_PKG_PAC=edk2-ovmf ;;
+    QEMU_PKG_PAC=qemu-base;            FW_PKG_PAC=edk2-ovmf;    FW_PKG_DNF=edk2-ovmf ;;
   *) die "unsupported architecture $ARCH (need aarch64 or x86_64 — the guest runs under KVM, not emulation)" ;;
 esac
 
@@ -189,7 +189,7 @@ case "$PKG" in
   pacman) PACKAGES=(python nodejs npm git curl rsync rclone "$QEMU_PKG_PAC" qemu-img
                     "$FW_PKG_PAC" libisoburn) ;;
   dnf)    PACKAGES=(python3 python3-pip nodejs npm git curl rsync rclone
-                    qemu-kvm qemu-img edk2-ovmf xorriso) ;;
+                    qemu-kvm qemu-img "$FW_PKG_DNF" xorriso) ;;
   *)      PACKAGES=() ;;
 esac
 
@@ -448,7 +448,7 @@ check_packages() {
     case "$PKG" in
       apt)    fix "sudo apt-get install -y $FW_PKG_APT" ;;
       pacman) fix "sudo pacman -S --needed $FW_PKG_PAC" ;;
-      dnf)    fix "sudo dnf install -y edk2-ovmf" ;;
+      dnf)    fix "sudo dnf install -y $FW_PKG_DNF" ;;
     esac
     MISSING_ROOT+=("packages")
   fi

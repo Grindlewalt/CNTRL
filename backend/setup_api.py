@@ -431,18 +431,26 @@ SAFE_CHOICES = {"network": "ask", "placement": "shared", "services": False,
 
 async def where_options() -> dict:
     """Where projects can run on this host: {shared|vm|container: {available,
-    reason}}. The shared box is always offered; a project's own VM needs
-    /dev/kvm; its own container needs the Docker runtime (enabled and
-    reachable: backend.vm.docker_runtime.availability)."""
+    reason}}. The shared box is always offered. A project's own VM or container
+    needs boxes on (vm_boxes_enabled; with them off every project runs in the
+    shared box whatever it asks for); the VM also needs /dev/kvm, the container
+    the Docker runtime (enabled and reachable: docker_runtime.availability)."""
     import os
-    vm = ({"available": True, "reason": None} if os.path.exists("/dev/kvm")
-          else {"available": False, "reason": "no /dev/kvm on this host"})
-    try:
-        from .vm import docker_runtime
-        d = await docker_runtime.availability()
-        container = {"available": bool(d.get("available")), "reason": d.get("reason")}
-    except Exception as e:                 # noqa: BLE001 - an option, never a failure
-        container = {"available": False, "reason": f"docker probe failed ({type(e).__name__})"}
+    from .vm import boxes
+    off = {"available": False, "reason": "boxes are off on this host "
+           "(CNTRL_VM_BOXES_ENABLED): every project runs in the shared box"}
+    if not boxes.enabled():
+        vm = container = off
+    else:
+        vm = ({"available": True, "reason": None} if os.path.exists("/dev/kvm")
+              else {"available": False, "reason": "no /dev/kvm on this host"})
+        try:
+            from .vm import docker_runtime
+            d = await docker_runtime.availability()
+            container = {"available": bool(d.get("available")), "reason": d.get("reason")}
+        except Exception as e:             # noqa: BLE001 - an option, never a failure
+            container = {"available": False,
+                         "reason": f"docker probe failed ({type(e).__name__})"}
     return {"shared": {"available": True, "reason": None}, "vm": vm,
             "container": container}
 
