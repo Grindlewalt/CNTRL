@@ -22,96 +22,53 @@ import { subscribe } from '../events.js'
 import { useApprovals, placeApprovals } from '../shell/approvals.js'
 import ApprovalRow from '../shell/ApprovalRow.jsx'
 import RunsTab from '../shell/RunsTab.jsx'
+import { SendGlyph, UiGlyph } from '../shell/glyphs.jsx'
+import { MODE_HINT } from '../askUser.js'
+import { MODE_SHORT } from '../AskUser.jsx'
+import './work.css'
 
-// Empty-state greeting, swapped in per new chat. Mostly not about the time of
-// day — a handful per period nod to it (capped at 5) so it doesn't read as a
-// gimmick that's always talking about the clock.
-const GREETINGS = {
-  morning: [
-    'Morning, sir.',
-    'Good morning — try not to open forty tabs before breakfast.',
-    'Early start, sir?',
-    "The coffee's fresh; so is the morning queue.",
-    'Up with the sun, or fighting it?',
-    "Right then — where do we begin?",
-    'Standing by, as ever.',
-    'Systems nominal. You, less certain — go on then.',
-    "Another queue, another day. Let's clear it.",
-    "I've been awake the whole time. You get the excuse.",
-    'At your service, sir.',
-    "Whenever you're ready.",
-    "Let's make today's list somebody else's problem.",
-    "You bring the questions, I'll bring the follow-through.",
-    'First request — no pressure.',
-    'Onwards.',
-    "I've kept the seat warm.",
-    "Let's not overthink the first ten minutes.",
-    'Say the word.',
-    "No fires so far. Let's keep it that way.",
-    'Fresh terminal, clean slate.',
-    'Shall we?',
-    "I've been idling productively.",
-    'Consider me caffeinated in spirit, if nothing else.',
+// A new chat's empty state: what this chat is scoped to, how it will ask,
+// and a few first messages that fill the composer. Plain words, no greeting.
+const STARTERS = {
+  project: [
+    'What does this project do, and what is unfinished?',
+    'What changed in the last few commits?',
+    'Plan the next step before writing anything',
   ],
-  midday: [
-    'Halfway through the day and still unbothered.',
-    'Afternoon lull? Not on my watch.',
-    "Midday check-in — what's on the docket?",
-    "The day's second half starts now.",
-    'Post-lunch fog is a you problem, not a me problem.',
-    'Say the word.',
-    'Standing by.',
-    "What's next on the list?",
-    "I've been idling productively.",
-    'Right, what\'s the crisis today?',
-    "You've survived the hard part. Onwards.",
-    "Let's turn 'later' into 'done'.",
-    'Go on, then.',
-    "I'm listening.",
-    "Whatever's next, I'm across it.",
-    'Ready and, dare I say, a little bored.',
-    'Consider me at your disposal.',
-    'One task or twelve — makes no difference to me.',
-    "Shall we get on with it?",
-    'Feed me a problem.',
-    'Still here. Still capable.',
-    "Momentum's a fragile thing. Let's not lose it.",
-    "Whatever you're stuck on, I probably have opinions.",
-    'Your move, sir.',
-  ],
-  night: [
-    'Burning those midnight tokens?',
-    'Still up, I see.',
-    'Night owl mode: engaged.',
-    "The world's asleep. We're not.",
-    'Late one, sir?',
-    'No judgment. Just data.',
-    "Let's make this quick and painless.",
-    "I don't sleep, so I don't mind.",
-    "Let's get this sorted so you can actually rest.",
-    'At your service, whatever the hour.',
-    'Quiet hours, focused work.',
-    "You're here. I'm here. Let's not waste it.",
-    'Say the word.',
-    'Fewer distractions right now, at least.',
-    'Onwards, into the quiet.',
-    "I'll keep the lights on, figuratively.",
-    'Whenever inspiration strikes, apparently.',
-    'No rush. Also, definitely some rush.',
-    "Let's be efficient about this.",
-    'The house is quiet. Good time to think.',
-    "I've got nowhere else to be.",
-    'Consider me undistracted.',
-    "Let's wrap this up before it wraps around you.",
-    "Whatever's keeping you up, let's make it worth it.",
+  none: [
+    'What can you do here, and what needs my approval?',
+    'Help me start a new project',
+    'Write a note I can keep in this chat',
   ],
 }
 
-function pickGreeting() {
-  const h = new Date().getHours()
-  const period = h < 5 ? 'night' : h < 12 ? 'morning' : h < 18 ? 'midday' : 'night'
-  const list = GREETINGS[period]
-  return list[Math.floor(Math.random() * list.length)]
+function ChatHome({ temporary, projectName, mode, onStart, children }) {
+  const starters = projectName ? STARTERS.project : STARTERS.none
+  return (
+    <div className="chat-home">
+      <h1>{temporary ? 'Temporary chat' : projectName ? projectName : 'New chat'}</h1>
+      <p className="chat-home-lede">
+        {temporary
+          ? 'Nothing from this chat is written to disk. It is gone once you leave it.'
+          : projectName
+            ? `Files this chat writes go to ${projectName}. Commits, pushes and new network hosts wait for your approval.`
+            : 'Not tied to a project. Files this chat writes stay with the chat; pick a project to work in one.'}
+      </p>
+      <dl className="chat-home-facts">
+        <dt>Mode</dt>
+        <dd><b>{MODE_SHORT[mode] || mode}</b> <span className="dim">{MODE_HINT[mode]}</span></dd>
+      </dl>
+      {children}
+      <div className="chat-home-h">Start with</div>
+      <ul className="chat-home-starters">
+        {starters.map((s) => (
+          <li key={s}>
+            <button type="button" onClick={() => onStart(s)}>{s}</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
 // The project control for the open chat, in the same glassy idiom as the model
@@ -153,15 +110,15 @@ function ProjectPicker({ projects, mode, value, global: loaded, onPick }) {
           <button type="button" role="menuitemradio" aria-checked={mode === 'follow'}
                   onClick={() => pick('follow')}>
             <span className="m-name">Follow loaded project
-              <span className="m-sub">{loaded ? `${name(loaded)} · one setting for the whole server`
+              <span className="m-sub">{loaded ? `${name(loaded)} now; one setting for the whole server`
                 : 'nothing loaded'}</span></span>
-            {mode === 'follow' && <span className="m-check" aria-hidden="true">●</span>}
+            {mode === 'follow' && <span className="m-check" aria-hidden="true"><UiGlyph name="check" size={14} /></span>}
           </button>
           <button type="button" role="menuitemradio" aria-checked={mode === 'none'}
                   onClick={() => pick('none')}>
             <span className="m-name">No project
               <span className="m-sub">files go to this chat’s artifacts</span></span>
-            {mode === 'none' && <span className="m-check" aria-hidden="true">●</span>}
+            {mode === 'none' && <span className="m-check" aria-hidden="true"><UiGlyph name="check" size={14} /></span>}
           </button>
           <div className="proj-sep" />
           {projects.map((p) => (
@@ -171,7 +128,7 @@ function ProjectPicker({ projects, mode, value, global: loaded, onPick }) {
               <span className="m-name">{p.name}
                 <span className="m-sub">{p.slug}</span></span>
               {mode === 'pin' && p.slug === value
-                && <span className="m-check" aria-hidden="true">●</span>}
+                && <span className="m-check" aria-hidden="true"><UiGlyph name="check" size={14} /></span>}
             </button>
           ))}
         </div>
@@ -198,7 +155,6 @@ export default function Chat({
   const [busy, setBusy] = useState(false)
   const [active, setActive] = useState(null)
   const [projects, setProjects] = useState([])
-  const [greeting, setGreeting] = useState(pickGreeting)
   const [multiline, setMultiline] = useState(false)   // composer past one line
   const ask = useAsk()
   // project chosen for a chat that doesn't exist yet; sent with the first turn
@@ -238,9 +194,6 @@ export default function Chat({
 
   const scrollRef = useRef(null)   // the .messages scroll container
   const inputRef = useRef(null)
-  const glowRef = useRef(null)     // composer underglow — direct style writes, not state
-  const orbRef = useRef(null)      // empty-state orb, measured when a chat starts
-  const orbFrom = useRef(null)     // its rect at that moment; consumed by the fly-in
   const tailAbort = useRef(null)   // cancels a resume-tail when switching chats
   const liveId = useRef(null)      // id of the turn in flight
   // Which chat this view is showing, as a counter: opening or leaving a chat
@@ -304,28 +257,6 @@ export default function Chat({
     return () => window.removeEventListener('jarvis-open-chats', open)
   }, [])
 
-  // Starting a chat doesn't replace the orb, it moves it: the big one is the
-  // same object as the little one beside CNTRL's first reply. send() measures
-  // it on the way out and this flies the avatar in from there, shrinking as it
-  // goes. Runs on every message change but costs one null check unless a rect
-  // is waiting.
-  useLayoutEffect(() => {
-    const from = orbFrom.current
-    if (!from) return
-    orbFrom.current = null
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const el = scrollRef.current?.querySelector('.msg.assistant .msg-avatar')
-    if (!el) return
-    const to = el.getBoundingClientRect()
-    if (!to.width) return
-    el.animate([
-      { transform: `translate(${(from.left + from.width / 2) - (to.left + to.width / 2)}px, `
-                 + `${(from.top + from.height / 2) - (to.top + to.height / 2)}px) `
-                 + `scale(${from.width / to.width})` },
-      { transform: 'none' },
-    ], { duration: 620, easing: 'cubic-bezier(0.22, 0.9, 0.28, 1)' })
-  }, [messages])
-
   // Follow the stream to the bottom unless the reader has scrolled up (then a
   // "N new" pill brings them back). Only the message list scrolls, never the
   // page (scrollIntoView walks every scrollable ancestor).
@@ -365,22 +296,10 @@ export default function Chat({
   }
   useEffect(autoGrow, [input])
 
-  // the composer's underglow pools wherever the cursor is: --gx is the point
-  // along the bar the light gathers at, --gi how bright it burns (falling off
-  // with the distance up the thread). Direct style writes for the same reason
-  // as the orb — a mousemove must not render the message list.
-  function trackGlow(e) {
-    const el = glowRef.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    if (!r.width) return
-    const x = ((e.clientX - r.left) / r.width) * 100
-    const above = Math.max(0, r.top - e.clientY)      // 0 once level with the bar
-    el.style.setProperty('--gx', `${Math.max(-12, Math.min(112, x))}%`)
-    el.style.setProperty('--gi', Math.max(0, 1 - above / 300).toFixed(3))
-  }
-  function fadeGlow() {
-    glowRef.current?.style.setProperty('--gi', '0')
+  // a starting point from the empty state: into the composer, not sent
+  function startWith(text) {
+    setInput(text)
+    inputRef.current?.focus({ preventScroll: true })
   }
 
   // One handler for both paths: the live POST stream and a resumed tail.
@@ -501,7 +420,6 @@ export default function Chat({
     setPendingProject('')
     setPendingMode('follow')
     setTemporary(false)
-    setGreeting(pickGreeting())
   }
 
   async function renameConversation(id, current) {
@@ -581,10 +499,6 @@ export default function Chat({
   async function send(resend = null, url = undefined) {
     const text = (resend ?? input).trim()
     if (!text || busy) return
-    // the orb is on screen only while the chat is empty — grab where it is
-    // before this turn unmounts it, so the avatar can fly in from there
-    if (messages.length === 0 && orbRef.current)
-      orbFrom.current = orbRef.current.getBoundingClientRect()
     const mine = gen.current
     let started = false   // the turn began (a `start` arrived)
     let settled = false   // it ended (a `final` or `error` arrived)
@@ -747,10 +661,12 @@ export default function Chat({
         <div className="side-head">
           <button type="button" className="icon-btn"
                   title={sideOpen ? 'collapse sidebar' : 'expand sidebar'}
-                  onClick={() => setSideOpen((o) => !o)}>{sideOpen ? '«' : '»'}</button>
+                  aria-label={sideOpen ? 'collapse sidebar' : 'expand sidebar'}
+                  onClick={() => setSideOpen((o) => !o)}>
+            <UiGlyph name={sideOpen ? 'left' : 'right'} /></button>
           <span className="side-title">Chats</span>
-          <button type="button" className="icon-btn" title="new chat"
-                  onClick={newConversation}>＋</button>
+          <button type="button" className="icon-btn" title="new chat" aria-label="new chat"
+                  onClick={newConversation}><UiGlyph name="plus" /></button>
         </div>
         {!sideOpen && !phone && <div className="side-nav" ref={slotRef} />}
         <ChatGroups conversations={conversations} activeId={conversationId}
@@ -762,10 +678,10 @@ export default function Chat({
       {sideOpen && (
         <div className="chat-scrim" onClick={() => setSideOpen(false)} />
       )}
-      <main onMouseMove={trackGlow} onMouseLeave={fadeGlow}>
+      <main>
         {/* the one home for the project state — except a fresh chat on a
-            phone, where both controls sit under the orb and the bar itself
-            would just be an empty strip */}
+            phone, where the controls sit in the empty state and the bar
+            itself would just be an empty strip */}
         {(!phone || !fresh) && (
           <div className="chat-toolbar">
             {conversationId
@@ -809,27 +725,28 @@ export default function Chat({
         <div className="messages" ref={scrollRef} hidden={showRuns}>
           {messages.length === 0 ? (
             <div className="chat-empty">
-              <div className="orb" ref={orbRef} />
-              {/* the chat page's only heading, so it is the <h1> */}
-              <h1>{greeting}</h1>
-              {phone && fresh && (
-                <div className="empty-controls">
-                  {projectPicker}
-                  {tempSwitch}
-                </div>
-              )}
-              {approvalsTail.length > 0 && (
-                <div className="chat-approvals">{approvalRows(approvalsTail)}</div>
-              )}
+              <ChatHome temporary={temporary} mode={permMode} onStart={startWith}
+                        projectName={effectiveProject
+                          ? (projects.find((p) => p.slug === effectiveProject)?.name || effectiveProject)
+                          : null}>
+                {phone && fresh && (
+                  <div className="empty-controls">
+                    {projectPicker}
+                    <PermissionModeSelect cid={conversationId} value={permMode} onChange={setPermMode} />
+                    {tempSwitch}
+                  </div>
+                )}
+                {approvalsTail.length > 0 && (
+                  <div className="chat-approvals">{approvalRows(approvalsTail)}</div>
+                )}
+              </ChatHome>
             </div>
           ) : (
             <div className="thread">
               {messages.map((m, i) => (
                 <div key={i} className={`msg ${m.role}${m.midturn ? ` midturn ${m.midturn}` : ''}`}>
-                  {m.role === 'assistant' ? <>
-                    <div className={`msg-avatar ${m.streaming ? 'thinking' : ''}`} />
-                    <MessageBody m={m} />
-                  </> : <pre>{m.content || (m.streaming ? '…' : '')}</pre>}
+                  {m.role === 'assistant' ? <MessageBody m={m} />
+                    : <pre>{m.content || (m.streaming ? '…' : '')}</pre>}
                 </div>
               )).map((row, i) => (approvalsAfter.has(i)
                 ? <Fragment key={i}>{row}<div className="chat-approvals">
@@ -851,7 +768,6 @@ export default function Chat({
             composer's overlay, its buttons out of reach.) */}
         <form className="composer" ref={dockRef}
               onSubmit={(e) => { e.preventDefault(); slash.submit() || send() }}>
-          <div className="composer-glow" ref={glowRef} />
           {slash.popup}
           {!follow.pinned && (follow.away > 0 || busy) && !showRuns && messages.length > 0 && (
             <button type="button" className="follow-pill" onClick={follow.jump}>
@@ -873,16 +789,16 @@ export default function Chat({
               // a phone's bar is ~230px of text: the long form wrapped onto a
               // second line the one-row box then clipped
               placeholder={temporary
-                ? (phone ? 'Temporary chat…' : 'Message CNTRL (temporary chat)…')
-                : 'Message CNTRL…'}
+                ? (phone ? 'Temporary message' : 'Message CNTRL (temporary chat)')
+                : 'Message CNTRL'}
               rows={1}
             />
             <ModelPicker chip="model-chip" wrap="composer-model" />
             {busy
               ? <button type="button" className="send-btn stop" title="stop this turn"
-                        onClick={stop}>◼</button>
+                        aria-label="stop" onClick={stop}><SendGlyph stop /></button>
               : <button type="submit" className="send-btn" title="send"
-                        disabled={!input.trim()}>↑</button>}
+                        aria-label="send" disabled={!input.trim()}><SendGlyph /></button>}
           </div>
         </form>
       </main>

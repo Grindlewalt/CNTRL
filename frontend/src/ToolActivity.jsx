@@ -3,6 +3,7 @@ import JobTree from './JobTree.jsx'
 import Md from './Md.jsx'
 import { isKnownModel, useModel } from './modelInfo.js'
 import { PATHS } from './nav.jsx'
+import { UiGlyph } from './shell/glyphs.jsx'
 import {
   activityOf, applyTurnEvent, clipText, errorLine, exitNote, finishTurn, fmtElapsed, fmtMs,
   foldParts, stepCount, toolLine,
@@ -139,9 +140,9 @@ export const ToolRow = memo(function ToolRow({ part }) {
              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle() }
            }}>
         {status === 'live' && <span className="tool-spinner" />}
-        {status === 'ok' && <span className="tool-ok">✓</span>}
-        {status === 'err' && <span className="tool-fail">✕</span>}
-        {status === 'stopped' && <span className="tool-stop" title="never reported back">–</span>}
+        {status === 'ok' && <span className="tool-ok"><UiGlyph name="check" size={13} /></span>}
+        {status === 'err' && <span className="tool-fail"><UiGlyph name="cross" size={13} /></span>}
+        {status === 'stopped' && <span className="tool-stop" title="never reported back"><UiGlyph name="dash" size={13} /></span>}
         <Glyph name={glyph} />
         <span className="tool-title">{title}</span>
         {arg && <span className="tool-arg ellipsis" title={arg}>{arg}</span>}
@@ -186,7 +187,7 @@ const FoldRow = memo(function FoldRow({ parts }) {
              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((o) => !o) }
            }}>
         <span className={`chev ${open ? 'open' : ''}`} aria-hidden="true">›</span>
-        <span className="tool-ok">✓</span>
+        <span className="tool-ok"><UiGlyph name="check" size={13} /></span>
         <span>{steps} earlier step{steps === 1 ? '' : 's'}</span>
         {ms > 0 && <span className="tool-ms">{fmtMs(ms)}</span>}
       </div>

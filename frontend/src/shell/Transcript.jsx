@@ -71,7 +71,7 @@ function ProjectHome({ slug, side, onOpen }) {
       <h1>{proj?.name || slug}</h1>
       {lede && <p className="sh-lede">{lede.length > 400 ? `${lede.slice(0, 400)}…` : lede}</p>}
       <div className="sh-home-meta">
-        {items.length > 0 && <span>plan {done}/{items.length}</span>}
+        {items.length > 0 && <span>Plan: {done} of {items.length} done</span>}
         <Link to={`/projects/${encodeURIComponent(slug)}`}>Open board</Link>
       </div>
       {chats.length > 0 && (
@@ -127,7 +127,7 @@ export default function Transcript({
             <p className="sh-lede">
               {temporary
                 ? 'Nothing from this chat is kept once you leave it.'
-                : 'Not tied to a project — any files it makes stay with this chat.'}
+                : 'Not tied to a project. Files it makes stay with this chat.'}
             </p>
           </div>
         )}
