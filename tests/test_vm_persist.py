@@ -19,7 +19,7 @@ from backend.config import settings
 from backend.db import get_db, init_db
 from backend.main import app
 from backend.memory import ensure_memory_seeds
-from backend.vm import broker, lifecycle, persist
+from backend.vm import boxes, broker, lifecycle, persist
 from backend.vm import guest_turn as gt
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -364,7 +364,12 @@ def _capture_spec(monkeypatch, *, approved=True):
 
         def close(self):
             pass
-    monkeypatch.setattr(gt.socket, "socket", lambda *a, **k: FakeSock())
+
+    # fake the box's transport (boxes.py), not socket.socket: the vsock one
+    # reads socket.AF_VSOCK, which only Linux's socket module has
+    async def _connect(self, port):
+        return FakeSock()
+    monkeypatch.setattr(boxes.VsockTransport, "connect", _connect)
     loop = asyncio.get_running_loop()
 
     async def _run_in_executor(_ex, fn, *a):
