@@ -25,6 +25,7 @@ agents/*
 /*.md
 !/README.md
 !/SECURITY-RESIDUAL-RISK.md
+!/CHANGELOG.md
 
 # vendored external research dump (Claude Code source study) — huge, not ours
 collection-claude-code-source-code/

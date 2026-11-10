@@ -1,207 +1,114 @@
-# Jav3
+# CNTRL
 
-A self-hosted personal AI agent with durable file-backed memory, multi-agent
-orchestration and a voice interface, running as a single service on a Raspberry
-Pi. Its defining constraint is that the agent is treated as untrusted: the entire
-reasoning loop executes inside a disposable KVM guest holding no API key, no
-database and no secrets, and every capability it has — models, tools, filesystem
-writes, network egress — is brokered through a gated host supervisor.
+CNTRL ("Controlled: Network, Tools, Runtimes and Logs") is a self-hosted trusted
+host for untrusted AI agents. The agent's reasoning loop runs in a disposable
+virtual machine that holds no API key, no database and no secrets; the host
+keeps the keys, the network policy, the tool broker and the logs.
 
-The agent's **entire reasoning loop runs inside a disposable KVM guest**,
-reachable only over AF_VSOCK. The host is a thin supervisor: a model gateway (the
-only path to DeepSeek) and a tool broker (the only path to tools). When monitored
-egress is on, the guest's only route off-box is a host proxy that applies
-per-project policy, injects granted secrets on the wire, meters every byte and
-can cut a host on an anomaly. See `SECURITY-RESIDUAL-RISK.md` for what that does
-and does not buy.
+Every capability the agent has (model calls, tools, file writes, network
+access) goes through the host, which can gate, record and cut it. CNTRL was
+called Jav3 before v0.1.0.
 
-## What's in it
+## What it does today
 
-- **Untrusted-agent architecture** — VM-isolated ReAct loop, vsock RPC, a tool
-  broker, a write chokepoint with deterministic diff gates, taint tracking on
-  web-derived memory, SSRF-guarded fetch, and an egress proxy with an
-  allowlist-training approval queue
-- **Multi-agent orchestration** — a recursive head → leader → subagent hierarchy
-  with context narrowing down and rollups flowing up, plus a purpose-built
-  search-and-divide research pipeline (scout → parallel readers → synthesis) and
-  a shared token budget on a contextvar that spans every child agent
-- **Extension by folder, not by code** — tools, agents and skills are markdown +
-  a handler, discovered and hot-reloaded at runtime, so the agent can author its
-  own capabilities
-- **Voice** — a wake-word → STT → agent → TTS loop tuned to an ~880 ms
-  round trip, with a local llama.cpp fast tier for latency-sensitive turns
-- **Live GUI** — React SPA over SSE: streaming chat, a draggable project
-  workspace, watchable agent run trees, network + security review centers
-
-Roughly 21k lines of Python and 8k of JS across ~80 test modules and 43 tools.
-
-## Layout
-
-- `backend/` — FastAPI app: auth, memory assembly, projects, chat (SSE), agent
-  loop, tool broker, egress proxy, git/secrets gates
-- `frontend/` — React (Vite) SPA, built to static and served by FastAPI
-- `tools/<name>/` — a tool is a folder: `TOOL.md` (frontmatter + schema) +
-  `handler.py`; hot-reloaded, no code change needed to add one
-- `agents/<slug>/AGENT.md`, `skills/<name>/SKILL.md` — same idea
-- `memory/` — soul.md / user.md / env.md / all-projects.md / notes (runtime state)
-- `projects/<slug>/` — project.md journal + code/ (a git repo from creation)
-- `vm/` — golden-image builder, guest bootstrap, nftables egress rules
-- `voicebox/` — the STT/wake-word/TTS sidecar (dockerised, runs off-Pi on a GPU box)
-- `docs/SELF.md` — the agent's own technical manual, served by the `self_docs` tool
-- `scripts/` — Pi setup, systemd units, backup + image-rebuild timers, E2E smoke
-
-## Computer and browser use
-
-The agent can see and drive a computer you pair (`clients/jav3-desk`) and a
-Chromium browser with the `jav3-browser` extension. Nothing is on by default:
-you grant screen, input and shell per computer, and Read and Act per browser and
-project, in Settings. Clicks go by element id, by description or by coordinates;
-a description click sends the screenshot to the vision model you choose under
-Settings → Grounding. Pairing, the grants, that model finder and what to do
-about a locked screen are in [`docs/navigation.md`](docs/navigation.md); the
-risks that remain are in `SECURITY-RESIDUAL-RISK.md`.
+- Runs the agent loop in a KVM guest reachable only over vsock, or in a
+  hardened Docker container on hosts without KVM.
+- Model gateway: the API key stays on the host; the guest reaches the model only
+  through it.
+- Network egress is off by default. When on, the guest's only route out is a
+  host proxy with per-project policy, an approval queue for new hosts, secrets
+  injected on the wire for plain HTTP, byte metering and an anomaly cut.
+- Tools are folders (`tools/<name>/TOOL.md` and a handler), as are agents and
+  skills; all go through a broker on the host.
+- File writes cross one host chokepoint that refuses path escapes and writes
+  containing a real secret value, and runs diff checks that raise security
+  events. Projects are git repos; commits, pushes and remotes need approval.
+- File-backed memory; notes the agent writes wait for your approval.
+- Multi-agent runs (sub-agents, a research pipeline, schedules).
+- A web app and a terminal client, with permission modes (safe-yolo, auto, ask,
+  yolo), published pages, web search and reading, Gitea for agent pull
+  requests, backups through rclone, and an optional voice sidecar.
+- Computer and browser use: pair a computer (`clients/jav3-desk`) or a
+  Chromium extension (`clients/jav3-browser`). Nothing is on by default; see
+  [docs/navigation.md](docs/navigation.md).
 
 ## Install
 
-One line, as the user the server will run as (not root):
+Requirements: Linux (Debian/Ubuntu, Arch or Fedora), x86_64 or arm64, about
+4 GB of RAM, and KVM or the hardened Docker runtime. A Raspberry Pi 4 works.
+Run it as the user the server will run as, not root:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/Grindlewalt/Jav3/main/scripts/bootstrap.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Grindlewalt/cntrl/main/scripts/bootstrap.sh | sh
 ```
 
-It clones to `~/jarvis` (`JARVIS_DIR=…` changes that) and hands over to
-`scripts/install.sh`; installer flags pass through (`| sh -s -- --port 8780`).
-Or by hand:
+It clones to `~/cntrl` (`CNTRL_DIR=…` changes that) and hands over to
+`scripts/install.sh`; installer flags pass through
+(`| sh -s -- --port 8780`). Or by hand:
 
 ```
-git clone https://github.com/Grindlewalt/Jav3.git ~/jav3     # any path works
-cd ~/jav3 && bash scripts/install.sh
+git clone https://github.com/Grindlewalt/cntrl.git ~/cntrl
+cd ~/cntrl && bash scripts/install.sh
 ```
 
-**Or let a coding agent do it** (Claude Code, Codex, OpenCode, OpenClaw, …):
-paste the prompt at the end of [`docs/AGENT-INSTALL.md`](docs/AGENT-INSTALL.md)
-into it on the host. The guide has it look around read-only, ask the setup
-questions (port, runtime, second instance, provider, security profile, Gitea…),
-wait for a go, leave root steps and secrets to you, and verify with
-`python -m backend.cli doctor --json`. `install.sh --check --json` and
-`doctor --json` are the machine-readable reports it works from.
+The steps that need root are collected into one phase:
+`bash scripts/install.sh --check` reports what is missing and changes nothing,
+`sudo bash scripts/install.sh --root-phase` does the root part. If the CPU's
+virtualization extension is off in firmware and you have no Docker, a person
+has to turn it on.
 
 The installer ends at first-run setup: on a terminal it asks for your login and
-model provider (and tests the key); otherwise it prints a one-time link,
-`http://<host>:<port>/setup?token=…`, to do the same in a browser. Only that
-link can create the first login. `.venv/bin/python -m backend.cli setup --status`
-prints it again.
+model provider; otherwise it prints a one-time link to do the same in a
+browser. A coding agent can do the install for you with the prompt at the end of
+[docs/AGENT-INSTALL.md](docs/AGENT-INSTALL.md). Re-running `scripts/install.sh`
+is the upgrade path. More (second instance, state dir, backups, moving hosts,
+reverse proxy): `docs/AGENT-INSTALL.md` and `docs/SELF.md`.
 
-`scripts/install.sh` is re-runnable, so it is the upgrade path too. It works on
-Debian/Ubuntu, Arch and Fedora, on arm64 and x86_64.
+## Terminal client
 
-**The terminal client** (`jav3`), on any computer that can reach the server:
-`curl -fsSL http://<host>:<port>/cli/install.sh | sh`, then `jav3` (it asks for
-the line from Settings → Add computer). It updates itself from that server: at
-start, at most once an hour, it compares its file with `GET /cli/version` and
-says "a newer jav3 is on the server: /update"; `/update` in the TUI, or
-`jav3 update` in a shell, replaces just the client file (the old one stays as
-`jav3.bak-<date>`). The TUI then offers to restart into it, and `/restart` does
-that any time: tabs, tiles, chats, drafts and notifications come back, and
-running turns carry on on the server meanwhile. It leaves its launcher and venv alone,
-refuses when run from a git checkout (`git pull` there), and if the new client
-needs newer libraries it prints the installer line instead.
-
-**A second instance beside another** (a test install, or a box where port 8000
-or `~/.config/jarvis` is already taken):
-`bash scripts/install.sh --name test --port 8780 --state-dir ~/jav3-test-state`
-installs `jarvis-test.service` with its config in `~/.config/jarvis-test`. The
-checkout remembers the instance, so later `backend.cli` commands and re-runs
-from it target that one. The installer refuses to overwrite another app's
-config dir, another checkout's unit, or a port something else is using.
-
-**Published pages.** The installer also enables `jarvis-pages.service`, a small
-read-only server (`python -m backend.pages_server`) on port 8090 that serves the
-pages an agent published and the operator approved, at `/p/<id>/` (anyone with
-the link can open one; pages run sandboxed, with no access to the app's login).
-Change the port or turn it off with `JARVIS_PAGES_PORT` / `JARVIS_PAGES_ENABLED`
-in the config env file (a second instance needs its own port); `doctor` checks it.
-
-The handful of steps that genuinely need root are collected into one phase, so
-they are one paste rather than a conversation:
+On any computer that can reach the server:
 
 ```
-bash scripts/install.sh --check                 # what is missing? changes nothing
-bash scripts/install.sh --target user@host      # ...on a remote host, over ssh
-sudo bash scripts/install.sh --root-phase       # packages, kvm, vsock, linger
-bash scripts/install.sh                         # everything else, unprivileged
+curl -fsSL http://<host>:<port>/cli/install.sh | sh
+cntrl
 ```
 
-Every failed check prints its own fix command. One failure no script can clear:
-if the CPU's virtualization extension is off in firmware, `--check` says so and
-stops — the agent loop runs inside a KVM guest and there is no host-side
-fallback, so that is a reboot into BIOS by a human.
+It asks for the line from Settings > Add computer. It updates itself from the
+server (`/update` in the client, or `cntrl update`).
 
-**State dir.** Everything durable — `memory/`, `projects/`, `skills/`,
-`agents/` and `data/` (the SQLite DB, JWT secret, guest images) — lives in one
-directory outside the checkout: `~/.local/share/jarvis`, or `JARVIS_STATE_DIR`.
-`python -m backend.cli paths` prints where each piece resolves. A box installed
-before the state dir keeps running from its checkout (with a warning at start)
-until you stop the service and run `python -m backend.cli migrate-state`, which
-copies, verifies and only then removes the old copies.
+## Upgrading from Jav3
 
-**Backups.** `python -m backend.cli backup` (and the hourly `jarvis-backup.timer`)
-runs `rclone sync` of the state to `JARVIS_BACKUP_REMOTE` (any rclone remote,
-e.g. `myremote:jav3-backup`; set it up with `rclone config`), with a consistent
-DB snapshot. Secrets (env file, `secrets.json`) are included only when
-`JARVIS_BACKUP_INCLUDE_SECRETS` is on, and only through an rclone crypt layer
-(`JARVIS_BACKUP_CRYPT_PASSWORD`, or your own crypt remote in
-`JARVIS_BACKUP_CRYPT_REMOTE`). `python -m backend.cli restore` pulls it back.
-The same settings are editable at `/api/backup/config`.
+Old names keep working. `JARVIS_*` settings are read when the `CNTRL_*` one is
+unset, and `jav3` stays as a second launcher. The installer moves
+`~/.config/jarvis` and `~/.local/share/jarvis` to their `cntrl` names, stops and
+disables the old `jarvis*` systemd user units and enables the `cntrl*` ones. An
+existing checkout stays where it is. Re-run `scripts/install.sh` from it.
 
-**Moving hosts.** `--from` migrates the durable state that is *not* in git —
-`memory/`, `projects/`, `skills/`, `agents/` and the SQLite DB — from either
-layout (an old checkout, or a state dir) into this box's state dir:
+## Security model
 
-```
-bash scripts/install.sh --from grindlewalt@oldhost:jarvis
-```
+- The agent is untrusted. A prompt injection that reaches code execution lands
+  in a guest with no secrets, no LAN access and a watched, policy-gated network
+  path (when egress is on).
+- Netless by default: egress is off until you turn it on.
+- What it does not protect against: anything you approve, and anything you grant
+  by turning on yolo (which approves every request) or computer use; content
+  the agent reads from the web that steers it within what it is allowed to do;
+  HTTPS traffic is tunneled, not inspected; a flaw in the hypervisor or in the
+  host code. Read [SECURITY-RESIDUAL-RISK.md](SECURITY-RESIDUAL-RISK.md) before
+  trusting the agent with a new capability.
 
-It snapshots the source DB through SQLite's backup API (a live WAL database
-cannot be safely copied as a file), verifies `integrity_check` on arrival, and
-refuses to overwrite non-empty local state without `--force`. If the source is
-unreachable it fails hard rather than quietly starting a fresh install over the
-top of a migration. `data/vm/` is deliberately not copied: the golden image is
-built for the source host's architecture and is rebuilt natively instead.
+## Development
 
-**Behind a reverse proxy.** Every cookie-carrying state change must come from
-Jav3's own origin. A TLS-terminating proxy that forwards the public `Host`
-header (Caddy does by default; nginx with `proxy_set_header Host $host`) needs
-no config: an `https://<public-host>` page reaching Jav3 over plain http is
-accepted when host and port match. `X-Forwarded-*` is never trusted. If your
-proxy rewrites `Host` (saves fail with "cross-origin request refused"), list
-the public name — matched by hostname under any scheme and port:
-
-```
-JARVIS_CSRF_ALLOWED_HOSTS='["<public-host>"]'
-```
-
-Update loop: `git pull -q && (cd frontend && npm run build) && systemctl --user
-restart jarvis` — check for in-flight agent work first, or use
-`scripts/deploy_pi.sh`, which does that guarding for you. Terminal clients pick
-up a new `clients/jav3cli/jav3` from `/cli/jav3` on their own (see Install).
-
-## Dev
-
-Backend: `uvicorn backend.main:app --reload` · Frontend: `cd frontend && npm run
-dev` (proxies /api to :8000) · Tests: `pytest` (needs `JARVIS_DEEPSEEK_API_KEY` —
-there are no model mocks, so full-flow tests hit the real API).
-
-Config via env or `~/.config/jarvis/env`, prefix `JARVIS_` (see
-`backend/config.py`). Notable flags: `JARVIS_VM_EGRESS` (monitored egress, off by
-default → the guest is netless),
-`JARVIS_VOICE_ENABLED`.
+Backend: `uvicorn backend.main:app --reload`. Frontend: `cd frontend && npm run
+dev`. Tests: `pytest`. Settings come from the environment or
+`~/.config/cntrl/env`, prefix `CNTRL_` (see `backend/config.py`).
 
 ## Third-party
 
-Backups use [rclone](https://rclone.org) (MIT licence), run as a separate
-program — see `NOTICE`.
+rclone (MIT) runs as a separate program for backups; the provider catalogue is
+data from [models.dev](https://models.dev) (MIT); the web app ships Schibsted
+Grotesk and Martian Mono (SIL OFL 1.1). See [NOTICE](NOTICE).
 
-The LLM provider catalogue (`backend/providers_catalog.json`) is data from
-[models.dev](https://models.dev) (MIT licence), refreshed with
-`scripts/refresh_providers.py` — see `NOTICE`.
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
