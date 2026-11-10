@@ -31,8 +31,8 @@ import Button from './components/Button.jsx'
 import Card from './components/Card.jsx'
 import EmptyState from './components/EmptyState.jsx'
 import Input from './components/Input.jsx'
-import Tag from './components/Tag.jsx'
 import Toggle from './components/Toggle.jsx'
+import './pages/manage.css'
 
 // models.dev ids, in the order OpenCode shows them
 const POPULAR = ['openai', 'anthropic', 'google', 'deepseek', 'openrouter', 'groq',
@@ -238,11 +238,10 @@ function ProviderRow({
           <strong className="ellipsis">{nameOf(p)}</strong>
         </button>
         <div className="prov-facts">
-          {p.kind && <Tag>{p.kind}</Tag>}
           {needsKey(p) && (
             <span className={`small prov-key ${key === 'not set' ? '' : 'ok'}`}
                   title={key === 'env' ? 'key comes from the server environment' : undefined}>
-              key {key}</span>
+              {key === 'not set' ? 'No key' : key === 'env' ? 'Key from environment' : 'Key set'}</span>
           )}
           {blocked && <span className="small prov-key warn">needs base URL</span>}
           {p.enabled && on !== null && (
@@ -251,7 +250,7 @@ function ProviderRow({
           )}
           {p.docs && (
             <a className="prov-docs" href={p.docs} target="_blank" rel="noreferrer noopener"
-               aria-label={`${nameOf(p)} docs`} title="docs">↗</a>
+               aria-label={`${nameOf(p)} docs`}>Docs</a>
           )}
         </div>
         <Toggle label={`${nameOf(p)} enabled`} checked={!!p.enabled}

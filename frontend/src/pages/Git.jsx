@@ -22,6 +22,7 @@ import {
   ACCESS_LEVELS, accessEditable, diffLines, diffStat, filesText, pickSlug, projectOptions,
   shortDate, syncView, urlNote,
 } from '../gitPage.js'
+import './manage.css'
 
 const REMEMBER = 'jarvis.git.last'
 const remembered = () => { try { return localStorage.getItem(REMEMBER) } catch { return null } }
