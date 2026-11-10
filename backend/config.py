@@ -126,9 +126,9 @@ def has_any_state(root: Path) -> bool:
 
 def _default_state_dir() -> Path:
     """~/.local/share/cntrl, unless only the pre-rename ~/.local/share/jarvis
-    holds state: then that one, as is (the installer moves it on upgrade). The
-    client installs into ~/.local/share/cntrl too, so this asks about state,
-    not about the dir."""
+    holds state: then that one, as is (the installer moves it on upgrade). It
+    asks about state, not about the dir: an older terminal client installed into
+    ~/.local/share/cntrl before it moved to ~/.local/share/cntrl-cli."""
     new = Path(os.path.expanduser("~/.local/share/cntrl"))
     old = Path(os.path.expanduser("~/.local/share/jarvis"))
     if not has_any_state(new) and has_any_state(old):
