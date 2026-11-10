@@ -638,16 +638,18 @@ function WindowPicker({
   const mine = [...projects].sort((a, b) => (b.slug === project) - (a.slug === project))
   const winRows = (slug, skip) => Object.entries(WINDOW_TYPES)
     .filter(([k]) => !skip.includes(k))
-    .map(([k, v]) => ({ key: k, text: v.label, run: () => onPick(k, slug ? { project: slug } : {}) }))
+    .map(([k, v]) => ({ key: k, text: v.title, sub: v.desc || undefined,
+                        run: () => onPick(k, slug ? { project: slug } : {}) }))
   let all
   if (full) all = []
   else if (!project) {
     all = projects.map((p) => ({ key: p.slug, text: p.name || p.slug, run: () => onPickProject(p.slug) }))
   } else if (!step) {
     all = [
-      { key: '__chat', text: 'Chat… — any conversation, any project', stay: true,
+      { key: '__chat', text: 'Chat', sub: 'any conversation, any project', stay: true,
         run: () => go({ kind: 'chat' }) },
-      { key: 'review', text: WINDOW_TYPES.review.label, run: () => onPick('review') },
+      { key: 'review', text: WINDOW_TYPES.review.title, sub: WINDOW_TYPES.review.desc,
+        run: () => onPick('review') },
       ...winRows(null, ['chat', 'review']),
       { key: '__other', text: 'Another project’s windows…', stay: true, run: () => go({ kind: 'proj' }) },
     ]
