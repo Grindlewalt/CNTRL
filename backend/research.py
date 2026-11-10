@@ -152,13 +152,29 @@ async def _batch_search(queries: list[str], notes: dict | None = None) -> list[d
         webtools.search_notes.reset(tok)
 
 
+SEARCH_AT_ONCE = 2          # searches in flight together: 8 at once read as a bot
+SEARCH_STAGGER_S = 0.6      # between one search starting and the next
+
+
+async def _spaced(queries: list[str]) -> list:
+    """search_results for every query, a couple at a time and staggered: the
+    engines behind SearXNG blocked (or answered junk to) the scout's burst of
+    eight parallel searches from one home address (2026-11-03)."""
+    gate = asyncio.Semaphore(SEARCH_AT_ONCE)
+
+    async def one(i: int, q: str):
+        await asyncio.sleep(i * SEARCH_STAGGER_S)
+        async with gate:
+            return await webtools.search_results(q, limit=RESULTS_PER_QUERY)
+    return await asyncio.gather(*[one(i, q) for i, q in enumerate(queries)],
+                                return_exceptions=True)
+
+
 async def _batch_search_once(queries: list[str], notes: dict | None) -> list[dict]:
     for attempt in range(2):
         if notes is not None:
             notes["dropped"] = 0     # count the final attempt only
-        lists = await asyncio.gather(
-            *[webtools.search_results(q, limit=RESULTS_PER_QUERY) for q in queries],
-            return_exceptions=True)
+        lists = await _spaced(queries)
         seen, out = set(), []
         for lst in lists:
             if not isinstance(lst, list):

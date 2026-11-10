@@ -547,7 +547,9 @@ class Settings(BaseSettings):
     # return 0 results — measured 2026-07-21). Pin the engines that still work
     # so web_search returns real links instead of just Wikipedia infoboxes.
     # Empty string = let SearXNG use its own default set.
-    searxng_engines: str = "bing,mojeek,wikipedia"
+    # 2026-11-09 on the Pi: bing,mojeek,wikipedia gave 8 relevant of 39 (Bing answering
+    # junk, Mojeek suspended); with yahoo 36 of 36. Brave answers until it rate-limits.
+    searxng_engines: str = "yahoo,bing,brave,mojeek,wikipedia"
     web_search_results: int = 8
     web_fetch_timeout: int = 15
     web_max_bytes: int = 2_000_000      # stop reading a page past this

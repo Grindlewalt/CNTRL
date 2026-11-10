@@ -138,10 +138,7 @@ async def search_probe() -> dict:
     query = "python programming language"
     try:
         async with httpx.AsyncClient(timeout=settings.web_fetch_timeout) as c:
-            r = await c.get(f"{settings.searxng_url}/search",
-                            params=_search_params(query), headers=HEADERS)
-            r.raise_for_status()
-            data = r.json()
+            data = await _searx(c, query)
     except (httpx.HTTPError, ValueError) as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     results = data.get("results") or []
@@ -150,13 +147,60 @@ async def search_probe() -> dict:
             "relevant": len(keep)}
 
 
-def _search_params(query: str) -> dict:
-    """SearXNG query params, pinning the working engines (config searxng_engines)
-    so blocked defaults don't silently return zero results."""
+def _search_params(query: str, engines: list[str] | None = None) -> dict:
+    """SearXNG query params, pinning the working engines (config searxng_engines,
+    or `engines`) so blocked defaults don't silently return zero results."""
     params = {"q": query, "format": "json"}
-    if settings.searxng_engines.strip():
-        params["engines"] = settings.searxng_engines.strip()
+    chosen = ",".join(engines) if engines else settings.searxng_engines.strip()
+    if chosen:
+        params["engines"] = chosen
     return params
+
+
+RETRY_PAUSE_S = 1.5          # before asking again without the engines that answered junk
+
+
+def _junk_engines(results: list[dict], keep: list[dict]) -> set[str]:
+    """Engines whose every result here was off-topic."""
+    def engines_of(r):
+        return set(r.get("engines") or ([r["engine"]] if r.get("engine") else []))
+    good = set().union(*(engines_of(r) for r in keep)) if keep else set()
+    return set().union(*(engines_of(r) for r in results)) - good if results else set()
+
+
+async def _searx(c: httpx.AsyncClient, query: str) -> dict:
+    """SearXNG's answer for `query`, asked a second time when most of the first is
+    off-topic. Bing answers some queries with unrelated pages (jQuery release notes
+    for the Kyujo incident, 2026-11-03 and again 11-09), and comes back fine later,
+    while Yahoo answers the same query well; so the retry leaves out the engines
+    whose results all missed, after a short pause, and keeps whichever answer
+    matches better. The answer used says so in `retried_without`."""
+    asked = [e.strip() for e in settings.searxng_engines.split(",") if e.strip()]
+    r = await c.get(f"{settings.searxng_url}/search", params=_search_params(query),
+                    headers=HEADERS)
+    r.raise_for_status()
+    data = r.json()
+    results = data.get("results") or []
+    keep, _ = _split_relevant(query, results)
+    if not results or len(keep) * 2 >= len(results) or not asked:
+        return data
+    bad = _junk_engines(results, keep)
+    rest = [e for e in asked if e not in bad]
+    if not bad or not rest:
+        return data
+    await asyncio.sleep(RETRY_PAUSE_S)
+    try:
+        r2 = await c.get(f"{settings.searxng_url}/search", params=_search_params(query, rest),
+                         headers=HEADERS)
+        r2.raise_for_status()
+        second = r2.json()
+    except (httpx.HTTPError, ValueError):
+        return data
+    keep2, _ = _split_relevant(query, second.get("results") or [])
+    if len(keep2) > len(keep):
+        second["retried_without"] = sorted(bad)
+        return second
+    return data
 
 
 async def search_results(query: str, limit: int = 6) -> list[dict]:
@@ -165,10 +209,7 @@ async def search_results(query: str, limit: int = 6) -> list[dict]:
     try:
         async with httpx.AsyncClient(timeout=settings.web_fetch_timeout,
                                      http2=True) as c:
-            r = await c.get(f"{settings.searxng_url}/search",
-                            params=_search_params(query), headers=HEADERS)
-            r.raise_for_status()
-            data = r.json()
+            data = await _searx(c, query)
     except (httpx.HTTPError, ValueError):
         return []
     keep, dropped = _split_relevant(query, data.get("results") or [])
@@ -193,11 +234,7 @@ async def search(query: str, session: str) -> str:
     try:
         async with httpx.AsyncClient(timeout=settings.web_fetch_timeout,
                                      http2=True) as c:
-            r = await c.get(f"{settings.searxng_url}/search",
-                            params=_search_params(query),
-                            headers=HEADERS)
-            r.raise_for_status()
-            data = r.json()
+            data = await _searx(c, query)
     except (httpx.HTTPError, ValueError) as e:
         return f"error: search backend unreachable: {e}"
 
@@ -208,6 +245,10 @@ async def search(query: str, session: str) -> str:
     health = search_health(data)
     if health:
         lines.append(health)
+    if data.get("retried_without"):
+        lines.append(f"(the first answer was unrelated pages from "
+                     f"{', '.join(data['retried_without'])}; these are from asking again "
+                     "without it)")
     for ans in (data.get("answers") or [])[:3]:
         text = ans if isinstance(ans, str) else ans.get("answer", "")
         if text:
