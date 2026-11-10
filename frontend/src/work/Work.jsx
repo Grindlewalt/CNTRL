@@ -147,7 +147,7 @@ export default function Work({ openProjects = false }) {
     refreshProject()
   }, [project, loadBoard, refreshProject])
 
-  // Jav3 rearranged the board server-side (the workspace_panel tool)
+  // CNTRL rearranged the board server-side (the workspace_panel tool)
   useEffect(() => {
     const h = (e) => {
       const slug = projectRef.current

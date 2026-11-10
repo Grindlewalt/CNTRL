@@ -28,7 +28,7 @@ export const SECURITY_LEDES = {
 }
 
 export const VMS_LEDES = {
-  '/vms': 'Every box Jav3 runs: the shared box that chat turns use, project boxes, '
+  '/vms': 'Every box CNTRL runs: the shared box that chat turns use, project boxes, '
     + 'service boxes and image builders. A box is a virtual machine or, where the server '
     + 'allows it, a Docker container, which is less isolated.',
   '/vms/images': 'The disk images boxes start from. A variant adds packages on top of '
@@ -94,9 +94,9 @@ export const PERSISTENT_LEGEND = [
   ['built-in baseline', "no baseline was recorded for this box's image, so \"expected\" means "
     + 'a short built-in list of stock Debian services'],
   ['guest / host', 'guest is what the box says it sent (↑) and received (↓); host is what '
-    + 'Jav3 measured itself, on the proxy or the port relay'],
+    + 'CNTRL measured itself, on the proxy or the port relay'],
   ['verified', 'guest and host numbers agree'],
-  ['unverified', 'Jav3 has no measurement of its own for this connection'],
+  ['unverified', 'CNTRL has no measurement of its own for this connection'],
   ['mismatch', 'the two disagree by more than a few percent: the box may be misreporting'],
   ['unowned connection', 'the host saw a connection from the box that no reported process '
     + 'owns: something may be hiding from the box\'s process list'],
@@ -146,7 +146,7 @@ export function baselineAsk(d, scope) {
 
 // `choices` is [{name, infrastructure}] from the host; `held` the names the
 // profile already has. Infrastructure secrets (the Cloudflare Access token,
-// Jav3's own credentials) stay out of the list until asked for, unless the
+// CNTRL's own credentials) stay out of the list until asked for, unless the
 // profile already holds one, so it can be seen and unticked. Names the profile
 // holds that no longer exist are listed too.
 export function secretChecklist(choices, held, showInfra) {
@@ -191,7 +191,7 @@ export const AUTO_ALLOW_LEDE = 'When on, a site no list covers is judged the mom
 
 // ---- agent reports (harness_fault) in the Queue (WEB-14) ---------------------------
 
-export const FAULTS_LEDE = "Agents file these when one of Jav3's own tools misbehaved: an "
+export const FAULTS_LEDE = "Agents file these when one of CNTRL's own tools misbehaved: an "
   + 'error on input that looked valid, or a call that did not do what it says. They are '
   + 'bug reports, not security alerts. Mark one resolved when you have dealt with it.'
 
@@ -306,7 +306,7 @@ export const NEEDS_BUILD_WHY = 'its recipe changed since the active version was 
 
 export const TOOLS_LEDE = 'What the agent can call. Yours are skills you wrote. Imported ones '
   + 'are skills brought in from elsewhere: each arrives off, and you grant it. Built-in ones '
-  + 'ship with Jav3.'
+  + 'ship with CNTRL.'
 
 export const IMPORT_TIP = 'Bring in a skill from a folder or a git address. It arrives '
   + 'switched off, and you grant it after reading what it asks for.'
@@ -321,7 +321,7 @@ export function builtinState(t) {
 }
 
 // ---- the browser tab's title (WEB-23) ------------------------------------------------------
-// Every route used to be titled "Jav3", so a background tab could not say that
+// Every route used to be titled "CNTRL", so a background tab could not say that
 // approvals were waiting. `count` is the same number the Security nav link wears.
 
 const TAB_NAMES = [
@@ -339,5 +339,5 @@ export function tabTitle(pathname, count = 0) {
   const hit = TAB_NAMES.find(([p]) => path === p || path.startsWith(`${p}/`))
   const name = hit ? hit[1] : (path === '/' || path.startsWith('/c/') ? 'Work' : 'Not found')
   const n = Number(count) > 0 ? `(${Number(count) > 99 ? '99+' : count}) ` : ''
-  return `${n}${name} · Jav3`
+  return `${n}${name} · CNTRL`
 }

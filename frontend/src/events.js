@@ -1,7 +1,7 @@
 // Every live feed, on ONE connection per browser (not per tab).
 //
 // Over plain http a browser allows six connections per host, shared by all its
-// tabs. Each Jav3 tab used to hold three or four feeds open for its whole life
+// tabs. Each CNTRL tab used to hold three or four feeds open for its whole life
 // (the GUI channel, security alerts, agent notices, the Network page's egress
 // feed), so two tabs used every connection and each ordinary fetch after that
 // queued forever — the Work page's "+ window" just never opened.

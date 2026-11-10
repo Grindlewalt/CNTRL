@@ -9,7 +9,7 @@ import EmptyState from '../components/EmptyState.jsx'
 
 // The project's ALWAYS-LOADED files: the ones whose full text rides every
 // prompt. project.md always does (locked); tick any other file to add it. This
-// list is the operator's alone: an agent cannot tick a file, and when Jav3
+// list is the operator's alone: an agent cannot tick a file, and when CNTRL
 // writes to one of these after reading outside content the change waits on the
 // Memory page until you approve it (backend/alwaysloaded.py). The token count
 // and running total keep you honest about how big the context gets.

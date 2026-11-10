@@ -94,7 +94,7 @@ export function pickSlug({ route, remembered, projects = [], repos = [] }) {
   return slugs[0] || null
 }
 
-// The project select's options: every Jav3 project, marked when it has no repo
+// The project select's options: every CNTRL project, marked when it has no repo
 // yet, then any repo Gitea holds that is not a project (a deleted one).
 export function projectOptions(projects = [], repos = []) {
   const withRepo = new Set(repos.map((r) => r.slug))
@@ -110,8 +110,8 @@ export function projectOptions(projects = [], repos = []) {
 export function urlNote(st) {
   if (!st || !st.configured || st.url_configured !== false) return ''
   return `Links open Gitea at ${st.url}, the host’s address on your network. To open it from `
-    + 'elsewhere, set JARVIS_GITEA_URL to the address you reach it at (in '
-    + '~/.config/jarvis/env) and restart Jav3.'
+    + 'elsewhere, set CNTRL_GITEA_URL to the address you reach it at (in '
+    + '~/.config/cntrl/env) and restart CNTRL.'
 }
 
 // A unified diff cut into lines with the class the view paints: file headers,

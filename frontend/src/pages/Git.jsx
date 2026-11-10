@@ -73,7 +73,7 @@ function Pull({ slug, p, busy, onDecide }) {
   return (
     <li className="git-pull">
       <div className="git-pull-row">
-        <span className="tag new" title={`Gitea pull request #${p.pr_number}, Jav3 request #${p.id}`}>
+        <span className="tag new" title={`Gitea pull request #${p.pr_number}, CNTRL request #${p.id}`}>
           #{p.pr_number}</span>
         <strong className="grow ellipsis" title={p.title}>{p.title || '(no title)'}</strong>
         <code className="small ellipsis git-branch-name" title={p.branch}>{p.branch}</code>
@@ -354,14 +354,14 @@ export default function Git() {
   let body = null
   if (!st) body = null
   else if (st.unknown) {
-    body = <p className="dim small">Couldn't load Gitea's status from Jav3. Reload the page to try again.</p>
+    body = <p className="dim small">Couldn't load Gitea's status from CNTRL. Reload the page to try again.</p>
   } else if (!st.configured) {
     body = (
       <Card title="Gitea" headingLevel={2}>
         <p className="dim small settings-note">
           Not set up{st.missing?.length ? ` (missing: ${st.missing.join(', ')})` : ''}.
           Agents can still ask for commits. To give them pull requests for you to review, run{' '}
-          <code>python -m backend.cli gitea-setup</code> on the host, then restart Jav3.
+          <code>python -m backend.cli gitea-setup</code> on the host, then restart CNTRL.
         </p>
       </Card>
     )
@@ -370,7 +370,7 @@ export default function Git() {
       <Card title="Gitea isn't answering" headingLevel={2}>
         <p className="warn settings-note">
           Agents' push requests will fail until it is back. Start it on the host with{' '}
-          <code>systemctl --user start jav3-gitea-{st.port}</code>{' '}
+          <code>systemctl --user start cntrl-gitea-{st.port}</code>{' '}
           <Button variant="ghost" onClick={load}>Check again</Button>
         </p>
       </Card>

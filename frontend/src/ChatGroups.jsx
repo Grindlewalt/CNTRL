@@ -245,7 +245,7 @@ export default function ChatGroups({
               {listTitle(c)}</span>
           )}
           {/* an agent's thread is still a chat and still belongs in this list —
-              it just isn't Jav3 speaking, so say so */}
+              it just isn't CNTRL speaking, so say so */}
           {(c.agent_slug || c.project_slug) && (
             <span className="convo-proj ellipsis">
               {c.agent_slug && <span className="convo-agent">{c.agent_slug}</span>}

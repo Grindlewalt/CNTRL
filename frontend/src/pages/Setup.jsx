@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
+import Wordmark from '../components/Wordmark.jsx'
 import { Button, Checkbox, Input, Select } from '../components/index.js'
 import { modelCaption } from '../modelInfo.js'
 
@@ -166,7 +167,7 @@ export default function Setup({ onDone }) {
   return (
     <div className="setup-wrap">
       <form className="login setup" onSubmit={finish}>
-        <h1>Jav3</h1>
+        <h1><Wordmark big /></h1>
         {!token && (
           <div className="error" role="alert">
             Open the one-time setup link the installer printed (it ends in

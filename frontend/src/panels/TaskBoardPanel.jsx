@@ -55,7 +55,7 @@ export default function TaskBoardPanel({ slug, state, setState }) {
             <button className="win-btn" onClick={() => act({ action: 'delete', index: i })}>×</button>
           </li>
         ))}
-        {todos.length === 0 && <EmptyState as="li">no plan yet — Jav3 writes one with todo_update</EmptyState>}
+        {todos.length === 0 && <EmptyState as="li">no plan yet — CNTRL writes one with todo_update</EmptyState>}
       </ul>
       <form className="row" onSubmit={(e) => {
         e.preventDefault()

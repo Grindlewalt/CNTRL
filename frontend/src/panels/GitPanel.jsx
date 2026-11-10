@@ -7,7 +7,7 @@ import EmptyState from '../components/EmptyState.jsx'
 // A Workspace board panel, split out of pages/Workspace.jsx so the shell's
 // dock can mount it too. Same component, same props, both surfaces.
 
-// Git gate: the working tree, the diff, and Jav3's pending commit requests
+// Git gate: the working tree, the diff, and CNTRL's pending commit requests
 // with approve (commit + push) / reject — all through the existing gitgate
 // endpoints (this panel only *uses* the gate; the semantics live server-side).
 export default function GitPanel({ slug }) {

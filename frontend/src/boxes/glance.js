@@ -1,6 +1,6 @@
 // Pure helpers for the Boxes page's "at a glance" columns: when a box stops,
 // what it is doing, and its history. Same words as the terminal client's
-// /vms rows (clients/jav3cli/jav3, _box_timer / _box_event_line).
+// /vms rows (clients/cntrl/cntrl, _box_timer / _box_event_line).
 
 // 45s, 4m, 1h05m
 export function mins(s) {

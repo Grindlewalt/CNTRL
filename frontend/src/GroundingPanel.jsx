@@ -152,7 +152,7 @@ export default function GroundingPanel() {
                       disabled={pinnedByConfig}
                       onChange={(e) => pin(e.target.value)}
                       hint={pinnedByConfig
-                        ? `Set by JARVIS_GROUNDING_MODEL: ${data.pinned}`
+                        ? `Set by CNTRL_GROUNDING_MODEL: ${data.pinned}`
                         : data.model ? `Now using ${labels[data.model] || data.model}`
                           : 'None yet: run the model finder or pick one'}
                       options={[{ value: '', label: 'Automatic (best measured)' },

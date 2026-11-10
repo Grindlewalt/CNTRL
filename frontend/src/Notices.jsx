@@ -22,7 +22,7 @@ import { countsInBadge, isCrit, wantsPing } from './secPing.js'
 // Agent notices cover DEDICATED agents the operator started and then left: the
 // run is detached server-side, so it finishes either way, and this is how they
 // hear about it. A run whose panel is on screen in a visible tab is skipped
-// (agentWatch) — they are already watching it — and the agents Jav3 spawns
+// (agentWatch) — they are already watching it — and the agents CNTRL spawns
 // mid-turn never reach this stream at all.
 //
 // Every string shown here (summaries, commit messages, schedule names) is
@@ -118,7 +118,7 @@ export function useNotices(enabled) {
       const oldSched = new Set((p.schedules || []).map((s) => s.id))
       ;(d.schedules || []).filter((s) => !oldSched.has(s.id)).forEach((s) => push({
         title: `proposed schedule · ${s.name}`,
-        body: s.kind === 'agent' ? s.agent_slug : 'jav3',
+        body: s.kind === 'agent' ? s.agent_slug : 'cntrl',
       }))
     }
     load()

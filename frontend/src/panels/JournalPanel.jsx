@@ -19,7 +19,7 @@ export default function JournalPanel({ slug, project, refreshProject }) {
       <textarea className="md-editor grow" spellCheck={false} value={md}
                 onChange={(e) => { setMd(e.target.value); setDirty(true) }} />
       <div className="row">
-        <span className="dim grow">the journal Jav3 loads with this project</span>
+        <span className="dim grow">the journal CNTRL loads with this project</span>
         <SaveButton dirty={dirty} onSave={save} />
       </div>
     </div>

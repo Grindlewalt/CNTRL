@@ -18,7 +18,7 @@ const STATE_LABEL = {
   speaking: 'speaking',
   barge_pending: 'you were saying?',
   confirm_escalate: 'send it up?',
-  asleep: 'say “hey Jav3”',
+  asleep: 'say “hey CNTRL”',
   offline: 'voicebox offline',
   mic_denied: 'microphone unavailable',
 }
@@ -85,7 +85,7 @@ export default function Voice() {
     ws.onclose = (ev) => {
       if (dead) return
       setState(ev.code === 4404 ? 'offline' : 'connecting')
-      if (ev.code === 4404) setErr('voice mode is disabled (JARVIS_VOICE_ENABLED)')
+      if (ev.code === 4404) setErr('voice mode is disabled (CNTRL_VOICE_ENABLED)')
     }
     ws.onmessage = (ev) => {
       if (ev.data instanceof ArrayBuffer) {
@@ -117,7 +117,7 @@ export default function Voice() {
         case 'queued': push('sys', `(queued: “${msg.text}”)`); break
         case 'clap': push('sys', `(👏👏 ${msg.result || msg.title})`); break
         case 'wake': audio.chime(); break
-        case 'shutdown': push('sys', '(shutting down — say “hey Jav3” after reload)'); break
+        case 'shutdown': push('sys', '(shutting down — say “hey CNTRL” after reload)'); break
         case 'tool_activity':
           if (msg.phase === 'call') push('tool', msg.name)
           break

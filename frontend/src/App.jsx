@@ -14,6 +14,7 @@ import {
 } from './nav.jsx'
 import { AuthContext } from './auth.jsx'
 import Menu from './components/Menu.jsx'
+import Wordmark from './components/Wordmark.jsx'
 import Notices, { PendingCountContext, useNotices } from './Notices.jsx'
 import DndMark from './DndMark.jsx'
 import ErrorBoundary from './ErrorBoundary.jsx'
@@ -86,7 +87,7 @@ function useVmDot(enabled) {
   return dot
 }
 
-// Jav3 -> browser bridge: the gui topic of the shared event stream.
+// CNTRL -> browser bridge: the gui topic of the shared event stream.
 // Tools push actions here: open a URL (popup-blocked -> clickable toast),
 // play media in a floating dock, or nudge an open Workspace to reload its
 // layout. Fire-and-forget — a missed event only matters on-screen.
@@ -107,7 +108,7 @@ function GuiBridge() {
       if (!ev) return
       if (ev.type === 'open_url') {
         const w = window.open(ev.url, '_blank', 'noopener,noreferrer')
-        if (!w) toast({ text: 'Jav3 wants to open', url: ev.url })
+        if (!w) toast({ text: 'CNTRL wants to open', url: ev.url })
       } else if (ev.type === 'play_media') {
         setPlayer(ev)
       } else if (ev.type === 'player') {
@@ -327,7 +328,7 @@ export default function App() {
               flight. Empty while folded; the links are in the rail. */}
           <nav className={railed ? 'nav folded' : 'nav'} aria-hidden={railed}>
             {!railed && <>
-              <span className="brand">Jav3</span>
+              <span className="brand"><Wordmark /></span>
               <div className="nav-links">{navLinks}</div>
               <div className="nav-status">
                 <DndMark dnd={notices.dnd} />

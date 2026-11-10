@@ -3,30 +3,37 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0a0a0b" />
+    <meta name="theme-color" content="#faf7ef" />
     <script>
-      // stamp the theme before first paint so a light-theme reload never
-      // flashes dark (App keeps it in sync from then on)
+      // stamp the theme before first paint so a reload never flashes the
+      // other theme (App keeps it in sync from then on). Light is the
+      // default; the OS's dark preference or the operator's own choice
+      // (remembered under jarvis.theme) picks dark.
+      var t = 'light';
+      try { t = localStorage.getItem('jarvis.theme') || t; } catch (e) { /* storage blocked */ }
       try {
-        var t = localStorage.getItem('jarvis.theme')
-          || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-        document.documentElement.dataset.theme = t;
-        // the browser/status-bar chrome too, or a light reload frames the
-        // app in dark chrome until React mounts. The two literals are each
-        // theme's --bg from styles.css, spelled here because this runs before
-        // the stylesheet exists; App.jsx re-reads the token once it does.
-        document.querySelector('meta[name="theme-color"]')
-          .setAttribute('content', t === 'light' ? '#ece7da' : '#0a0a0b');
-      } catch (e) { /* storage blocked — default dark */ }
+        if (t !== 'light' && t !== 'dark') t = 'light';
+        if (!localStorage.getItem('jarvis.theme')
+            && matchMedia('(prefers-color-scheme: dark)').matches) t = 'dark';
+      } catch (e) { /* storage blocked: the OS preference still counts */
+        if (matchMedia('(prefers-color-scheme: dark)').matches) t = 'dark';
+      }
+      document.documentElement.dataset.theme = t;
+      // the browser/status-bar chrome too, or a reload frames the app in the
+      // other theme's chrome until React mounts. The two literals are each
+      // theme's --paper from styles.css, spelled here because this runs
+      // before the stylesheet exists; App.jsx re-reads the token once it does.
+      document.querySelector('meta[name="theme-color"]')
+        .setAttribute('content', t === 'dark' ? '#11130f' : '#faf7ef');
     </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Jav3" />
+    <meta name="apple-mobile-web-app-title" content="CNTRL" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <title>Jav3</title>
+    <title>CNTRL</title>
   </head>
   <body>
     <div id="root"></div>

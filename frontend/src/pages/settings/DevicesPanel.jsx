@@ -11,7 +11,7 @@ const mmss = (secs) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
-// --- devices (computers logged in with `jav3 login`) ------------------------------
+// --- devices (computers logged in with `cntrl login`) ------------------------------
 
 // Add computer: this session mints a one-time code and the line the CLI wants.
 // The session IS the authorization — whoever holds the line in the next few
@@ -82,17 +82,17 @@ export default function DevicesPanel() {
   return (
     <Card title="Devices" headingLevel={2} id="devices">
       <p className="dim small settings-note">
-        Log a computer’s <code>jav3</code> command-line client, or its
-        {' '}<code>jav3-desk</code> computer-use client, in to this server. Each
-        gets its own revocable token. A <code>jav3</code> token can chat with the
-        agent using the same tools you have; a <code>jav3-desk</code> token can
+        Log a computer’s <code>cntrl</code> command-line client, or its
+        {' '}<code>cntrl-desk</code> computer-use client, in to this server. Each
+        gets its own revocable token. A <code>cntrl</code> token can chat with the
+        agent using the same tools you have; a <code>cntrl-desk</code> token can
         only connect for computer use. Neither reaches secrets, the VM or other
         control panels.
       </p>
       {login ? (
         <div className="device-login">
           <p className="small settings-note">On the other computer run
-            {' '}<code>jav3 login</code> and paste this line. It works once, for
+            {' '}<code>cntrl login</code> and paste this line. It works once, for
             the next {mmss(left)}.</p>
           <div className="device-login-line">
             <code>

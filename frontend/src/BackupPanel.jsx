@@ -160,7 +160,7 @@ export default function BackupPanel() {
           <p className={`small settings-note ${runMsg.error ? 'error' : 'dim'}`}>{runMsg.text}</p>)}
 
         <p className="dim small settings-note">
-          Restore is command-line only: on the server, from the Jav3 checkout, run
+          Restore is command-line only: on the server, from the CNTRL checkout, run
           {' '}<code>.venv/bin/python -m backend.cli restore</code>.
         </p>
       </div>

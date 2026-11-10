@@ -305,7 +305,7 @@ export default function Chat({
   }, [])
 
   // Starting a chat doesn't replace the orb, it moves it: the big one is the
-  // same object as the little one beside Jav3's first reply. send() measures
+  // same object as the little one beside CNTRL's first reply. send() measures
   // it on the way out and this flies the avatar in from there, shrinking as it
   // goes. Runs on every message change but costs one null check unless a rect
   // is waiting.
@@ -873,8 +873,8 @@ export default function Chat({
               // a phone's bar is ~230px of text: the long form wrapped onto a
               // second line the one-row box then clipped
               placeholder={temporary
-                ? (phone ? 'Temporary chat…' : 'Message Jav3 (temporary chat)…')
-                : 'Message Jav3…'}
+                ? (phone ? 'Temporary chat…' : 'Message CNTRL (temporary chat)…')
+                : 'Message CNTRL…'}
               rows={1}
             />
             <ModelPicker chip="model-chip" wrap="composer-model" />

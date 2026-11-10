@@ -223,7 +223,7 @@ export function ReviewQueue({ slug }) {
   // Allow all trains the allowlist for every host, so it confirms hardest.
   const BULK_ASK = {
     approve: (n) => `Allow all ${n} sites? Each goes on its project's always-allow list, `
-      + 'including the ⚑ flagged ones. Addresses that can never be allowed, like the Jav3 '
+      + 'including the ⚑ flagged ones. Addresses that can never be allowed, like the CNTRL '
       + 'host, are skipped.',
     reject: (n) => `Deny all ${n} sites? They stay blocked and come back if a box asks again.`,
     dismiss: (n) => `Clear all ${n} sites from this list? No decision is recorded; `

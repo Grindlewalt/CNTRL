@@ -142,14 +142,14 @@ export default function GiteaPanel() {
     <Card title="Gitea" headingLevel={2}>
       {st.unknown ? (
         <p className="dim small settings-note">
-          Couldn't load Gitea's status from Jav3. Reload the page to try again.
+          Couldn't load Gitea's status from CNTRL. Reload the page to try again.
         </p>
       ) : !st.configured ? (
         <p className="dim small settings-note">
           Not set up{st.missing?.length ? ` (missing: ${st.missing.join(', ')})` : ''}.
           Agents can still ask for commits. To give them pull requests
           for you to review, run <code>python -m backend.cli gitea-setup</code> on
-          the host, then restart Jav3.
+          the host, then restart CNTRL.
         </p>
       ) : (
         <>
@@ -163,7 +163,7 @@ export default function GiteaPanel() {
           {!st.running && (
             <p className="warn settings-note">
               Gitea isn't answering, so agents' push requests will fail until it is back.
-              Start it on the host with <code>systemctl --user start jav3-gitea-{st.port}</code>{' '}
+              Start it on the host with <code>systemctl --user start cntrl-gitea-{st.port}</code>{' '}
               <Button variant="ghost" onClick={load}>Check again</Button>
             </p>)}
           {st.tokens_private === false && (
