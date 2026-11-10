@@ -10,7 +10,7 @@ import asyncio
 import re
 
 import yaml
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from . import toolcatalog
@@ -138,6 +138,54 @@ async def import_skill(body: ImportSkill):
     try:
         return await asyncio.to_thread(do_import, body.source, body.name or None,
                                        body.replace)
+    except SkillImportError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+UPLOAD_MAX_BYTES = 2 * 1024 * 1024    # the whole request body; skillimport caps the skill itself
+
+
+@router.post("/skills/import/upload")
+async def import_skill_upload(request: Request, name: str = "", replace: bool = False):
+    """Import a dropped .zip, or a dropped folder (several files, each with its
+    relative path as the file name). Same guard as /skills/import (operator
+    cookie + same-origin check). The body is read through a hard cap."""
+    from starlette.formparsers import MultiPartParser
+    from .skillimport import SkillImportError, import_upload
+    ctype = request.headers.get("content-type", "")
+    if not ctype.startswith("multipart/form-data"):
+        raise HTTPException(status_code=415, detail="send a multipart upload")
+    try:
+        if int(request.headers.get("content-length") or 0) > UPLOAD_MAX_BYTES:
+            raise HTTPException(status_code=413, detail="upload too large")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="bad content-length")
+
+    async def capped():
+        seen = 0
+        async for chunk in request.stream():
+            seen += len(chunk)
+            if seen > UPLOAD_MAX_BYTES:
+                raise HTTPException(status_code=413, detail="upload too large")
+            yield chunk
+
+    form = None
+    try:
+        form = await MultiPartParser(request.headers, capped(), max_files=200,
+                                     max_fields=20).parse()
+        files = []
+        for _, f in form.multi_items():
+            if hasattr(f, "filename") and f.filename:
+                files.append((f.filename, await f.read()))
+    except HTTPException:
+        raise
+    except Exception:  # noqa: BLE001 — a malformed body is the client's problem
+        raise HTTPException(status_code=400, detail="could not read the upload")
+    finally:
+        if form is not None:
+            await form.close()
+    try:
+        return await asyncio.to_thread(import_upload, files, name or None, replace)
     except SkillImportError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

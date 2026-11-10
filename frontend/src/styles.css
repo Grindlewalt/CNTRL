@@ -1588,6 +1588,11 @@ kbd {
 .tool-import { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-4);
   margin-bottom: var(--page-gap); }
 .tool-import input { flex: 1 1 240px; min-width: 0; }
+.tool-drop { flex: 1 1 100%; display: flex; align-items: center; flex-wrap: wrap;
+  gap: var(--sp-4); padding: var(--pad-row); border: 1px dashed var(--border);
+  border-radius: var(--radius-md); color: var(--dim); }
+.tool-drop.over { border-color: var(--accent); background: var(--bg-soft); }
+.tool-import-err { flex: 1 1 100%; margin: 0; color: var(--red); font-size: var(--fs-sm); }
 .tool-import-ask { font-size: var(--fs-md); overflow-wrap: anywhere; min-width: 0; }
 .builtin-list { list-style: none; margin: var(--sp-6) 0 0; padding: 0; display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--sp-2) var(--sp-6); }
