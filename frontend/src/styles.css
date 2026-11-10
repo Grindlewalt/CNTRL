@@ -847,6 +847,9 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
 .chat-layout aside {
   width: 260px; padding: 12px 12px 0; border-right: 1px solid var(--border);
   display: flex; flex-direction: column; gap: 10px; background: var(--bg-soft);
+  /* above the composer's bottom fade, which spans the whole chat layout and
+     used to wash the sidebar's foot in the page colour */
+  position: relative; z-index: 4;
   /* same curve and duration as the nav's fold — the two run together when the
      rail takes over, and at 0.28s ease the sidebar finished visibly ahead of
      the bar */
