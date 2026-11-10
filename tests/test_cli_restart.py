@@ -179,7 +179,7 @@ def test_the_restart_runs_the_file_on_disk_again_told_to_pick_up_the_state(tmp_p
     def boom(*a):
         raise OSError("no such file")
     jav3.save_restart_state({"v": 1, "at": time.time(), "base": BASE})
-    with pytest.raises(jav3.CliError, match="run jav3"):
+    with pytest.raises(jav3.CliError, match="run cntrl"):
         jav3.restart_client(None, path=p, execv=boom)
     assert not jav3._restart_path().exists()
 
