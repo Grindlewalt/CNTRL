@@ -4,6 +4,7 @@ import { notify, notifyError } from '../notify.js'
 import { useAsk } from '../ask.jsx'
 import Page from '../components/Page.jsx'
 import Tag from '../components/Tag.jsx'
+import './manage.css'
 
 const ASSEMBLED = '::assembled'
 const QUEUE = '::review'
@@ -133,10 +134,10 @@ function NoteCard({ n, busy, onApprove, onReject, onOpen }) {
     <section className="mem-card">
       <div className="mem-card-head">
         <h3>{n.name}</h3>
-        <Tag tone="pending">{n.source === 'agent' ? 'agent note' : 'held back'}</Tag>
-        {n.taint === 'untrusted' && !n.bad_frontmatter && (
-          <Tag tone="untrusted" title="Read the text before you approve it">
-            read outside content</Tag>)}
+        {n.taint === 'untrusted' && !n.bad_frontmatter
+          ? <Tag tone="untrusted" title="Read the text before you approve it">
+              Read outside content</Tag>
+          : !n.bad_frontmatter && <Tag tone="pending">Pending</Tag>}
         {n.bad_frontmatter && <Tag tone="untrusted">unreadable header</Tag>}
         <span className="dim mem-when">{when(n.mtime * 1000)}</span>
       </div>
@@ -366,22 +367,22 @@ export default function Memory() {
   }
 
   return (
-    <Page variant="split" title="Memory">
+    <Page variant="split" title="Memory" className="memory-page">
       <aside className="mem-aside">
         <ul className="file-list mem-list">
           <li className={selected === QUEUE ? 'active mem-live' : 'mem-live'}
               onClick={() => pick(QUEUE)}>
-            <span className="mem-name">waiting for you</span>
+            <span className="mem-name">Waiting for you</span>
             <span className="mem-meta">
               {waiting > 0
                 ? <Tag tone="pending">{waiting} to review</Tag>
-                : <span className="dim">nothing waiting</span>}
+                : <span className="dim">Nothing waiting</span>}
             </span>
           </li>
           <li className={selected === ASSEMBLED ? 'active mem-live' : 'mem-live'}
               onClick={() => pick(ASSEMBLED)}>
-            <span className="mem-name">assembled context</span>
-            <span className="mem-meta dim">live — what rides every turn</span>
+            <span className="mem-name">Assembled context</span>
+            <span className="mem-meta dim">What goes into every turn</span>
           </li>
           {files.map((f) => {
             const nm = notes[nkey(f.path)]
@@ -397,16 +398,15 @@ export default function Memory() {
                 {(isN && nm.pending) || hasProposal || f.auto_generated
                   || (rides && f.tokens != null) ? (
                     <span className="mem-meta">
-                      {isN && nm.pending && (
-                        <Tag tone="pending" title="Written by CNTRL, waiting for your approval. Not in its context or rules.">
-                          pending</Tag>)}
-                      {isN && nm.pending && nm.taint === 'untrusted' && (
-                        <Tag tone="untrusted" title="The turn that wrote it had read outside content">
-                          outside content</Tag>)}
-                      {hasProposal && (
+                      {isN && nm.pending && (nm.taint === 'untrusted'
+                        ? <Tag tone="untrusted" title="Waiting for your approval. The turn that wrote it had read outside content.">
+                            Outside content</Tag>
+                        : <Tag tone="pending" title="Written by CNTRL, waiting for your approval. Not in its context or rules.">
+                            Pending</Tag>)}
+                      {!(isN && nm.pending) && hasProposal && (
                         <Tag tone="pending" title="CNTRL proposed a change to this note; it is unchanged until you approve">
-                          change proposed</Tag>)}
-                      {f.auto_generated && <Tag>auto</Tag>}
+                          Change proposed</Tag>)}
+                      {f.auto_generated && <span className="dim">auto</span>}
                       {rides && f.tokens != null && (
                         <span className="dim" title="Rough input tokens if the whole file rides the context">
                           ≈{f.tokens.toLocaleString()} tok</span>)}
@@ -417,12 +417,12 @@ export default function Memory() {
           })}
           <li className={selected === TRASH ? 'active mem-live' : 'mem-live'}
               onClick={() => pick(TRASH)}>
-            <span className="mem-name">trash</span>
+            <span className="mem-name">Trash</span>
             <span className="mem-meta dim">
-              {trash.length ? `${trash.length} deleted, restorable` : 'empty'}</span>
+              {trash.length ? `${trash.length} deleted, restorable` : 'Empty'}</span>
           </li>
         </ul>
-        <button className="ghost" onClick={newNote}>+ new note</button>
+        <button className="ghost" onClick={newNote}>New note</button>
         <details className="mem-legend">
           <summary>What the tags mean</summary>
           <dl>
@@ -447,7 +447,7 @@ export default function Memory() {
         {selected === ASSEMBLED && (
           <>
             <div className="pane-head">
-              <h3>What CNTRL sees right now</h3>
+              <h3 className="mem-title">What CNTRL sees right now</h3>
               <span className="dim">
                 {assembled?.active_project
                   ? `project loaded: ${assembled.active_project}`
@@ -462,7 +462,7 @@ export default function Memory() {
         {selected === QUEUE && (
           <>
             <div className="pane-head">
-              <h3>Waiting for you</h3>
+              <h3 className="mem-title">Waiting for you</h3>
               <span className="dim">
                 {waiting
                   ? `${pendingNotes.length} note${pendingNotes.length === 1 ? '' : 's'}, `
@@ -489,15 +489,15 @@ export default function Memory() {
                 <NoteCard key={`n:${n.name}`} n={n} busy={busy === `n:${n.name}`}
                           onApprove={approveNote} onReject={rejectNote} onOpen={openNote} />))}
               {!waiting && (
-                <p className="mem-empty">All clear. A note CNTRL saves will show up here with
-                  its text, ready to approve or reject.</p>)}
+                <p className="mem-empty">Nothing is waiting. Notes CNTRL saves appear here with
+                  their text, ready to approve or reject.</p>)}
             </div>
           </>
         )}
         {selected === TRASH && (
           <>
             <div className="pane-head">
-              <h3>Trash</h3>
+              <h3 className="mem-title">Trash</h3>
               <span className="dim">deleted notes stay here until restored</span>
             </div>
             <div className="mem-queue">

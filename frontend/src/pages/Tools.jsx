@@ -9,7 +9,8 @@ import Toggle from '../components/Toggle.jsx'
 import EmptyState from '../components/EmptyState.jsx'
 import { IMPORT_TIP, TOOLS_LEDE, builtinState } from '../securityCopy.js'
 import { describeUpload, fromDrop, fromFileList } from '../skillDrop.js'
-import { groupTools, heading, oneLine } from '../toolGroups.js'
+import { groupTools, oneLine } from '../toolGroups.js'
+import './manage.css'
 
 // Three groups (GET /api/tools `group`): the operator's own skills, open;
 // imported OpenClaw skills, each a card with its requirements and a grant
@@ -188,8 +189,12 @@ function ImportBar({ onDone, onClose }) {
   )
 }
 
-function GateTags({ labels }) {
-  return labels.map((g) => <Tag key={g} className="tool-gate" title="when the model is offered it">{g}</Tag>)
+// What a tool needs, as one quiet line instead of a tag each
+function Needs({ core, labels }) {
+  const bits = [core && 'Always offered', ...labels].filter(Boolean)
+  if (!bits.length) return null
+  const text = bits.join(', ')
+  return <div className="tool-meta">{text}</div>
 }
 
 // One action of a merged tool (or the one action of a standalone tool): its
@@ -205,11 +210,11 @@ function ActionRow({ row, gating, shared }) {
         <span className="dim small tool-old" title="the tool folder: the old name, and the name a transcript shows">
           {row.name}</span>
         <span className="grow" />
-        <GateTags labels={gating} />
-        {row.internal && <Tag title="the harness uses it; the model is not offered it on a normal turn">internal</Tag>}
-        <Tag tone={st.tone || undefined}>{st.word}</Tag>
+        {row.internal && <span className="dim small" title="the harness uses it; the model is not offered it on a normal turn">internal</span>}
+        <span className={`small tool-state ${st.tone || ''}`}>{st.word}</span>
       </div>
       <div className="dim small builtin-desc">{oneLine(row.description)}</div>
+      <Needs labels={gating} />
       {row.reason && row.reason !== shared && <div className="small builtin-why">{row.reason}</div>}
       {(more || row.when_to_use) && (
         <details className="output-fold tool-text">
@@ -229,12 +234,11 @@ function ToolCard({ t }) {
       <article className="tool-card tool-merged">
         <div className="tool-card-head">
           <code>{t.name}</code>
-          {t.core && <Tag title="in every turn's tool list">core</Tag>}
-          <GateTags labels={t.gating} />
-          <Tag tone={t.offered === n ? 'done' : t.offered ? 'pending' : undefined}>
-            {t.offered === n ? `${n} on` : `${t.offered} of ${n} on`}</Tag>
+          <span className={`small tool-state ${t.offered === n ? 'done' : t.offered ? 'pending' : ''}`}>
+            {t.offered === n ? `${n} on` : `${t.offered} of ${n} on`}</span>
         </div>
         {t.about && <p>{t.about}</p>}
+        <Needs core={t.core} labels={t.gating} />
         {t.reason && <div className="small builtin-why">{t.reason}</div>}
         <ul className="tool-actions">
           {t.actions.map((a) => (
@@ -251,12 +255,11 @@ function ToolCard({ t }) {
     <article className="tool-card">
       <div className="tool-card-head">
         <code>{t.name}</code>
-        {t.core && <Tag title="in every turn's tool list">core</Tag>}
-        {row.internal && <Tag title="the harness uses it; the model is not offered it on a normal turn">internal</Tag>}
-        <Tag tone={st.tone || undefined}>{st.word}</Tag>
+        {row.internal && <span className="dim small" title="the harness uses it; the model is not offered it on a normal turn">internal</span>}
+        <span className={`small tool-state ${st.tone || ''}`}>{st.word}</span>
       </div>
-      {t.gating.length > 0 && <div className="tool-reqs"><GateTags labels={t.gating} /></div>}
       <p>{t.about}</p>
+      <Needs core={t.core} labels={t.gating} />
       {row.reason && <div className="small builtin-why">{row.reason}</div>}
       {(more || row.when_to_use) && (
         <details className="output-fold tool-text">
@@ -277,13 +280,14 @@ export function BuiltinTools({ rows, sections }) {
   return (
     <>
       <h2 className="section-h">
-        Built-in · {heading(g)}
-        {searching && <span className="dim"> · {g.shownActions} match</span>}
+        Built-in tools
+        <span className="dim"> {g.tools} tools, {g.actions} actions
+          {searching && `, ${g.shownActions} match`}</span>
       </h2>
       <p className="dim small tools-help">{BUILTIN_HELP}</p>
       <div className="tools-bar">
         <Input value={query} aria-label="Search built-in tools"
-               placeholder="search by tool, action or old name"
+               placeholder="Search by tool, action or old name"
                onChange={(e) => setQuery(e.target.value)} />
         {(internal || g.internalActions > 0) && (
           <Toggle checked={internal} onChange={setInternal} label="Show internal tools"
@@ -291,7 +295,7 @@ export function BuiltinTools({ rows, sections }) {
                   offText={`Show internal (${g.internalActions})`} />
         )}
       </div>
-      {g.sections.length === 0 && <EmptyState>No built-in tool matches</EmptyState>}
+      {g.sections.length === 0 && <EmptyState>No built-in tool matches that search.</EmptyState>}
       {g.sections.map((sec) => (
         <section key={sec.name}>
           <h3 className="tools-sec">{sec.name}
@@ -324,7 +328,7 @@ export default function Tools() {
   const builtin = list.filter((t) => t.group === 'builtin')
 
   return (
-    <Page title="Tools" lede={TOOLS_LEDE}
+    <Page title="Tools" className="tools-page" lede={TOOLS_LEDE}
           actions={!importing && (
             <Button variant="ghost" title={IMPORT_TIP} onClick={() => setImporting(true)}>
               Import a skill</Button>

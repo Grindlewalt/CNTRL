@@ -23,6 +23,7 @@ import { SETTINGS_TABS, hashId, settingsRedirect } from '../settingsTabs.js'
 import AccessTab from './settings/AccessTab.jsx'
 import NotificationsPanel from './settings/NotificationsPanel.jsx'
 import SystemTab from './settings/SystemTab.jsx'
+import './manage.css'
 
 export function ModelsTab() { return <ProvidersPanel /> }
 export function AlertsTab() { return <NotificationsPanel /> }

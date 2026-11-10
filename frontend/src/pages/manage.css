@@ -1,0 +1,163 @@
+/* The management pages in the website's look: Settings, Tools, Memory,
+   Agents, Projects, Git. Loaded after the shared sheet's tokens and scoped by
+   page class, so it wins on specificity wherever the chunk order lands.
+   Rules: sentence-case section heads, mono only for data (tool names, file
+   names, ids), one state per row as a word, colour only for state. */
+
+/* ---- shared: section heads and the bin fold ---- */
+:is(.tools-page, .projects-page, .settings-page, .git-page) .section-h {
+  margin: var(--sp-10) 0 var(--sp-5); color: var(--ink);
+  font-size: var(--fs-lg); font-weight: 600; letter-spacing: var(--track-head); }
+:is(.tools-page, .projects-page, .settings-page, .git-page) .section-h .dim {
+  font-weight: 400; font-size: var(--fs-md); margin-left: var(--sp-3);
+  color: var(--faint); letter-spacing: 0; }
+:is(.tools-page, .projects-page) .tools-first { margin-top: var(--sp-6); }
+:is(.projects-page, .tools-page) .deleted-fold summary {
+  font-size: var(--fs-md); font-weight: 500; color: var(--slate); }
+
+/* ---- Settings: providers ---- */
+.settings-page .prov-group-head {
+  margin: var(--sp-5) 0 var(--sp-2); font-size: var(--fs-sm); font-weight: 600;
+  color: var(--slate); }
+.settings-page .prov-row { border-top: 1px solid var(--line); }
+.settings-page .prov-facts { margin-left: auto; gap: var(--sp-5); justify-content: flex-end; }
+.settings-page .prov-key { font-size: var(--fs-sm); color: var(--faint); }
+.settings-page .prov-key.ok { color: var(--ok); }
+.settings-page .prov-key.warn { color: var(--warn); }
+.settings-page .prov-docs { font-size: var(--fs-sm); color: var(--faint);
+  text-decoration: underline; text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px; }
+.settings-page .prov-docs:hover { color: var(--accent); text-decoration-color: var(--accent); }
+.settings-page .prov-toggle strong { font-weight: 600; font-size: var(--fs-lg); }
+.settings-page .prov-head { padding-block: var(--sp-4); }
+.settings-page .prov-head > .toggle { margin-left: var(--sp-4); }
+@media (max-width: 768px) {
+  .settings-page .prov-facts { margin-left: 0; justify-content: flex-start; }
+}
+
+/* ---- Tools ---- */
+.tools-page .tool-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--sp-5); }
+.tools-page .tool-card { background: var(--surface); border-radius: var(--radius);
+  padding: var(--sp-6) var(--sp-7); display: flex; flex-direction: column; }
+.tools-page .tool-card code { color: var(--ink); font-weight: 500; font-size: var(--fs-md); }
+.tools-page .tool-card p { color: var(--slate); line-height: 1.45;
+  font-size: var(--fs-md); margin: var(--sp-3) 0 0; }
+.tools-page .tool-state { color: var(--faint); white-space: nowrap; }
+.tools-page .tool-state.done { color: var(--ok); }
+.tools-page .tool-state.pending { color: var(--warn); }
+.tools-page .tool-state.error { color: var(--bad); }
+.tools-page .tool-meta { margin-top: auto; padding-top: var(--sp-4);
+  font-size: var(--fs-sm); color: var(--faint); }
+.tools-page .tool-lock { color: var(--bad); }
+.tools-page .tools-help { max-width: 70ch; color: var(--slate); line-height: 1.5;
+  margin: calc(-1 * var(--sp-2)) 0 var(--sp-5); }
+.tools-page .tools-bar { margin-bottom: var(--sp-6); }
+.tools-page .tools-sec { margin: var(--sp-9) 0 var(--sp-4); font-size: var(--fs-md);
+  font-weight: 600; color: var(--ink); letter-spacing: var(--track-head); }
+.tools-page .tools-sec .dim { font-weight: 400; color: var(--faint); }
+.tools-page .tool-merged { grid-column: span 1; }
+.tools-page .tool-actions { list-style: none; margin: var(--sp-4) 0 0; padding: 0; }
+.tools-page .tool-action { padding: var(--sp-4) 0; border-top: 1px solid var(--line); }
+.tools-page .tool-action-head { display: flex; align-items: baseline; gap: var(--sp-3); }
+.tools-page .tool-action-head .grow { flex: 1; }
+.tools-page .tool-action code { font-size: var(--fs-sm); }
+.tools-page .tool-text summary { color: var(--faint); font-size: var(--fs-sm); }
+/* the import drop zone: a hairline well, not a dashed box */
+.tools-page .tool-import { padding: var(--sp-6); background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius); }
+.tools-page .tool-drop { border: 1px dashed var(--line-strong); background: var(--paper);
+  padding: var(--sp-6) var(--sp-7); border-radius: var(--radius-md); }
+.tools-page .tool-drop.over { border-color: var(--accent); background: var(--wash); }
+@media (max-width: 768px) {
+  .tools-page .tool-grid { grid-template-columns: 1fr; }
+}
+
+/* ---- Projects ---- */
+.projects-page .create-project { display: grid; align-items: end; gap: var(--sp-5);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.4fr) auto;
+  padding: var(--sp-6) var(--sp-7); margin-bottom: var(--sp-8); }
+.projects-page .create-project .field { margin: 0; }
+.projects-page .create-project .error { grid-column: 1 / -1; }
+.projects-page .project-card { padding: var(--sp-6) var(--sp-7); }
+.projects-page .project-card:hover { border-color: var(--line-strong); }
+.projects-page .project-card.in-context { box-shadow: none; border-color: var(--accent); }
+@media (max-width: 768px) {
+  .projects-page .create-project { grid-template-columns: 1fr; }
+}
+
+/* ---- Agents ---- */
+:is(.agents-aside, .skills-aside) .agent-new { align-items: stretch; }
+:is(.agents-aside, .skills-aside) .agent-row { border: 0; border-radius: var(--radius-lg);
+  padding: var(--sp-4) var(--sp-5); font-size: var(--fs-base); color: var(--slate); }
+:is(.agents-aside, .skills-aside) .agent-row.active { background: var(--wash); color: var(--ink); font-weight: 600; }
+:is(.agents-aside, .skills-aside) .agent-row:hover:not(.active) { background: var(--wash); }
+:is(.agents-aside, .skills-aside) .agent-row .tag { background: none; border: 0; padding: 0;
+  color: var(--faint); font-size: var(--fs-sm); }
+.split-idle { display: grid; place-items: start center; }
+
+/* ---- Memory ---- */
+.mem-aside .mem-list li { font-family: var(--sans); font-size: var(--fs-base);
+  border-radius: var(--radius-lg); padding: var(--sp-4) var(--sp-5); }
+.mem-aside .mem-list li.active { background: var(--wash); color: var(--ink); }
+.mem-aside .mem-list .mem-name { font-family: var(--mono); font-size: var(--fs-sm);
+  color: var(--ink); }
+.mem-aside .mem-list li.mem-live .mem-name { font-family: var(--sans);
+  font-size: var(--fs-base); font-weight: 600; }
+.mem-aside .mem-list .mem-meta { font-size: var(--fs-sm); color: var(--faint); }
+.mem-aside .mem-list .mem-blurb { font-size: var(--fs-sm); color: var(--slate); }
+.mem-aside > .ghost { width: 100%; justify-content: center; }
+.mem-card { background: var(--surface); padding: var(--sp-7) var(--sp-8);
+  display: flex; flex-direction: column; gap: var(--sp-4); }
+.mem-card-head h3 { font-family: var(--mono); font-size: var(--fs-base); font-weight: 600; }
+.mem-desc { font-size: var(--fs-lg); color: var(--ink); }
+.mem-why { color: var(--slate); }
+.mem-body { background: var(--paper); border: 1px solid var(--line); }
+.mem-intro { max-width: 70ch; color: var(--slate); }
+.mem-empty { color: var(--slate); }
+.memory-page .pane-head h3.mem-title { font-family: var(--sans); font-size: var(--fs-xl);
+  font-weight: 600; letter-spacing: var(--track-head); }
+.memory-page .pane-head { margin-bottom: var(--sp-5); }
+/* the field's control must not take the old flex-basis meant for a row */
+.projects-page .create-project .field > input { flex: none; height: var(--ctl-h, 38px); }
+
+/* ---- Settings: cards ---- */
+.settings-page .tabs a { color: var(--slate); }
+.settings-page .tabs a:hover { color: var(--ink); }
+.settings-page .tabs a.active { color: var(--ink); }
+.settings-page .card > p, .settings-page .card .settings-note, .settings-page .card .stack > p {
+  font-size: var(--fs-md); line-height: 1.5; color: var(--slate); max-width: 72ch; }
+.settings-page .card > p.warn, .settings-page .card p.warn { color: var(--warn); }
+.settings-page .card code { padding: 0 4px; margin: 0; font-size: 0.88em; }
+.settings-page .card { background: var(--surface); padding: var(--sp-7) var(--sp-8); }
+.settings-page .card > .card-head, .settings-page .card h2 { font-size: var(--fs-lg);
+  letter-spacing: var(--track-head); }
+.settings-page .card button:disabled:not(.toggle) { background: var(--wash);
+  border-color: var(--line); color: var(--faint); opacity: 1; }
+.settings-page .field > span, .settings-page label.mini { font-weight: 600; color: var(--slate);
+  font-size: var(--fs-sm); }
+:is(.settings-page, .tools-page, .memory-page) :is(.card, .tool-card, .mem-card) code { background: var(--wash); }
+:is(.settings-page, .tools-page) .toggle-text { font-size: var(--fs-md); color: var(--ink); font-weight: 400; }
+:is(.settings-page, .tools-page) .toggle { min-height: 0; padding: 0; }
+.settings-page .card select { background-color: var(--field-bg); }
+
+.skills-aside .skill-state { color: var(--faint); }
+.skills-aside .skill-state.ok { color: var(--ok); }
+.skills-aside .agent-row { gap: 0; }
+.tools-page .tool-card-head code { flex: 0 1 auto; background: none; padding: 0; }
+.tools-page .tool-card-head .tool-state, .tools-page .tool-card-head .tag,
+.tools-page .tool-card-head .badge { margin-left: auto; }
+
+/* ---- Git ---- */
+.git-page .card { padding: var(--sp-7) var(--sp-8); }
+.git-page .card > p, .git-page .settings-note { font-size: var(--fs-md); color: var(--slate);
+  line-height: 1.5; max-width: 72ch; }
+.git-page .card code { background: var(--wash); }
+.git-page .git-commits li { padding: var(--sp-3) 0; border-top: 1px solid var(--line);
+  font-size: var(--fs-md); }
+.git-page .git-commits li:first-child { border-top: 0; }
+.git-page .git-commits a.mono { color: var(--accent); font-size: var(--fs-sm); flex: none; }
+.git-page .git-commits .dim { color: var(--faint); white-space: nowrap; }
+.git-page .git-chips li { padding: var(--sp-2) var(--sp-5); border-radius: var(--radius-pill);
+  background: var(--wash); font-size: var(--fs-sm); }
+.git-page .git-pull { border-top-color: var(--line); }
