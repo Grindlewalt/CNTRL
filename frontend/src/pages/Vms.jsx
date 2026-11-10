@@ -32,7 +32,7 @@ import {
   Confirm, LoadError, PlacementTag, ProjectList, RuntimeStatus, RuntimeTag, StateDot, Unavailable, useLoad,
 } from '../boxes/ui.jsx'
 
-// The VM manager: every box Jav3 runs (the shared turn box, project boxes,
+// The VM manager: every box CNTRL runs (the shared turn box, project boxes,
 // service boxes, image builders), the image variants they boot from, and the
 // package catalogue those images are built from. It replaces the old VM chip
 // in the bar, the shell sidebar's SandboxLine and the Work page's "Project
@@ -354,7 +354,7 @@ function Leftovers({ data, error, onDone, onRefresh }) {
                confirmLabel="Clean" danger onClose={() => setAsk(false)} onConfirm={go}>
         <p>Removes {leftoverSummary(clean)}: {clean.slice(0, 6).map((i) => i.name).join(', ')}
           {clean.length > 6 ? ` and ${clean.length - 6} more` : ''}.</p>
-        <p>Only what this server identifies as its own (Jav3&apos;s container label and socket
+        <p>Only what this server identifies as its own (CNTRL&apos;s container label and socket
           directory, its own box directories and QEMU processes); each is checked again first.
           Network interfaces are listed, never removed.</p>
       </Confirm>
@@ -377,7 +377,7 @@ function Budget({ data, noLimit }) {
           {mb(b?.ram_mb_used ?? used)} reserved of {cap ? `${mb(cap)} guest budget` : 'the host'}
         </span>
         {host > 0 && (
-          <span className="dim small">host {mb(host)} · Jav3 and the OS keep the rest</span>
+          <span className="dim small">host {mb(host)} · CNTRL and the OS keep the rest</span>
         )}
         <span className="grow" />
         {b && (

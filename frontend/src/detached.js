@@ -65,7 +65,7 @@ function mirrorTheme(doc) {
  * Must be called from a user gesture: both mechanisms require one.
  * Returns { win, dispose } — call dispose() when you stop rendering into it.
  */
-export async function openDetached({ width = 384, height = 188, title = 'Jav3' } = {}) {
+export async function openDetached({ width = 384, height = 188, title = 'CNTRL' } = {}) {
   let win
   if (PIP) {
     win = await window.documentPictureInPicture.requestWindow({ width, height })

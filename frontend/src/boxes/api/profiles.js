@@ -29,7 +29,7 @@ export async function secretNames() {
 }
 
 // The names a profile may be granted, each marked `infrastructure` (the
-// Cloudflare Access token and Jav3's own credentials, judged by name on the
+// Cloudflare Access token and CNTRL's own credentials, judged by name on the
 // host). Names only, no tail. -> [{name, infrastructure}]
 export async function secretChoices() {
   const r = await get('/api/profiles/secret-choices')

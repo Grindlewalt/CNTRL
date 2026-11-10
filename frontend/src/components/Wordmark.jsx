@@ -1,0 +1,54 @@
+// The pixel wordmark: a 5x7 bitmap font drawn as one SVG path, the same way
+// the public site draws its wordmark (jav3-site/public/app.js, pixelWord).
+// It is the app's one flourish; it inherits currentColor, so it is ink in the
+// nav and whatever the surrounding text is elsewhere. `big` is the login and
+// setup size. The glyph table carries the letters the product name uses plus
+// the digits, so a version or a code can be set in it if ever wanted.
+import { useMemo } from 'react'
+
+const FONT = {
+  A: '01110100011000111111100011000110001', B: '11110100011000111110100011000111110',
+  C: '01110100011000010000100001000101110', D: '11110100011000110001100011000111110',
+  E: '11111100001000011110100001000011111', F: '11111100001000011110100001000010000',
+  G: '01110100011000010111100011000101111', H: '10001100011000111111100011000110001',
+  I: '01110001000010000100001000010001110', J: '00111000100001000010000101001001100',
+  K: '10001100101010011000101001001010001', L: '10000100001000010000100001000011111',
+  M: '10001110111010110101100011000110001', N: '10001100011100110101100111000110001',
+  O: '01110100011000110001100011000101110', P: '11110100011000111110100001000010000',
+  Q: '01110100011000110001101011001001101', R: '11110100011000111110101001001010001',
+  S: '01111100001000001110000010000111110', T: '11111001000010000100001000010000100',
+  U: '10001100011000110001100011000101110', V: '10001100011000110001100010101000100',
+  W: '10001100011000110101101011010101010', X: '10001100010101000100010101000110001',
+  Y: '10001100010101000100001000010000100', Z: '11111000010001000100010001000011111',
+  0: '01110100011001110101110011000101110', 1: '00100011000010000100001000010001110',
+  2: '01110100010000100010001000100011111', 3: '11111000100010000010000011000101110',
+  4: '00010001100101010010111110001000010', 5: '11111100001111000001000011000101110',
+  6: '00110010001000011110100011000101110', 7: '11111000010001000100010000100001000',
+  8: '01110100011000101110100011000101110', 9: '01110100011000101111000010001001100',
+  ' ': '00000000000000000000000000000000000',
+}
+
+// one path for the whole word: each lit pixel is a 1x1 square at (col, row)
+export function pixelPath(text) {
+  let d = ''
+  ;[...text.toUpperCase()].forEach((ch, i) => {
+    const g = FONT[ch] || FONT[' ']
+    for (let p = 0; p < 35; p++) {
+      if (g[p] === '1') d += `M${i * 6 + (p % 5)} ${Math.floor(p / 5)}h1v1h-1z`
+    }
+  })
+  return d
+}
+
+export default function Wordmark({ text = 'CNTRL', big = false, className = '', ...rest }) {
+  const d = useMemo(() => pixelPath(text), [text])
+  const w = text.length * 6 - 1
+  const cls = ['pxw', big ? 'big' : '', className].filter(Boolean).join(' ')
+  return (
+    <span className={cls} {...rest}>
+      <svg viewBox={`0 0 ${w} 7`} width={w} height={7} role="img" aria-label={text}>
+        <path d={d} />
+      </svg>
+    </span>
+  )
+}

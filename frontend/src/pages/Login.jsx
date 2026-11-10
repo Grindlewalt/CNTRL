@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
+import Wordmark from '../components/Wordmark.jsx'
 
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState('')
@@ -29,10 +30,10 @@ export default function Login({ onLogin }) {
   return (
     <div className="center">
       <form className="login" onSubmit={submit}>
-        <h1>Jav3</h1>
-        <input placeholder="username" value={username}
+        <h1><Wordmark big /></h1>
+        <input placeholder="Username" value={username}
                onChange={(e) => setUsername(e.target.value)} autoFocus />
-        <input type="password" placeholder="password" value={password}
+        <input type="password" placeholder="Password" value={password}
                onChange={(e) => setPassword(e.target.value)} />
         {error && <div className="error">{error}</div>}
         <button type="submit">Log in</button>

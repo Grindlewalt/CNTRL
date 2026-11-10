@@ -527,7 +527,7 @@ function PolicyEditor({ slug }) {
 // ---- per-project LAN access -------------------------------------------------
 // Box -> LAN only, through the host proxy: the guest still has no route to the
 // LAN. Entries are RFC1918 CIDRs, addresses or names, optionally :port. The
-// Jav3 host, loopback, link-local/metadata and the box network are refused at
+// CNTRL host, loopback, link-local/metadata and the box network are refused at
 // save and again at connect, even inside a listed range.
 function LanAccess({ slug }) {
   const [lan, setLan] = useState(null)

@@ -161,16 +161,16 @@ assert.match(TOOLS_LEDE, /each arrives off/)
 assert.match(IMPORT_TIP, /switched off/)
 
 // WEB-23: each route has its own tab title, and the pending count leads it
-assert.equal(tabTitle('/', 0), 'Work · Jav3')
-assert.equal(tabTitle('/security', 3), '(3) Security · Jav3')
-assert.equal(tabTitle('/security/logs', 0), 'Security: Logs · Jav3')
-assert.equal(tabTitle('/vms/images/', 12), '(12) VMs: Images · Jav3')
-assert.equal(tabTitle('/security', 140), '(99+) Security · Jav3')
-assert.equal(tabTitle('/c/646', 0), 'Work · Jav3')
-assert.equal(tabTitle('/security/bogus', 0), 'Security · Jav3')      // an unknown tab keeps its section
-assert.equal(tabTitle('/git', 0), 'Git · Jav3')
-assert.equal(tabTitle('/git/benchmark-game', 2), '(2) Git · Jav3')
-assert.equal(tabTitle('/nowhere', 0), 'Not found · Jav3')
-assert.equal(tabTitle(undefined, undefined), 'Work · Jav3')
+assert.equal(tabTitle('/', 0), 'Work · CNTRL')
+assert.equal(tabTitle('/security', 3), '(3) Security · CNTRL')
+assert.equal(tabTitle('/security/logs', 0), 'Security: Logs · CNTRL')
+assert.equal(tabTitle('/vms/images/', 12), '(12) VMs: Images · CNTRL')
+assert.equal(tabTitle('/security', 140), '(99+) Security · CNTRL')
+assert.equal(tabTitle('/c/646', 0), 'Work · CNTRL')
+assert.equal(tabTitle('/security/bogus', 0), 'Security · CNTRL')      // an unknown tab keeps its section
+assert.equal(tabTitle('/git', 0), 'Git · CNTRL')
+assert.equal(tabTitle('/git/benchmark-game', 2), '(2) Git · CNTRL')
+assert.equal(tabTitle('/nowhere', 0), 'Not found · CNTRL')
+assert.equal(tabTitle(undefined, undefined), 'Work · CNTRL')
 
 console.log('securityCopy ok')

@@ -8,7 +8,7 @@ import ChatGroups, { listTitle } from '../ChatGroups.jsx'
 //   Needs you   chats whose scope has something waiting on the operator — a
 //               git commit request, a network host, a plan item that stopped
 //               to ask (GET /api/sidebar `needs`)
-//   Working     every other chat with a live turn, any project, Jav3 or agent
+//   Working     every other chat with a live turn, any project, CNTRL or agent
 //   …           ChatGroups: Projects, Starred, folders, Recent — the same
 //               component the Chat page mounts, fed from the same response
 //   foot        the sandbox line

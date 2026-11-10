@@ -104,7 +104,7 @@ export default function SkillsPanel() {
           ))}
           {skills.length === 0 && <EmptyState as="li">none yet</EmptyState>}
         </ul>
-        <p className="dim small">a skill teaches Jav3 a procedure: it sees the
+        <p className="dim small">a skill teaches CNTRL a procedure: it sees the
           name + "use when" every turn, and gets the full instructions only when
           it invokes the skill. Agents get every granted skill unless their
           definition takes one away.</p>
@@ -126,15 +126,15 @@ export default function SkillsPanel() {
                         onChange={(e) => { setContent(e.target.value); setDirty(true) }} />
             ) : (
               <div className="skill-form">
-                <Input label="what it does (shown to Jav3 every turn)"
+                <Input label="what it does (shown to CNTRL every turn)"
                        value={fields.description}
                        onChange={(e) => set({ description: e.target.value })} />
-                <Input label="use when… (how Jav3 decides to pick it)"
+                <Input label="use when… (how CNTRL decides to pick it)"
                        value={fields.when_to_use}
                        onChange={(e) => set({ when_to_use: e.target.value })} />
-                <Toggle checked={!!fields.enabled} label="granted to Jav3 and agents"
-                        onText="granted to Jav3 and agents"
-                        offText="not granted — Jav3 and agents can't use it"
+                <Toggle checked={!!fields.enabled} label="granted to CNTRL and agents"
+                        onText="granted to CNTRL and agents"
+                        offText="not granted — CNTRL and agents can't use it"
                         onChange={(v) => set({ enabled: v })} />
                 <Input textarea rows={12} className="md-editor" spellCheck={false}
                        label="instructions (loaded when the skill is invoked)"

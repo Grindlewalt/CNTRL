@@ -29,7 +29,7 @@ export default function ChatBox({ projectSlug, initialId, onOpened }) {
   const [convos, setConvos] = useState([])
   const [cid, setCid] = useState(null)
   const [agents, setAgents] = useState([])
-  const [newAs, setNewAs] = useState('')          // '' = Jav3; for a thread not yet sent
+  const [newAs, setNewAs] = useState('')          // '' = CNTRL; for a thread not yet sent
   const [threadAs, setThreadAs] = useState('')    // the open thread's agent_slug
   const [newMenu, setNewMenu] = useState(false)
   const [messages, setMessages] = useState([])
@@ -54,7 +54,7 @@ export default function ChatBox({ projectSlug, initialId, onOpened }) {
     if (!reported.current) { reported.current = true; if (!cid) return }
     onOpened?.(cid ?? 'new')
   }, [cid]) // eslint-disable-line
-  // the roster for the picker; failure just leaves it Jav3-only
+  // the roster for the picker; failure just leaves it CNTRL-only
   useEffect(() => {
     api('/api/agents').then((r) => setAgents(r.agents)).catch(() => {})
   }, [])
@@ -248,14 +248,14 @@ export default function ChatBox({ projectSlug, initialId, onOpened }) {
   const current = convos.find((c) => c.id === cid)
   const who = cid ? threadAs : newAs
   const nameOf = (slug) => agents.find((a) => a.slug === slug)?.name || slug
-  const whoName = who ? nameOf(who) : 'Jav3'
+  const whoName = who ? nameOf(who) : 'CNTRL'
   return (
     <div className="chatbox">
       <div className="row cb-head">
         <button className="ghost" title="past chats"
                 onClick={() => setShowHistory((s) => !s)}>☰ {convos.length}</button>
         <Tag tone={who ? 'running' : undefined} className="cb-who"
-             title={who ? `this thread runs as the ${whoName} agent` : 'central Jav3'}>
+             title={who ? `this thread runs as the ${whoName} agent` : 'central CNTRL'}>
           {whoName}</Tag>
         <span className="grow ellipsis dim">
           {current ? (current.summary || `#${current.id}`) : 'new chat'}</span>
@@ -264,10 +264,10 @@ export default function ChatBox({ projectSlug, initialId, onOpened }) {
               label="start a new chat as"
               trigger={(
                 <Button variant="ghost" aria-haspopup="menu" aria-expanded={newMenu}
-                        title="new chat — as Jav3 or an agent"
+                        title="new chat — as CNTRL or an agent"
                         onClick={() => setNewMenu((o) => !o)}>+ new ▾</Button>
               )}>
-          <MenuItem onClick={() => newChat('')}>Jav3</MenuItem>
+          <MenuItem onClick={() => newChat('')}>CNTRL</MenuItem>
           {agents.length > 0 && <MenuSep />}
           {agents.map((a) => (
             <MenuItem key={a.slug} sub={a.description || undefined}

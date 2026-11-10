@@ -46,7 +46,7 @@ async function readSse(res, onEvent) {
 //
 // Every turn carries this tab's id. That is what lets a tool put music or a
 // video on the machine the operator is actually sitting at instead of every
-// open Jav3 tab at once — added here rather than at each call site so no
+// open CNTRL tab at once — added here rather than at each call site so no
 // entry point can forget it.
 export async function chatStream(body, onEvent, url = '/api/chat') {
   const res = await fetch(url, {

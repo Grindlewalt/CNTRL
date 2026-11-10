@@ -306,7 +306,7 @@ export default function Shell() {
           </div>
         </header>
         <Transcript cid={cid} messages={messages} expandAll={expandAll} fresh={fresh}
-                    slug={slug} side={side} agentName={agentSlug ? agentName(agentSlug) : 'Jav3'}
+                    slug={slug} side={side} agentName={agentSlug ? agentName(agentSlug) : 'CNTRL'}
                     temporary={temporary} onOpen={open} approvals={approvals}
                     onReview={() => openDock('git')} />
         <div className="sh-ask"><AskPanel asks={asks} cid={cid ?? liveId.current} /></div>

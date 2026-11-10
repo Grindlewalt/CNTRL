@@ -10,7 +10,7 @@ import ApprovalRow from './ApprovalRow.jsx'
 import { placeApprovals } from './approvals.js'
 
 // One dense stream. The operator's turns are terminal prompt lines (`› …`, the
-// only monospace here besides tool payloads); Jav3's replies are markdown at a
+// only monospace here besides tool payloads); CNTRL's replies are markdown at a
 // readable measure; tool calls are the compact one-line rows ToolActivity
 // already draws — live while a turn runs, folded into "N steps" once it ends
 // unless the header's "Expand steps" is on.

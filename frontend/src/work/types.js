@@ -14,7 +14,7 @@ export const WINDOW_TYPES = {
   organizer: { title: 'Files', label: 'File organizer' },
   run: { title: 'Run', label: 'Run — python sandbox' },
   todos: { title: 'To-dos', label: 'To-dos' },
-  context: { title: 'Context', label: 'Context files — load into Jav3' },
+  context: { title: 'Context', label: 'Context files — load into CNTRL' },
   agent: { title: 'Agent', label: 'Run an agent' },
   research: { title: 'Research', label: 'Research bots — live' },
   chat: { title: 'Chat', label: 'Chat — any conversation, any project' },

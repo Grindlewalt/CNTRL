@@ -237,7 +237,7 @@ export function ServiceRequest({ s, lan, profilePlacement, onDone }) {
                   {lan.error ? <> ({lan.error})</> : null}.</>
               : <>no services LAN address is configured (<code>services_lan_ip</code>).</>}</div>)}
           {lanIp && Object.values(expose).includes('lan') && (
-            <div className="warn small">LAN ports bind on {lanIp} only — never on Jav3's own address.</div>)}
+            <div className="warn small">LAN ports bind on {lanIp} only — never on CNTRL's own address.</div>)}
         </div>
       )}
 

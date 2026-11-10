@@ -41,7 +41,7 @@ export default function RunsTab({ project, chatJobs = [] }) {
     return <EmptyState pad>No runs yet. Research, agent teams and plan runs
       {project ? ' in this project' : ' this chat starts'} show up here. To start
       one, open a Research window (the + in the chat toolbar, or /window research)
-      or ask Jav3 to research something.</EmptyState>
+      or ask CNTRL to research something.</EmptyState>
   }
   return (
     <div className="pane-col">

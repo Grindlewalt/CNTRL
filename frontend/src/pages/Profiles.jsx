@@ -162,7 +162,7 @@ function ProfileForm({ initial, secrets, variants, runtimes, budget, names, onCa
   const show = (k) => (tried || k === 'hosts' ? errs[k] : null)
   // secret names known to the server, plus any the profile names that were
   // since deleted (so they can be seen and unticked). Infrastructure secrets
-  // (the Cloudflare Access token, Jav3's own credentials) stay out of the list
+  // (the Cloudflare Access token, CNTRL's own credentials) stay out of the list
   // until asked for, unless this profile already holds one (WEB-20).
   const [showInfra, setShowInfra] = useState(false)
   const held = p.secrets || []
@@ -238,7 +238,7 @@ function ProfileForm({ initial, secrets, variants, runtimes, budget, names, onCa
                          ? [...held, s] : held.filter((x) => x !== s))} />
                 <span className="mono small">{s}</span>
                 {infra.has(s) && (
-                  <Tag tone="pending" title="opens Jav3's own infrastructure, not a third-party service">
+                  <Tag tone="pending" title="opens CNTRL's own infrastructure, not a third-party service">
                     infrastructure</Tag>)}
               </label>
             ))}
@@ -248,7 +248,7 @@ function ProfileForm({ initial, secrets, variants, runtimes, budget, names, onCa
               <input type="checkbox" checked={showInfra}
                      onChange={(e) => setShowInfra(e.target.checked)} />
               <span className="dim">Also show infrastructure secrets{hiddenInfra > 0 ? ` (${hiddenInfra} hidden)` : ''}:
-                the Cloudflare Access token and Jav3's own credentials. A project rarely needs them.</span>
+                the Cloudflare Access token and CNTRL's own credentials. A project rarely needs them.</span>
             </label>)}
         </div>
 
