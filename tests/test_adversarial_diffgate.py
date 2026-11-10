@@ -52,7 +52,8 @@ def test_CEILING_non_code_extension_skips_scan():
 
 
 # --- CEILING: a secret split across two literals evades the value scan --------
-def test_CEILING_secret_split_across_literals_evades_find_in_bytes():
+def test_CEILING_secret_split_across_literals_evades_find_in_bytes(tmp_env):
+    # tmp_env: without it this wrote the REAL secrets file (~/.config/jarvis)
     settings.secrets_path.parent.mkdir(parents=True, exist_ok=True)
     settings.secrets_path.write_text('{"AWS_KEY": "AKIAREALSECRETVALUE99"}')
     whole = b'k = "AKIAREALSECRETVALUE99"\n'
