@@ -11,7 +11,7 @@ asks the same checks the tools themselves make, once, before the plan is written
              no image of it), on that variant or one built from it, built here
   packages   boxes on + the profile allows package requests
   browser    a browser extension connected, not paused, granted to the project
-             (whether a Jav3 tab is open is only known to browser_list_tabs, which
+             (whether a CNTRL tab is open is only known to browser_list_tabs, which
              is a call into the operator's browser: not made from here)
   desk       a computer (or the box's desktop) connected for computer use
   internet   the profile's network: none / deny-by-default (new sites queue for
@@ -128,7 +128,7 @@ async def _browser(slug: str) -> dict:
     if not names:
         return _no("a browser is connected but paused, or not granted to this project "
                    "(Settings, Browser use)")
-    return _yes(", ".join(names) + "; an open Jav3 tab is needed, browser_list_tabs shows them")
+    return _yes(", ".join(names) + "; an open CNTRL tab is needed, browser_list_tabs shows them")
 
 
 def _desk() -> dict:

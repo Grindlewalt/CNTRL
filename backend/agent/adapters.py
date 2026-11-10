@@ -334,7 +334,7 @@ async def anthropic_complete(route, messages: list[dict], tools: list[dict] | No
             else:
                 final = ev
     except ModelError as e:
-        # Replayed thinking blocks are bound to the conversation prefix; Jav3
+        # Replayed thinking blocks are bound to the conversation prefix; CNTRL
         # edits history (compaction, rule injection), so a rejected block is
         # recovered the documented way: strip them all and retry once.
         msg = str(e)

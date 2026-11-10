@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 # ---------------------------------------------------------------------------
 # Login throttling.
 #
-# This endpoint is the front door, and when Jav3 is published it is the one
+# This endpoint is the front door, and when CNTRL is published it is the one
 # thing an attacker can reach without a credential. bcrypt already caps guessing
 # at tens per second rather than millions, but that is a slow no rather than a
 # no, so failures now cost increasing time.
@@ -148,7 +148,7 @@ _UNSAFE = {"POST", "PUT", "PATCH", "DELETE"}
 # (Basic auth). Exact paths only: /api/setup/<anything> is not exempt.
 # /api/browser/ws authenticates by a token in its first frame and never reads
 # the cookie, which the extension's socket carries from a chrome-extension://
-# origin whenever the operator is logged in to Jav3 in that browser.
+# origin whenever the operator is logged in to CNTRL in that browser.
 _ORIGIN_EXEMPT_EXACT = {"/api/devices/login", "/api/setup", "/api/browser/ws"}
 _ORIGIN_EXEMPT_PREFIX = ("/cli/", "/git/")
 

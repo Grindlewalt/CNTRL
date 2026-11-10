@@ -1,6 +1,6 @@
 """Long-lived SSE feeds, and the one connection that carries all of them.
 
-Every open Jav3 tab used to hold its own GET for each live feed: the GUI
+Every open CNTRL tab used to hold its own GET for each live feed: the GUI
 control channel, security alerts, agent-run notices, and on the Network page
 the egress feed. Over plain http a browser allows six connections per host,
 shared by EVERY tab — so two tabs were enough to use them all up and every

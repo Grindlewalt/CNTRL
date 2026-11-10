@@ -2,7 +2,7 @@
 trades it for a device token.
 
 The operator clicks "Add computer" in Settings and gets one line —
-`address=<host:port> code=<code>` — to paste into `jav3 login` on the other
+`address=<host:port> code=<code>` — to paste into `cntrl login` on the other
 machine. The browser session that minted it IS the authorization, so there is
 no separate approve step: the ticket is born approved, and the only thing left
 is for exactly one process to present the code before it expires.

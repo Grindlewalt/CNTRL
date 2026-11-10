@@ -126,7 +126,7 @@ The directory is writable by the guest, so the host treats it as hostile:
   docker socket, say), which the host's `connect()` would follow.
   `transport_unix.connect_checked` lstat's first (it must be a socket, not a
   symlink), then after connecting and **before sending a byte** it checks
-  SO_PEERCRED against the container's uid. dockerd, containerd and the Jav3
+  SO_PEERCRED against the container's uid. dockerd, containerd and the CNTRL
   service all fail that check (`docker_socket_refused` event, box failed).
 
 ## 4. Lifecycle
@@ -178,7 +178,7 @@ the `screenshot` tool's own "set the profile's image to desktop", round in a cir
 |---|---|---|
 | **Shared kernel** | A KVM guest attacks QEMU/KVM's small device and hypercall surface through a separate guest kernel. A container makes syscalls straight into the host kernel. Any reachable kernel bug (a netfilter, io_uring, eBPF, overlayfs or cgroup CVE) is host code execution. | Default seccomp (about 44 syscalls blocked, including `bpf`, `keyctl`, `userfaultfd`, `perf_event_open`, mount and `unshare` without caps), no caps, no-new-privileges, and gVisor when installed (the syscall surface becomes the Sentry). Without gVisor this is the dominant risk and cannot be closed. |
 | Escape lands as a host uid | A kernel escape runs as the container's host uid: rootful without userns means uid 10001, or root if it also escalates. | Rootless/userns-remap puts the uid in a subordinate range with no host files. Without either, the `docker_weak_isolation` event is raised on every boot, and `docker_require_userns` refuses. |
-| The Docker daemon is in the TCB | Rootful dockerd is root, and a bug in its API or in runc (CVE-2019-5736, CVE-2024-21626 "leaky vessels") is a host compromise. | The socket is never mounted. Only the Jav3 service talks to dockerd, always with an argv that has passed `validate_spec`. Keep runc current. Rootless shrinks the daemon's authority to one user. |
+| The Docker daemon is in the TCB | Rootful dockerd is root, and a bug in its API or in runc (CVE-2019-5736, CVE-2024-21626 "leaky vessels") is a host compromise. | The socket is never mounted. Only the CNTRL service talks to dockerd, always with an argv that has passed `validate_spec`. Keep runc current. Rootless shrinks the daemon's authority to one user. |
 | Shared page cache and side channels | The container shares the host kernel's page cache, scheduler and caches. That allows cache and timing side channels, and memory pressure on the host (the tmpfs counts against the cgroup, but kernel memory is shared). | Memory, swap, pids and CPU are capped. `--oom-score-adj 500`. |
 | /proc and /sys info leak | Host kernel version, CPU and uptime are visible, as are some `/sys` paths that Docker's masked-paths list does not cover. | Docker's default masked and read-only paths, plus `--read-only`. gVisor synthesizes its own /proc. |
 | Workspace copy lives in tmpfs | The same as KVM (a copy is pushed and writes come back through the host gates), but it is RAM on the host kernel. | Capped at half the box's memory. |

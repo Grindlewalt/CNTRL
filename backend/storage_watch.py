@@ -20,7 +20,7 @@ from . import ctxstore
 from .config import settings
 from .db import get_db, get_state, set_state
 
-log = logging.getLogger("jav3.storage")
+log = logging.getLogger("cntrl.storage")
 
 STATE_KEY = "storage_watch"     # JSON {"checked_at", "over": [kinds], "notified_at"}
 FIX = "Lower retention or delete older captured context on Security > Logs > Cost."

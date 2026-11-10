@@ -1,9 +1,9 @@
-"""Approval notification center — one place that answers "what is Jav3 waiting
+"""Approval notification center — one place that answers "what is CNTRL waiting
 on me for?" Aggregates the independent pending stores that otherwise each
 live behind their own page (or, for git, behind no page at all):
 
   - git push requests awaiting approval   (git_requests table)
-  - schedules Jav3 proposed             (schedules with pending_approval = 1)
+  - schedules CNTRL proposed             (schedules with pending_approval = 1)
   - shell commands a computer-use turn is waiting on (backend/desk.py)
 
 Read-only aggregation — it never approves anything, just surfaces a count + list
@@ -53,7 +53,7 @@ async def _git_pending(slugs: list[str]) -> list[dict]:
 
 
 async def _schedules_pending() -> list[dict]:
-    """Schedules Jav3 proposed via schedule_update: paused until the
+    """Schedules CNTRL proposed via schedule_update: paused until the
     operator resumes (approve) or pauses (park) them in the GUI."""
     try:
         db = await get_db()

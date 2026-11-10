@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Baked entrypoint of a Jav3 docker box (WP8). The docker counterpart of
+"""Baked entrypoint of a CNTRL docker box (WP8). The docker counterpart of
 vm/guest/bootstrap.py, kept as small and stable as that one.
 
   1. start the egress forwarder: a child process listening on 127.0.0.1:8443
@@ -124,7 +124,7 @@ def fetch_package(path: str = GATEWAY, tries: int = 60) -> bytes:
 
 def proxy_env() -> dict:
     local = "localhost,127.0.0.1,::1"
-    return {"JARVIS_EGRESS_PROXY": PROXY_URL, "HTTP_PROXY": PROXY_URL,
+    return {"CNTRL_EGRESS_PROXY": PROXY_URL, "HTTP_PROXY": PROXY_URL,
             "HTTPS_PROXY": PROXY_URL, "http_proxy": PROXY_URL,
             "https_proxy": PROXY_URL, "NO_PROXY": local, "no_proxy": local}
 

@@ -1,9 +1,9 @@
 """Move a pre-state-dir install (durable state inside the code checkout) into
-JARVIS_STATE_DIR: `python -m backend.cli migrate-state [--to DIR]`.
+CNTRL_STATE_DIR: `python -m backend.cli migrate-state [--to DIR]`.
 
 Never automatic. `config.ensure_dirs` only WARNS when it finds the old layout, so
 a deploy can't strand a running box; this command is the one place data moves,
-and it does so the cautious way: refuse while Jav3 is running, copy (hard-link
+and it does so the cautious way: refuse while CNTRL is running, copy (hard-link
 where the filesystem allows, so multi-GB guest images move instantly), snapshot
 the DB through SQLite's backup API, verify every file and every table's row
 count, and only then remove the source. Files git tracks (the shipped skills,
@@ -24,23 +24,29 @@ class MigrateError(RuntimeError):
     pass
 
 
-def _unit_active() -> bool:
-    try:
-        r = subprocess.run(["systemctl", "--user", "is-active", "jarvis"],
-                           capture_output=True, text=True, timeout=5)
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return r.stdout.strip() in ("active", "activating", "reloading")
+def _unit_active() -> str | None:
+    """The running unit: cntrl, or jarvis on an install from before the rename
+    that the installer has not moved yet. None when neither runs."""
+    for unit in ("cntrl", "jarvis"):
+        try:
+            r = subprocess.run(["systemctl", "--user", "is-active", unit],
+                               capture_output=True, text=True, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if r.stdout.strip() in ("active", "activating", "reloading"):
+            return unit
+    return None
 
 
 def service_busy(db_path: Path) -> str | None:
-    """Why a live Jav3 appears to own `db_path`, or None when it is safe to
+    """Why a live CNTRL appears to own `db_path`, or None when it is safe to
     move/replace. The unit check catches an idle server (which holds no DB
     connection between requests); the lock probe catches anything mid-write,
     and a WAL checkpoint that cannot complete means a reader is still attached."""
-    if _unit_active():
-        return ("jarvis.service is running — stop it first: "
-                "systemctl --user stop jarvis")
+    unit = _unit_active()
+    if unit:
+        return (f"{unit}.service is running — stop it first: "
+                f"systemctl --user stop {unit}")
     if not db_path.exists():
         return None
     con = sqlite3.connect(db_path, timeout=0)
@@ -49,9 +55,9 @@ def service_busy(db_path: Path) -> str | None:
         con.rollback()
         busy = con.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0]
         if busy:
-            return f"{db_path} still has an active reader — is Jav3 running?"
+            return f"{db_path} still has an active reader — is CNTRL running?"
     except sqlite3.OperationalError as e:
-        return f"{db_path} is locked ({e}) — is Jav3 running?"
+        return f"{db_path} is locked ({e}) — is CNTRL running?"
     finally:
         con.close()
     return None
@@ -133,7 +139,7 @@ def migrate_state(to: Path | None = None) -> list[str]:
     if not has_state(src):
         raise MigrateError(f"no legacy state under {src} — nothing to migrate")
     if has_any_state(dst):
-        raise MigrateError(f"{dst} already holds Jav3 state — refusing to merge "
+        raise MigrateError(f"{dst} already holds CNTRL state — refusing to merge "
                            "into it. Move it aside or pick another --to.")
     src_db = src / "data" / "jarvis.db"
     why = service_busy(src_db)
@@ -207,6 +213,6 @@ def migrate_state(to: Path | None = None) -> list[str]:
                 entry.unlink()
     log.append(f"removed the old copies from {src}")
     if dst != settings.state_dir.expanduser().resolve():
-        log.append(f"set JARVIS_STATE_DIR={dst} in ~/.config/jarvis/env before "
-                   "starting Jav3")
+        log.append(f"set CNTRL_STATE_DIR={dst} in ~/.config/cntrl/env before "
+                   "starting CNTRL")
     return log

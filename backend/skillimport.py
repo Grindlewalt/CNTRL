@@ -5,7 +5,7 @@ Sources (all fetched HOST-side; the guest never fetches a skill):
   a git URL              https://host/owner/repo.git[#sub/dir]   shallow clone
   a GitHub link          https://github.com/owner/repo[/tree/<ref>/<dir>]  (also /blob/.../SKILL.md)
   an upload              a dropped folder or .zip (import_upload; recorded as upload:<name>)
-  ClawHub                clawhub:<slug>[@version]  only with JARVIS_SKILL_IMPORT_CLAWHUB
+  ClawHub                clawhub:<slug>[@version]  only with CNTRL_SKILL_IMPORT_CLAWHUB
 
 The copy lands in skills/oc-<name>/ with a .pin.json (source, ref, sha256 of
 every file, import time). What the importer never does: run an install hint,
@@ -65,7 +65,7 @@ def _check_url(url: str) -> None:
         return
     if p.scheme != "https":
         raise SkillImportError("git URLs must be https:// (or a host listed in "
-                               "JARVIS_SKILL_IMPORT_ALLOW_HOSTS)")
+                               "CNTRL_SKILL_IMPORT_ALLOW_HOSTS)")
     try:
         websec.is_safe_url(url)
     except websec.UnsafeURL as e:
@@ -190,7 +190,7 @@ def _extract_zip(data: bytes, dest: Path) -> None:
 
 def _fetch_clawhub(spec: str, tmp: Path) -> tuple[Path, dict]:
     if not settings.skill_import_clawhub:
-        raise SkillImportError("ClawHub import is off (JARVIS_SKILL_IMPORT_CLAWHUB). "
+        raise SkillImportError("ClawHub import is off (CNTRL_SKILL_IMPORT_CLAWHUB). "
                                "Prefer a vetted git repo or folder.")
     m = _CLAWHUB_RE.match(spec)
     if not m:

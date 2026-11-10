@@ -17,7 +17,7 @@ from .worktrees import HISTORY_REF
 
 __all__ = ["HISTORY_REF", "after_apply", "parse_message"]
 
-log = logging.getLogger("jav3.edithistory")
+log = logging.getLogger("cntrl.edithistory")
 TIMEOUT = 20.0
 
 

@@ -74,7 +74,7 @@ def _pending_pr(slug: str) -> dict | None:
 def pull_info(slug: str | None, base: str) -> dict:
     base = clean_base(base) or ""
     out = {"project": slug, "clone": None, "pull": None,
-           "auth": "git asks for your Jav3 username and password",
+           "auth": "git asks for your CNTRL username and password",
            "uncommitted": 0, "last_commit": None, "note": ""}
     if not slug or not _SLUG.match(slug):
         out["note"] = "no project is open in this chat, so there is nothing to pull"
@@ -143,7 +143,7 @@ def helper_block(slug: str | None, base: str | None) -> str:
     info = pull_info(slug, base or "")
     lines = [f"{k}: {v}" for k, v in info.items() if v not in (None, "")]
     return ("# The operator opened the helper\n"
-            "For this turn the operator wants help with Jav3 itself: how to get "
+            "For this turn the operator wants help with CNTRL itself: how to get "
             "their code, set up logins and tokens, use the terminal client. Answer "
             "from the manual below and give exact commands. You never create, see "
             "or rotate credentials; tell the operator the steps.\n\n"

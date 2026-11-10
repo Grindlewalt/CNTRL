@@ -24,7 +24,7 @@ host treats it as hostile:
     socket, say), which the host's connect() would follow. So `connect()`
     lstat's first (no symlink, must be a socket) and, after connecting and
     before sending a byte, checks the peer's uid (SO_PEERCRED) against the
-    container's host uid. dockerd / containerd / the Jav3 service itself all
+    container's host uid. dockerd / containerd / the CNTRL service itself all
     fail that check.
 
 This subclass keeps boxes.UnixTransport's paths and adds the checked connect

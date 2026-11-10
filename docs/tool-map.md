@@ -63,7 +63,7 @@ Search the web, read pages.
 
 ## browser
 
-Operate web pages in Jav3's own tabs in the operator's browser.
+Operate web pages in CNTRL's own tabs in the operator's browser.
 
 | Old name | The model calls | Core | Gating |
 | --- | --- | --- | --- |

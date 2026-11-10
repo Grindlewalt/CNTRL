@@ -55,6 +55,12 @@ PIPE_GRACE = 2.0     # seconds the pipes get to close after the shell exits
 FSIZE_LIMIT = 2 * 1024 * 1024 * 1024
 
 
+def _egress_proxy() -> str:
+    """The host egress proxy the guest boot found (CNTRL_EGRESS_PROXY; an image
+    from before the rename sets JARVIS_EGRESS_PROXY). Empty = netless guest."""
+    return os.environ.get("CNTRL_EGRESS_PROXY") or os.environ.get("JARVIS_EGRESS_PROXY", "")
+
+
 def _group_pids(pgid: int) -> list[int]:
     """Pids still in the run's process group (Linux /proc; [] elsewhere)."""
     pids = []
@@ -215,7 +221,7 @@ def _refused_outright(host: str) -> bool:
     """Targets the egress proxy refuses for every box before any policy and
     never queues: this machine's own address, loopback, private/LAN and
     link-local (cloud metadata) space, and names that are not on the internet."""
-    proxy = os.environ.get("JARVIS_EGRESS_PROXY", "")
+    proxy = _egress_proxy()
     m = re.search(r"//([^:/]+)", proxy)
     if m and host == m.group(1).lower():
         return True                                   # the host itself
@@ -363,9 +369,9 @@ async def run(code: str = "", command: str = "", timeout_seconds: int = 0) -> st
            "npm_config_update_notifier": "false", "npm_config_fund": "false"}
     # Monitored egress: point every subprocess (pip/npm/curl/git) at the host
     # egress proxy so its traffic is policy-checked, secret-injected and watched.
-    # Set by the guest boot when JARVIS_VM_EGRESS is on; absent = netless guest,
+    # Set by the guest boot when vm_egress is on; absent = netless guest,
     # where direct sockets fail closed anyway.
-    _proxy = os.environ.get("JARVIS_EGRESS_PROXY")
+    _proxy = _egress_proxy()
     if _proxy:
         # Loopback must NEVER route to the proxy: proxy-side "localhost" is the
         # HOST (SSRF guard rightly refuses it), and the agent testing its own
@@ -485,7 +491,7 @@ async def run(code: str = "", command: str = "", timeout_seconds: int = 0) -> st
     # not be fetched; a mere "connection refused" in a passing test's output does not.
     strong = ("proxyerror", "tunnel connection failed", "connect tunnel failed",
               "no matching distribution found", "could not find a version that satisfies")
-    proxy_on = bool(os.environ.get("JARVIS_EGRESS_PROXY"))
+    proxy_on = bool(_egress_proxy())
     if any(m in combined for m in (net_markers if proc.returncode != 0 else strong)):
         if proxy_on:
             lines.append(_egress_note(code or command, out + "\n" + err))

@@ -1,10 +1,10 @@
-"""The agent's seat at the box's desktop: jav3-desk's own Session on display :100.
+"""The agent's seat at the box's desktop: cntrl-desk's own Session on display :100.
 
 display.py (`{"mode":"desk"}`) starts this as a child process of the display
 listener and pipes the host's connection to its stdin/stdout. The frames are
 the desk wire protocol (backend/desk.py), one JSON object per line:
 
-    box -> host   hello, res, state, ceiling, ping      (what jav3-desk sends)
+    box -> host   hello, res, state, ceiling, ping      (what cntrl-desk sends)
     host -> box   grants, req, kill, pong               (what the server sends)
 
 A child, not a coroutine of the run-turn server, for three reasons: xdotool,
@@ -14,7 +14,7 @@ under memguard.confine so a runaway app costs the desktop and not the
 run-turn server, and a crash in a capture tool ends one desk connection.
 
 The client is shipped in the guest package as `backend/jav3_desk.py` (a copy of
-clients/jav3-desk/jav3-desk, see backend/vm/guest_pkg.py): the same file that
+clients/cntrl-desk/cntrl-desk, see backend/vm/guest_pkg.py): the same file that
 runs on the operator's Mac, so a box desk and a computer behave alike.
 
 `run(jd, backend, reader, writer)` is the testable core (a fake backend, no
@@ -77,7 +77,7 @@ def box_apps(path: str = APPS_PATH) -> dict[str, list[str]]:
 
 
 def make_backend(jd, apps: dict[str, list[str]] | None = None):
-    """jav3-desk's X11 backend for this box: nobody locks it and it never
+    """cntrl-desk's X11 backend for this box: nobody locks it and it never
     sleeps (no logind to ask), and `open url=` goes to the box's own browser."""
     browser = (apps or {}).get("browser")
 

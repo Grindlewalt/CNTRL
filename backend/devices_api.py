@@ -1,7 +1,7 @@
 """Devices: authorize a computer's CLI against the API with a pasted code.
 
 Settings -> Add computer (an authenticated browser session) mints a one-time
-code and shows `address=<host:port> code=<code>`; `jav3 login` on the other
+code and shows `address=<host:port> code=<code>`; `cntrl login` on the other
 machine posts the code to the address and receives a revocable device token
 (`backend/devicetokens.py`, stored sha256). The session that minted the code is
 the authorization, so there is no second approve step. Ticket lifecycle and the
@@ -36,9 +36,19 @@ router = APIRouter(prefix="/api/devices", tags=["devices"],
 pair_router = APIRouter(prefix="/api/devices", tags=["devices"])
 cli_router = APIRouter(prefix="/cli", tags=["devices"])
 
-CLI_DIR = Path(__file__).resolve().parent.parent / "clients" / "jav3cli"
-DESK_CLIENT = Path(__file__).resolve().parent.parent / "clients" / "jav3-desk" / "jav3-desk"
-BROWSER_EXT = Path(__file__).resolve().parent.parent / "clients" / "jav3-browser"
+_CLIENTS = Path(__file__).resolve().parent.parent / "clients"
+
+
+def _first(*paths: Path) -> Path:
+    """The first of `paths` that exists, else the first: the clients moved to
+    their CNTRL names, and a checkout from before the move has the old ones."""
+    return next((p for p in paths if p.exists()), paths[0])
+
+
+# The terminal client: clients/cntrl/cntrl (clients/jav3cli/jav3 before the rename)
+CLI_DIR = _first(_CLIENTS / "cntrl", _CLIENTS / "jav3cli")
+DESK_CLIENT = _first(_CLIENTS / "cntrl-desk" / "cntrl-desk", _CLIENTS / "jav3-desk" / "jav3-desk")
+BROWSER_EXT = _first(_CLIENTS / "cntrl-browser", _CLIENTS / "jav3-browser")
 _NO_STORE = {"Cache-Control": "no-store", "Pragma": "no-cache"}
 _BAD_CODE = ("invalid or expired login code — generate a new one in "
              "Settings → Add computer")
@@ -145,7 +155,7 @@ class CodeBody(BaseModel):
 @router.post("/login-code")
 async def mint_login_code(body: CodeBody, request: Request, response: Response,
                           user: dict = Depends(require_user)):
-    """A pre-approved, single-use login code for `jav3 login`. The raw code is
+    """A pre-approved, single-use login code for `cntrl login`. The raw code is
     in this response and nowhere else on the server."""
     code, t = pastelogin.mint(body.name, by=user["username"])
     address = _address(request)
@@ -157,7 +167,7 @@ async def mint_login_code(body: CodeBody, request: Request, response: Response,
     # operator was browsing on the box, which the other computer cannot reach
     base = address if address.startswith("https://") else f"http://{address}"
     # a .local name needs mDNS on the other computer (a Linux box without
-    # nss-mdns cannot resolve it): also name the LAN IPs, which `jav3 login`
+    # nss-mdns cannot resolve it): also name the LAN IPs, which `cntrl login`
     # tries only when the name does not resolve. Older CLIs ignore the field.
     alt = _alt_addresses(address)
     line = f"address={address} code={code}" + (f" alt={','.join(alt)}" if alt else "")
@@ -213,7 +223,7 @@ class RedeemBody(BaseModel):
     name: str = Field("", max_length=256)
     hostname: str = Field("", max_length=256)
     platform: str = Field("", max_length=256)
-    # what the token will be for: `jav3` asks for cli (the default), `jav3-desk`
+    # what the token will be for: `cntrl` asks for cli (the default), `cntrl-desk`
     # for desk, the browser extension for browser. Letting the client choose is safe because neither widens the
     # other: a desk/browser token reaches nothing but its own socket, and
     # does nothing until the operator grants it in Settings.
@@ -303,7 +313,7 @@ async def whoami(actor: dict = Depends(require_any_actor)):
 
 @pair_router.delete("/self")
 async def revoke_self(actor: dict = Depends(require_any_actor)):
-    """`jav3 logout`: a device revokes its own token. Only ever the presenting
+    """`cntrl logout`: a device revokes its own token. Only ever the presenting
     token — there is no id parameter to point at another one."""
     if not actor.get("is_device"):
         raise HTTPException(status_code=400, detail="only a device token can "
@@ -314,10 +324,14 @@ async def revoke_self(actor: dict = Depends(require_any_actor)):
 
 # --- the CLI, as static files ------------------------------------------------------
 
-@cli_router.get("/jav3")
+def _cli_file() -> Path:
+    return _first(CLI_DIR / "cntrl", CLI_DIR / "jav3")
+
+
+@cli_router.get("/cntrl")
+@cli_router.get("/jav3")        # the old name, for good: clients from before update from it
 async def cli_file():
-    return PlainTextResponse((CLI_DIR / "jav3").read_text(),
-                             media_type="text/x-python")
+    return PlainTextResponse(_cli_file().read_text(), media_type="text/x-python")
 
 
 # What GET /cli/version says about the client file, kept until the file changes
@@ -329,12 +343,12 @@ _INSTALL_SPEC_RE = re.compile(r"^(?:HTTPX_SPEC|TUI_SPECS)='([^']+)'", re.M)
 
 
 def _cli_version() -> dict:
-    p = CLI_DIR / "jav3"
+    p = _cli_file()
     st = p.stat()
     key = (st.st_mtime_ns, st.st_size)
     if _cli_version_cache["key"] == key:
         return _cli_version_cache["body"]
-    served = p.read_text().encode()           # exactly the bytes GET /cli/jav3 sends
+    served = p.read_text().encode()           # exactly the bytes GET /cli/cntrl sends
     try:
         pins = " ".join(_INSTALL_SPEC_RE.findall((CLI_DIR / "install.sh").read_text())).split()
     except OSError:
@@ -348,19 +362,22 @@ def _cli_version() -> dict:
 
 @cli_router.get("/version")
 async def cli_version():
-    """Which client file GET /cli/jav3 serves right now: its sha256 (of the served
-    bytes), size and mtime, plus the library pins install.sh would install.
-    Unauthenticated, like the file itself; `jav3` compares its own hash with this."""
+    """Which client file GET /cli/cntrl (and /cli/jav3) serves right now: its
+    sha256 (of the served bytes), size and mtime, plus the library pins
+    install.sh would install. Unauthenticated, like the file itself; `cntrl`
+    compares its own hash with this."""
     return JSONResponse(_cli_version(), headers=_NO_STORE)
 
 
-@cli_router.get("/jav3-desk")
+@cli_router.get("/cntrl-desk")
+@cli_router.get("/jav3-desk")    # the old name, kept for paired computers
 async def desk_client_file():
-    """The computer-use client, one file (clients/jav3-desk)."""
+    """The computer-use client, one file (clients/cntrl-desk)."""
     return PlainTextResponse(DESK_CLIENT.read_text(), media_type="text/x-python")
 
 
-@cli_router.get("/jav3-browser.zip")
+@cli_router.get("/cntrl-browser.zip")
+@cli_router.get("/jav3-browser.zip")    # the old name, kept for old links
 async def browser_extension_zip():
     """The browser extension (clients/jav3-browser) as a zip to unpack and load
     with chrome://extensions → Load unpacked. Tests and the node package file
@@ -371,9 +388,9 @@ async def browser_extension_zip():
             rel = f.relative_to(BROWSER_EXT).as_posix()
             if (f.is_file() and not rel.startswith("test/") and rel != "package.json"
                     and not any(part.startswith(".") for part in rel.split("/"))):
-                z.write(f, "jav3-browser/" + rel)
+                z.write(f, "cntrl-browser/" + rel)
     return Response(buf.getvalue(), media_type="application/zip",
-                    headers={"Content-Disposition": 'attachment; filename="jav3-browser.zip"'})
+                    headers={"Content-Disposition": 'attachment; filename="cntrl-browser.zip"'})
 
 
 @cli_router.get("/install.sh")

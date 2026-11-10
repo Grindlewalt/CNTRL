@@ -7,11 +7,11 @@
 # The live desktop (guest/backend/display.py, docs/desktop.md) adds a VNC X
 # server (tigervnc), a window manager (openbox), a terminal on a tmux session
 # (xterm, tmux) and the input/capture tools the agent drives it with (xdotool,
-# maim): about +60 MB. httpx and textual are the jav3 terminal client's own
+# maim): about +60 MB. httpx and textual are the cntrl terminal client's own
 # libraries, baked in so it can be tried in the box without PyPI egress (pip
 # lines land in the /opt/jav3/py venv, which run_code and the desktop terminal
 # put first on PATH). The recipe takes exact pins only; both sit inside
-# clients/jav3cli/install.sh's ranges (httpx>=0.27,<1; textual>=8,<9), which
+# clients/cntrl/install.sh's ranges (httpx>=0.27,<1; textual>=8,<9), which
 # tests/test_desktop_display.py checks.
 name desktop
 from main

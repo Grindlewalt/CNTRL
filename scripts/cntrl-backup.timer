@@ -1,5 +1,5 @@
 [Unit]
-Description=Run the Jav3 backup regularly
+Description=Run the CNTRL backup regularly
 
 [Timer]
 OnBootSec=3min

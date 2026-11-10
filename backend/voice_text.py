@@ -46,11 +46,11 @@ ESCALATE_PREFIX = "[ESCALATE]"
 LOCAL_NOTES_MAX = 240
 
 # The local tier gets a slim context that drops the behaviour bank, so without
-# this it does not know what Jav3 IS — and a model that doesn't know the
+# this it does not know what CNTRL IS — and a model that doesn't know the
 # system has a capability says "I can't do that" instead of escalating. This is
 # the capability map in the smallest form that still routes correctly.
 VOICE_CAPABILITIES = """\
-# What Jav3 can do (you are his fast tier, not all of him)
+# What CNTRL can do (you are its fast tier, not all of it)
 You handle directly: conversation, music and video playback, volume and
 playback control in the music player, and quick web lookups.
 The wider system — which the smart model drives, so ESCALATE rather than
@@ -140,7 +140,7 @@ The operator will be asked out loud whether to send it to the smart model."""
 # --- wake / standby phrases ---------------------------------------------------
 
 # openwakeword gives a fast "hey jarvis" flip, but it is one fixed pretrained
-# model — there is no "hey jav3" equivalent to swap in, so the acoustic trigger
+# model — there is no "hey jav3" (the spoken name, from before the rename) equivalent to swap in, so the acoustic trigger
 # still fires on the OLD name and could not be renamed with the agent. It also
 # does not fire on a bare name, and whisper cheerfully renders the name as
 # Dervis/Jervis/Charvis (all observed live). The sidecar transcribes every

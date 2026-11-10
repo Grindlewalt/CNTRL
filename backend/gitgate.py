@@ -14,10 +14,10 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .config import settings
+from .config import env_get, settings
 from .db import get_db
 
-log = logging.getLogger("jav3.gitgate")
+log = logging.getLogger("cntrl.gitgate")
 
 GIT_TIMEOUT = 30
 NET_TIMEOUT = 120       # push / fetch / ls-remote cross the internet on a Pi
@@ -41,13 +41,18 @@ HARNESS_PATHSPECS = (".staging", ".workspace.json", ".context.json", ".todo.md",
                      ".todo-archive.md", ".plan.json", f":(glob){ROLLUP_GLOB}")
 # The managed block of a project's .gitignore. Everything between the markers is
 # rewritten by ensure_gitignore, so a project's own rules go outside it.
-MANAGED_BEGIN = ("# >>> Jav3 harness files: managed by Jav3 (rewritten on load); "
+MANAGED_BEGIN = ("# >>> CNTRL harness files: managed by CNTRL (rewritten on load); "
                  "your own rules go outside this block")
-MANAGED_END = "# <<< Jav3 harness files"
+MANAGED_END = "# <<< CNTRL harness files"
+# A project from before the rename to CNTRL has the same block under "Jav3"
+# markers: it is still the managed block, and left as is while its lines are
+# current (rewriting it would only change a tracked file in every project).
+_BEGIN_MARKS = ("# >>> CNTRL harness files", "# >>> Jav3 harness files")
+_END_MARKS = ("# <<< CNTRL harness files", "# <<< Jav3 harness files")
 GITIGNORE = "\n".join([
     MANAGED_BEGIN, ".staging/", ".workspace.json", ".context.json", ".todo.md",
     ".todo-archive.md", "/.plan.json", f"/{ROLLUP_GLOB}", "data/", MANAGED_END]) + "\n"
-_EXCLUDE = "# Jav3 runtime files (written by the host)\n" + "".join(
+_EXCLUDE = "# CNTRL runtime files (written by the host)\n" + "".join(
     f"{p}\n" for p in _EXCLUDE_PATTERNS)
 
 
@@ -115,13 +120,13 @@ def ensure_gitignore(slug: str) -> bool:
             return False
         have = path.read_text() if path.exists() else ""
         lines = have.splitlines()
-        begin = next((i for i, l in enumerate(lines)
-                      if l.startswith("# >>> Jav3 harness files")), None)
+        begin = next((i for i, l in enumerate(lines) if l.startswith(_BEGIN_MARKS)), None)
         end = next((i for i, l in enumerate(lines)
-                    if begin is not None and i > begin
-                    and l.startswith("# <<< Jav3 harness files")), None)
+                    if begin is not None and i > begin and l.startswith(_END_MARKS)), None)
         block = GITIGNORE.splitlines()
         if begin is not None and end is not None:
+            if lines[begin + 1:end] == block[1:-1]:
+                return False
             new = lines[:begin] + block + lines[end + 1:]
         else:
             # none, or a damaged one (an end marker lost): add a whole block at
@@ -171,7 +176,7 @@ async def harness_notice(slug: str) -> list[str]:
     except OSError:
         fresh = tracked
     return [f"{t} is tracked; run `git rm --cached {t}` to stop committing it "
-            "(Jav3 leaves it out of every commit meanwhile)" for t in fresh]
+            "(CNTRL leaves it out of every commit meanwhile)" for t in fresh]
 
 
 # per-slug init lock: git_status/git_diff are read_only-flagged, so the loop
@@ -185,7 +190,7 @@ async def ensure_repo(slug: str) -> None:
         d = _project_dir(slug)
         if not (d / ".git").exists():
             await run_git(slug, "init", "-q", check=True)
-            await run_git(slug, "config", "user.name", "Jav3", check=True)
+            await run_git(slug, "config", "user.name", "CNTRL", check=True)
             await run_git(slug, "config", "user.email", settings.git_author_email,
                           check=True)
         ensure_gitignore(slug)
@@ -211,7 +216,7 @@ async def ensure_repo(slug: str) -> None:
 def github_token() -> str | None:
     from . import secrets as secrets_store
     return (secrets_store.load().get("GITHUB_TOKEN")
-            or os.environ.get("JARVIS_GITHUB_TOKEN") or None)
+            or env_get("GITHUB_TOKEN") or None)
 
 
 def valid_remote(url: str) -> bool:
@@ -934,7 +939,7 @@ async def approve_request(rid: int, slug: str | None = None) -> dict:
             await db.commit()
             return await _fetch_request(db, rid)
         try:
-            await run_git(slug, "-c", "user.name=Jav3",
+            await run_git(slug, "-c", "user.name=CNTRL",
                           "-c", f"user.email={settings.git_author_email}",
                           "commit", "-m", message, check=True)
         except RuntimeError as e:

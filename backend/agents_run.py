@@ -5,7 +5,7 @@ Agents tab's definitions; the operator kicks one off from the project board.
 
 The agent runs in the ACTIVE PROJECT: it gets the project's assembled context
 (minus any context items the agent excludes) and the same staged-write tools,
-so its file changes land in the approval queue exactly like Jav3's own.
+so its file changes land in the approval queue exactly like CNTRL's own.
 """
 import asyncio
 import json
@@ -106,7 +106,7 @@ def memory_slug(agent: dict) -> str | None:
     """The slug whose private notes dir this agent's memory tools use, or None
     for the shared notes. Only a real definition (it has a slug) can own one —
     a temp agent's notes are the whole point of it surviving, so they stay
-    shared where the operator and Jav3 will see them."""
+    shared where the operator and CNTRL will see them."""
     return agent.get("slug") if agent.get("own_memory") and agent.get("slug") else None
 
 
@@ -230,7 +230,7 @@ async def _open_run(db, agent: dict, task: str, active=_USE_DB, *,
     title = title or f"[{agent['name']}] " + " ".join(task.split())[:40]
     # parent: the turn that dispatched spawn_agent/spawn_temp_agent (the broker
     # restores runtime.conversation_id for a guest turn), so the run tree stays
-    # connected exactly where Jav3 delegates. None for a schedule, which
+    # connected exactly where CNTRL delegates. None for a schedule, which
     # really has no parent conversation.
     parent, _ = await launcher(db)
     conversation_id = await open_conversation(
@@ -267,7 +267,7 @@ async def run_agent_headless(slug: str, task: str, active=_USE_DB, *,
     return await _run_headless(agent, task, active, **hooks)
 
 
-# blocks a lean temp agent drops: Jav3's identity, standing memory, the user
+# blocks a lean temp agent drops: CNTRL's identity, standing memory, the user
 # profile and the rosters — the bulk that re-rides every iteration without
 # helping a narrow worker. env.md, the active project and the operator-rules
 # tail stay (the tail is non-excludable anyway).
@@ -314,7 +314,7 @@ def _temp_agent_def(prompt: str, duplicate: bool, label: str = "",
                     max_rounds: int | None = None) -> dict:
     """An in-memory AGENT.md equivalent — same keys the _agent_* helpers read,
     never touches the roster on disk. `duplicate` mirrors the operator's ask:
-    a full copy of Jav3's context only when the task truly needs it.
+    a full copy of CNTRL's context only when the task truly needs it.
 
     max_iterations is always set: left at 0 it fell back to the 12-round
     subagent fence, which killed all three big delegations of the 2026-09-30
@@ -336,7 +336,7 @@ async def run_temp_agent_headless(prompt: str, task: str, *,
                                   max_rounds: int | None = None,
                                   **hooks) -> dict:
     """A disposable agent: no AGENT.md, no roster entry — a role prompt layered
-    on Jav3's own context (full when duplicate, lean otherwise), run once and
+    on CNTRL's own context (full when duplicate, lean otherwise), run once and
     gone. What survives is the run's conversation row (Jobs view) and any
     memory note the agent writes. `model` (provider/model) as for
     run_agent_headless; `max_rounds` is the agent's tool-round cap (default

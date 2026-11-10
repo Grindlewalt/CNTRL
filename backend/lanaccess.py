@@ -15,7 +15,7 @@ every resolved address here, and connects to the address it judged (no second
 lookup, so a name cannot rebind between the check and the dial).
 
 Never reachable this way, even when listed or inside a listed CIDR (refused at
-save AND at connect): the Jav3 host itself (every address on its interfaces,
+save AND at connect): the CNTRL host itself (every address on its interfaces,
 its LAN IPs and names, the services' LAN alias), the box networks and their
 gateway / proxy address (10.201.0.0/16), loopback, link-local (169.254/16, the
 cloud-metadata address), 0.0.0.0/8, multicast and broadcast. Only RFC1918 IPv4
@@ -104,7 +104,7 @@ def _scan_host() -> tuple[set[str], list]:
 
 
 def host_ips() -> frozenset[str]:
-    """Every address that is this Jav3 host. Cached for a minute (DHCP moves)."""
+    """Every address that is this CNTRL host. Cached for a minute (DHCP moves)."""
     return _host_view()[0]
 
 
@@ -155,7 +155,7 @@ def refusal(ip: str) -> str | None:
         if a in net:
             return f"{a} is {why}"
     if str(a) in host_ips():
-        return f"{a} is the Jav3 host itself"
+        return f"{a} is the CNTRL host itself"
     for net in _host_nets():
         if a in net:
             return f"{a} is on a host-internal network ({net})"
@@ -219,7 +219,7 @@ def parse_entry(raw: str, *, resolve: bool = True) -> dict:
     if host in FORBIDDEN_NAMES or host.endswith(".localhost"):
         raise LanError(f"{raw!r}: {host} is never reachable")
     if host in host_names():
-        raise LanError(f"{raw!r}: {host} is the Jav3 host itself")
+        raise LanError(f"{raw!r}: {host} is the CNTRL host itself")
     if resolve:
         for ip in _resolve4(host):
             why = refusal(ip)

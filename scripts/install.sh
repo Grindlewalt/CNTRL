@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Jav3 — one-shot installer.
+# CNTRL — one-shot installer.
 #
 #   bash scripts/install.sh --check              # report only, change nothing
 #   sudo bash scripts/install.sh --root-phase    # the part that needs root
 #   bash scripts/install.sh                      # everything else
 #
 # Re-runnable from any state: every step checks before it acts, so running this
-# after a git pull is also the upgrade path.
+# after a git pull is also the upgrade path. That includes an install from
+# before the rename to CNTRL (jarvis.service, ~/.config/jarvis): see
+# rename_upgrade.
 #
 # WHY IT IS SPLIT IN TWO
 # The old setup_pi.sh assumed passwordless sudo and `apt`. On the main server we
@@ -19,7 +21,7 @@
 #
 # WHAT NEEDS ROOT, AND WHY (the list is deliberately short)
 #   packages          qemu, node, python venv module, rsync, rclone (backups)
-#   kvm modules       the agent loop runs inside a KVM guest; no KVM, no Jav3
+#   kvm modules       the agent loop runs inside a KVM guest; no KVM, no CNTRL
 #   vhost_vsock       the guest's only channel to the host supervisor
 #   kvm group         so rootless qemu can open /dev/kvm
 #   enable-linger     so the systemd --user service survives logout/reboot
@@ -39,7 +41,7 @@ else
 fi
 
 # ---------------------------------------------------------------- options ----
-DO_CHECK=0 DO_ROOT=0 DO_USER=1 BUILD_FRONTEND=1 BUILD_IMAGE=1
+DO_CHECK=0 DO_ROOT=0 DO_USER=1 BUILD_FRONTEND=1 BUILD_IMAGE=1 RENAME_ONLY=0
 FROM_HOST="" FORCE=0 ASSUME_YES=0 TARGET_HOST="" STATE_DIR_OPT="" PORT_OPT="" NAME_OPT="" CFG_DIR_OPT=""
 DO_GITEA=1 GITEA_DRY=0 DO_DOCKER=1 JSON_OUT=0
 # $SUDO_USER is only meaningful when we are actually running under sudo. Taking
@@ -66,19 +68,22 @@ Options
   --root-phase         run ONLY the privileged steps (run this under sudo)
   --user <name>        target user for the root phase (default: $SUDO_USER)
   --from <host:path>   migrate durable state from an existing install first,
-                       e.g. --from grindlewalt@atomostest:jarvis. <path> may be
+                       e.g. --from grindlewalt@atomostest:cntrl. <path> may be
                        the old checkout (state inside it) or a state dir.
-  --state-dir <dir>    where durable state lives (default ~/.local/share/jarvis,
-                       or JARVIS_STATE_DIR); a non-default one is written to
-                       ~/.config/jarvis/env so the service uses it too
+  --state-dir <dir>    where durable state lives (default ~/.local/share/cntrl,
+                       or CNTRL_STATE_DIR); a non-default one is written to
+                       ~/.config/cntrl/env so the service uses it too
   --name <name>        install a second, independent instance beside another:
-                       unit jarvis-<name>.service, config ~/.config/jarvis-<name>
-                       (default: none = jarvis.service, ~/.config/jarvis)
+                       unit cntrl-<name>.service, config ~/.config/cntrl-<name>
+                       (default: none = cntrl.service, ~/.config/cntrl)
   --config-dir <dir>   where env / secrets.json live (default per --name);
-                       a non-default one is passed to the unit as JARVIS_CONFIG_DIR
+                       a non-default one is passed to the unit as CNTRL_CONFIG_DIR
   --port <n>           port the web UI listens on (default 8000, or
-                       JARVIS_LAN_PORT from ~/.config/jarvis/env); a non-default
+                       CNTRL_LAN_PORT from ~/.config/cntrl/env); a non-default
                        one is written there and into the systemd unit
+  --rename-only        only move an install from before the rename to CNTRL
+                       (units, config dir, state dir, env file names), install
+                       the new units and restart; nothing else is built
   --no-build           skip the frontend build
   --no-image           skip building the guest golden image (slow, ~10 min)
   --no-gitea           skip the Gitea step (the host git server agents file pull
@@ -97,6 +102,7 @@ while [ $# -gt 0 ]; do
     --json)       JSON_OUT=1 ;;
     --target)     TARGET_HOST="$2"; DO_CHECK=1; DO_USER=0; shift ;;
     --root-phase) DO_ROOT=1; DO_USER=0 ;;
+    --rename-only) RENAME_ONLY=1 ;;
     --user)       TARGET_USER="$2"; shift ;;
     --from)       FROM_HOST="$2"; shift ;;
     --state-dir)  STATE_DIR_OPT="$2"; shift ;;
@@ -204,48 +210,72 @@ missing_pkgs() {
   esac
 }
 
+# Settings are CNTRL_<NAME>; before the rename they were JARVIS_<NAME>, and the
+# app still reads the old name when the new one is unset (backend/config.py).
+# The value of <NAME> in env file $2, read the same way.
+env_value() {
+  local v
+  v="$(sed -n "s/^CNTRL_$1=//p" "$2" 2>/dev/null | tail -1)"
+  [ -n "$v" ] || v="$(sed -n "s/^JARVIS_$1=//p" "$2" 2>/dev/null | tail -1)"
+  printf '%s' "$v" | tr -d "\"'"
+}
+
 # A checkout installed as a named instance remembers it (see user_phase), so a
 # bare re-run or --check from it inspects that instance, not the default one.
-if [ -z "$NAME_OPT$CFG_DIR_OPT" ] && [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/.jarvis-instance" ]; then
-  NAME_OPT="$(sed -n 's/^JARVIS_INSTANCE=//p' "$REPO_DIR/.jarvis-instance" | tail -1)"
-  CFG_DIR_OPT="$(sed -n 's/^JARVIS_CONFIG_DIR=//p' "$REPO_DIR/.jarvis-instance" | tail -1)"
+# Before the rename the file was .jarvis-instance, with JARVIS_ names.
+if [ -z "$NAME_OPT$CFG_DIR_OPT" ] && [ -n "$REPO_DIR" ]; then
+  if [ -f "$REPO_DIR/.cntrl-instance" ]; then
+    NAME_OPT="$(sed -n 's/^CNTRL_INSTANCE=//p' "$REPO_DIR/.cntrl-instance" | tail -1)"
+    CFG_DIR_OPT="$(sed -n 's/^CNTRL_CONFIG_DIR=//p' "$REPO_DIR/.cntrl-instance" | tail -1)"
+  elif [ -f "$REPO_DIR/.jarvis-instance" ]; then
+    NAME_OPT="$(sed -n 's/^JARVIS_INSTANCE=//p' "$REPO_DIR/.jarvis-instance" | tail -1)"
+    CFG_DIR_OPT="$(sed -n 's/^JARVIS_CONFIG_DIR=//p' "$REPO_DIR/.jarvis-instance" | tail -1)"
+    # the old default for that name moves to the new default (rename_upgrade)
+    [ "$CFG_DIR_OPT" != "$HOME/.config/jarvis${NAME_OPT:+-$NAME_OPT}" ] || CFG_DIR_OPT=""
+  fi
 fi
 
 # Instance: the unit name and the config dir. Default is the one instance
 # everything else assumes; --name keeps a second one (a test install, say) from
 # overwriting the first one's unit, env file and secrets. The app reads the
-# config dir from JARVIS_CONFIG_DIR (backend/config.py), set in the unit.
+# config dir from CNTRL_CONFIG_DIR (backend/config.py), set in the unit.
+# OLD_UNIT is the same instance's name from before the rename.
 case "$NAME_OPT" in
-  "")                 UNIT=jarvis ;;
+  "")                 UNIT=cntrl; OLD_UNIT=jarvis ;;
   *[!a-zA-Z0-9_-]*)   die "--name wants letters, digits, - or _ only, got '$NAME_OPT'" ;;
-  *)                  UNIT="jarvis-$NAME_OPT" ;;
+  *)                  UNIT="cntrl-$NAME_OPT"; OLD_UNIT="jarvis-$NAME_OPT" ;;
 esac
-DEFAULT_CFG_DIR="$HOME/.config/jarvis"
-CFG_DIR="${CFG_DIR_OPT:-${JARVIS_CONFIG_DIR:-$HOME/.config/$UNIT}}"
+DEFAULT_CFG_DIR="$HOME/.config/cntrl"
+OLD_CFG_DIR="$HOME/.config/$OLD_UNIT"
+CFG_DIR="${CFG_DIR_OPT:-${CNTRL_CONFIG_DIR:-${JARVIS_CONFIG_DIR:-$HOME/.config/$UNIT}}}"
 CFG_DIR="${CFG_DIR/#\~/$HOME}"
 # so every `python -m backend.cli ...` this script runs reads THIS instance
-export JARVIS_CONFIG_DIR="$CFG_DIR"
+export CNTRL_CONFIG_DIR="$CFG_DIR"
+SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
+
+# The env file settings are read from: this instance's, or until rename_upgrade
+# moves it, the same instance's from before the rename.
+ENV_SRC="$CFG_DIR/env"
+[ -f "$ENV_SRC" ] || [ "$CFG_DIR" != "$HOME/.config/$UNIT" ] || ENV_SRC="$OLD_CFG_DIR/env"
 
 # Durable state (memory/ projects/ skills/ agents/ data/) lives in ONE dir
 # outside the checkout — backend/config.py's state_dir. Same precedence as the
-# app: --state-dir, then JARVIS_STATE_DIR from the environment or the env file,
+# app: --state-dir, then CNTRL_STATE_DIR from the environment or the env file,
 # then the default.
+DEFAULT_STATE_DIR="$HOME/.local/share/cntrl"
+OLD_STATE_DIR="$HOME/.local/share/jarvis"
 STATE_DIR="$STATE_DIR_OPT"
-[ -n "$STATE_DIR" ] || STATE_DIR="${JARVIS_STATE_DIR:-}"
-if [ -z "$STATE_DIR" ] && [ -f "$CFG_DIR/env" ]; then
-  STATE_DIR="$(sed -n 's/^JARVIS_STATE_DIR=//p' "$CFG_DIR/env" | tail -1 | tr -d "\"'")"
-fi
-STATE_DIR="${STATE_DIR:-$HOME/.local/share/jarvis}"
+[ -n "$STATE_DIR" ] || STATE_DIR="${CNTRL_STATE_DIR:-${JARVIS_STATE_DIR:-}}"
+[ -n "$STATE_DIR" ] || STATE_DIR="$(env_value STATE_DIR "$ENV_SRC")"
+STATE_DIR="${STATE_DIR:-$DEFAULT_STATE_DIR}"
 STATE_DIR="${STATE_DIR/#\~/$HOME}"
 
-# The port, same precedence: --port, JARVIS_LAN_PORT (env, then env file), 8000.
+# The port, same precedence: --port, CNTRL_LAN_PORT (env, then env file), 8000.
 # backend/config.py's lan_port and the unit's --port must agree, so both are
 # written from this one value.
 PORT="$PORT_OPT"
-[ -n "$PORT" ] || PORT="${JARVIS_LAN_PORT:-}"
-if [ -z "$PORT" ] && [ -f "$CFG_DIR/env" ]; then
-  PORT="$(sed -n 's/^JARVIS_LAN_PORT=//p' "$CFG_DIR/env" | tail -1 | tr -d "\"'")"
-fi
+[ -n "$PORT" ] || PORT="${CNTRL_LAN_PORT:-${JARVIS_LAN_PORT:-}}"
+[ -n "$PORT" ] || PORT="$(env_value LAN_PORT "$ENV_SRC")"
 PORT="${PORT:-8000}"
 case "$PORT" in ''|*[!0-9]*) die "--port wants a number, got '$PORT'" ;; esac
 
@@ -435,6 +465,8 @@ check_port() {
     ok "port $PORT is free"
   elif systemctl --user is-active --quiet "$UNIT" 2>/dev/null; then
     ok "port $PORT is in use by the running $UNIT.service"
+  elif systemctl --user is-active --quiet "$OLD_UNIT" 2>/dev/null; then
+    ok "port $PORT is in use by the running $OLD_UNIT.service (this install, before the rename)"
   else
     bad "port $PORT is already taken by another program"
     fix "pick a free one: bash ${REPO_DIR:-.}/scripts/install.sh --port 8780   (ss -ltnp shows who has $PORT)"
@@ -454,10 +486,10 @@ check_linger() {
 }
 
 # Everything that depends on there being a checkout. Skipped in remote mode,
-# where we are asking "can this machine host Jav3", not "is it installed".
+# where we are asking "can this machine host CNTRL", not "is it installed".
 check_user_side() {
   if [ -z "$REPO_DIR" ] || [ ! -d "$REPO_DIR/backend" ]; then
-    warn "no Jav3 checkout here — skipping install-state checks"
+    warn "no CNTRL checkout here — skipping install-state checks"
     return 0
   fi
   if [ -x "$REPO_DIR/.venv/bin/python" ]; then ok "python venv built"
@@ -466,10 +498,21 @@ check_user_side() {
   if [ -f "$REPO_DIR/frontend/dist/index.html" ]; then ok "frontend built"
   else bad "frontend not built"; fix "cd $REPO_DIR/frontend && npm install && npm run build"; MISSING_USER+=("frontend"); fi
 
-  # Another app (or another Jav3 checkout) already owning this instance's
+  # An install from before the rename: a full run moves it (rename_upgrade),
+  # so "create the env file / install the unit" would be the wrong advice.
+  local renaming=0
+  if rename_pending; then
+    bad "an install from before the rename to CNTRL ($OLD_UNIT.service, $OLD_CFG_DIR)"
+    fix "bash $REPO_DIR/scripts/install.sh   (moves it to $UNIT.service and $CFG_DIR; or --rename-only)"
+    MISSING_USER+=("rename")
+    renaming=1
+  fi
+
+  # Another app (or another CNTRL checkout) already owning this instance's
   # config dir or unit name: installing would overwrite it. --name avoids both.
-  if [ -d "$CFG_DIR" ] && [ ! -f "$CFG_DIR/env" ] && [ -n "$(ls -A "$CFG_DIR" 2>/dev/null)" ]; then
-    bad "$CFG_DIR already holds files from something else (no Jav3 env file in it)"
+  if [ "$renaming" = 1 ]; then :
+  elif [ -d "$CFG_DIR" ] && [ ! -s "$CFG_DIR/env" ] && [ -n "$(foreign_files "$CFG_DIR")" ]; then
+    bad "$CFG_DIR already holds files from something else (no CNTRL env file in it)"
     fix "install beside it: bash $REPO_DIR/scripts/install.sh --name <name>   (or --config-dir <dir>)"
     CONFLICT+=("config-dir")
   fi
@@ -483,13 +526,13 @@ check_user_side() {
     fi
   fi
 
-  # after a conflict, "create the env file / install the unit" is exactly the
-  # wrong advice, so those two lines stay quiet
-  if [ ${#CONFLICT[@]} -gt 0 ]; then :
+  # after a conflict (or with a rename owed), "create the env file / install
+  # the unit" is exactly the wrong advice, so those two lines stay quiet
+  if [ ${#CONFLICT[@]} -gt 0 ] || [ "$renaming" = 1 ]; then :
   elif [ -f "$CFG_DIR/env" ]; then ok "config file present"
   else bad "no $CFG_DIR/env"; fix "mkdir -p $CFG_DIR && touch $CFG_DIR/env && chmod 600 $CFG_DIR/env"; MISSING_USER+=("config"); fi
 
-  if [ ${#CONFLICT[@]} -gt 0 ]; then :
+  if [ ${#CONFLICT[@]} -gt 0 ] || [ "$renaming" = 1 ]; then :
   elif [ -f "$HOME/.config/systemd/user/$UNIT.service" ]; then ok "systemd user unit $UNIT.service installed"
   else bad "$UNIT.service not installed"; fix "bash $REPO_DIR/scripts/install.sh"; MISSING_USER+=("unit"); fi
 
@@ -661,7 +704,7 @@ root_phase() {
 }
 
 # -------------------------------------------------------- state migration ----
-# Runs BEFORE anything else touches local state. Jav3's durable data is all
+# Runs BEFORE anything else touches local state. CNTRL's durable data is all
 # outside git — memory/, projects/, skills/, agents/ and the SQLite DB — so on a
 # migration it exists in exactly one place and a silent skip here loses it.
 # Hence: unreachable source is a hard failure, never a warning.
@@ -674,14 +717,14 @@ pull_state() {
   local spec="$1" host path root
   host="${spec%%:*}"
   path="${spec#*:}"
-  [ "$host" != "$spec" ] || die "--from wants host:path (e.g. user@host:jarvis)"
-  [ -n "$path" ] || path="jarvis"
+  [ "$host" != "$spec" ] || die "--from wants host:path (e.g. user@host:cntrl)"
+  [ -n "$path" ] || path="cntrl"
 
   step "migrate durable state from $host:$path into $STATE_DIR"
 
   ssh -o ConnectTimeout=10 -o BatchMode=yes "$host" true 2>/dev/null \
     || die "cannot reach $host over ssh.
-       Refusing to continue: this phase is the only copy of Jav3's durable
+       Refusing to continue: this phase is the only copy of CNTRL's durable
        state (memory/, projects/, skills/, agents/, data/jarvis.db) and
        skipping it silently would start a fresh install over the top of a
        migration. Fix the source host, then re-run with the same --from."
@@ -696,7 +739,10 @@ pull_state() {
     root="$path"
   else
     root="$(ssh "$host" "cd '$path' && ./.venv/bin/python -m backend.cli paths state_dir" 2>/dev/null || true)"
-    [ -n "$root" ] || root='.local/share/jarvis'
+    if [ -z "$root" ]; then
+      root='.local/share/cntrl'
+      ssh "$host" "test -f '$root/data/jarvis.db'" || root='.local/share/jarvis'
+    fi
     ssh "$host" "test -f '$root/data/jarvis.db'" \
       || die "no data/jarvis.db under $host:$path or its state dir ($root)"
   fi
@@ -721,7 +767,7 @@ pull_state() {
   # Snapshot the source DB through SQLite's backup API rather than copying the
   # file. A live database in WAL mode cannot be safely cp'd — you get a torn
   # read or a missing -wal and the copy opens corrupt. .backup is consistent
-  # even against a running Jav3. Plain python3: a state dir has no venv.
+  # even against a running CNTRL. Plain python3: a state dir has no venv.
   step "  snapshotting the source database"
   # The snapshot holds every conversation and the users' bcrypt hashes: it is
   # created 0600 (umask 077) and removed on ANY exit from here on, success or
@@ -774,13 +820,18 @@ PY" || die "could not snapshot the source database"
     || warn "no data/jwt_secret on the source (existing sessions will need a re-login)"
   mkdir -p "$CFG_DIR"
   chmod 700 "$CFG_DIR"
-  rsync -a "${private[@]}" "$host:.config/jarvis/env" "$CFG_DIR/env" 2>/dev/null \
-    || warn "no ~/.config/jarvis/env on the source — you will need to set the API key"
-  rsync -a "${private[@]}" "$host:.config/jarvis/secrets.json" "$CFG_DIR/secrets.json" 2>/dev/null \
+  # the source's config dir: ~/.config/cntrl, or ~/.config/jarvis before the rename
+  local scfg=.config/cntrl
+  ssh "$host" "test -f '$scfg/env'" || scfg=.config/jarvis
+  rsync -a "${private[@]}" "$host:$scfg/env" "$CFG_DIR/env" 2>/dev/null \
+    || warn "no ~/$scfg/env on the source — you will need to set the API key"
+  rsync -a "${private[@]}" "$host:$scfg/secrets.json" "$CFG_DIR/secrets.json" 2>/dev/null \
     || true
-  # The source's env may pin ITS state dir; this box's is $STATE_DIR.
-  if grep -q '^JARVIS_STATE_DIR=' "$CFG_DIR/env" 2>/dev/null; then
-    sed -i "s#^JARVIS_STATE_DIR=.*#JARVIS_STATE_DIR=$STATE_DIR#" "$CFG_DIR/env"
+  # The source's env may pin ITS state dir; this box's is $STATE_DIR. A source
+  # from before the rename has JARVIS_ names: they become CNTRL_ ones here.
+  rename_env_names "$CFG_DIR/env" || true
+  if grep -q '^CNTRL_STATE_DIR=' "$CFG_DIR/env" 2>/dev/null; then
+    sed -i "s#^CNTRL_STATE_DIR=.*#CNTRL_STATE_DIR=$STATE_DIR#" "$CFG_DIR/env"
   fi
   ssh "$host" "rm -f '$root/data/jarvis.migrate.db'" || true
   trap - EXIT
@@ -797,6 +848,231 @@ n = con.execute("SELECT COUNT(*) FROM conversations").fetchone()[0]
 print(f"  integrity ok, {n} conversations")
 PY
   ok "state migrated"
+}
+
+# ------------------------------------------------------- the CNTRL rename ---
+# An install from before the rename runs as jarvis[-<name>].service, with its
+# config in ~/.config/jarvis[-<name>] and its state in ~/.local/share/jarvis. The
+# app still runs from those as they are (backend/config.py); this moves them to
+# the CNTRL names, once, with the old service stopped:
+#   - the old units are stopped, disabled and removed (their .d drop-ins move to
+#     the new names); install_units installs the new ones
+#   - the config dir and the state dir move only when the new one holds nothing
+#     of the server's; nothing is ever overwritten, and anything that could not
+#     move is named
+#   - JARVIS_ lines in the env file become CNTRL_ ones (the old file is kept as
+#     env.bak); the mDNS name stays jav3.local, so paired computers still find it
+# A second run finds nothing to do and says so.
+
+OLD_UNITS=(service pages.service backup.service backup.timer image-rebuild.service
+           image-rebuild.timer)
+# What the terminal client keeps in ~/.config/cntrl (it shares the dir with the
+# server's env and secrets): never "something else", never the server's.
+CLIENT_FILES=" credentials.json tui.json history.jsonl themes update-check.json restart.json "
+
+old_unit_file() {   # old_unit_file service -> .../jarvis.service
+  case "$1" in service) echo "$SYSTEMD_USER_DIR/$OLD_UNIT.service" ;;
+               *) echo "$SYSTEMD_USER_DIR/$OLD_UNIT-$1" ;; esac
+}
+
+foreign_files() {   # entries of dir $1 that are not the terminal client's
+  local f
+  for f in "$1"/* "$1"/.[!.]*; do
+    [ -e "$f" ] || continue
+    case "$CLIENT_FILES" in *" ${f##*/} "*) continue ;; esac
+    echo "${f##*/}"
+  done
+}
+
+has_server_config() {   # the server's own files, not the client's (an empty env is none)
+  [ -s "$1/env" ] || [ -e "$1/secrets.json" ] || [ -e "$1/providers.json" ] \
+    || [ -e "$1/backup.json" ]
+}
+
+has_state() {   # the loose probe backend/config.py's has_any_state makes
+  local d
+  [ -e "$1/data/jarvis.db" ] && return 0
+  for d in memory projects agents; do
+    [ -n "$(ls -A "$1/$d" 2>/dev/null | grep -v '^\.gitkeep$' || true)" ] && return 0
+  done
+  return 1
+}
+
+# Which moves are owed. The config dir only when this instance uses its default
+# one, the state dir only when the state dir is the default one.
+cfg_move_owed() {
+  [ "$CFG_DIR" = "$HOME/.config/$UNIT" ] && has_server_config "$OLD_CFG_DIR" \
+    && ! has_server_config "$CFG_DIR"
+}
+state_move_owed() {
+  [ "$STATE_DIR" = "$DEFAULT_STATE_DIR" ] && has_state "$OLD_STATE_DIR" && ! has_state "$STATE_DIR"
+}
+
+# This instance's Gitea unit (backend/gitea_setup.py names it after the port).
+gitea_port() { local p; p="$(env_value GITEA_PORT "$CFG_DIR/env")"; echo "${p:-3000}"; }
+
+rename_pending() {
+  local u
+  for u in "${OLD_UNITS[@]}"; do [ -f "$(old_unit_file "$u")" ] && return 0; done
+  [ -f "$SYSTEMD_USER_DIR/jav3-gitea-$(gitea_port).service" ] && return 0
+  cfg_move_owed && return 0
+  state_move_owed && return 0
+  grep -qE '^(export[[:space:]]+)?JARVIS_' "$CFG_DIR/env" 2>/dev/null
+}
+
+# Move dir $1 to $2: whole when $2 does not exist, else entry by entry, skipping
+# every name $2 already has (an empty env counts as absent). Says what stayed.
+move_dir() {
+  local src="$1" dst="$2" f left=()
+  if [ ! -e "$dst" ]; then
+    mkdir -p "$(dirname "$dst")"
+    mv "$src" "$dst"
+    ok "moved $src to $dst"
+    return 0
+  fi
+  [ -s "$dst/env" ] || [ ! -f "$src/env" ] || rm -f "$dst/env"
+  for f in "$src"/* "$src"/.[!.]*; do
+    [ -e "$f" ] || continue
+    if [ -e "$dst/${f##*/}" ]; then left+=("${f##*/}"); else mv "$f" "$dst/"; fi
+  done
+  if [ ${#left[@]} -eq 0 ]; then
+    rmdir "$src" 2>/dev/null || true
+    ok "moved $src into $dst"
+  else
+    warn "moved $src into $dst except ${left[*]} (already there; left in $src)"
+  fi
+}
+
+# JARVIS_<NAME> lines in env file $1 become CNTRL_<NAME>, keeping $1.bak. A line
+# whose CNTRL_ twin is already there is dropped (the app let the twin win).
+rename_env_names() {
+  local env="$1"
+  grep -qE '^(export[[:space:]]+)?JARVIS_' "$env" 2>/dev/null || return 1
+  cp -p "$env" "$env.bak"
+  awk 'NR == FNR {
+         if (match($0, /^(export[ \t]+)?CNTRL_[A-Za-z0-9_]+=/)) {
+           k = substr($0, 1, RLENGTH - 1); sub(/^(export[ \t]+)?CNTRL_/, "", k); have[k] = 1
+         }
+         next
+       }
+       match($0, /^(export[ \t]+)?JARVIS_[A-Za-z0-9_]+=/) {
+         k = substr($0, 1, RLENGTH - 1); sub(/^(export[ \t]+)?JARVIS_/, "", k)
+         if (k in have) next
+         sub(/JARVIS_/, "CNTRL_")
+       }
+       { print }' "$env" "$env" > "$env.new"
+  chmod 600 "$env.new"
+  mv "$env.new" "$env"
+  return 0
+}
+
+rename_upgrade() {
+  if ! rename_pending; then
+    ok "no install from before the rename to move"
+    return 0
+  fi
+  step "moving the install from before the rename to the CNTRL names"
+  local u f new rebuild=0
+  for u in "${OLD_UNITS[@]}"; do
+    f="$(old_unit_file "$u")"
+    [ -f "$f" ] || continue
+    new="$SYSTEMD_USER_DIR/$UNIT${f#"$SYSTEMD_USER_DIR/$OLD_UNIT"}"
+    systemctl --user disable --now "${f##*/}" >/dev/null 2>&1 || true
+    rm -f "$f"
+    [ ! -d "$f.d" ] || [ -e "$new.d" ] || mv "$f.d" "$new.d"
+    case "$u" in image-rebuild.*) rebuild=1 ;; esac
+    ok "stopped and removed ${f##*/} (now ${new##*/})"
+  done
+  # Gitea: the same unit under its new name, on the same data and config
+  local gitea_old gitea_new=""
+  gitea_old="$SYSTEMD_USER_DIR/jav3-gitea-$(gitea_port).service"
+  if [ -f "$gitea_old" ]; then
+    gitea_new="$SYSTEMD_USER_DIR/cntrl-gitea-$(gitea_port).service"
+    systemctl --user disable --now "${gitea_old##*/}" >/dev/null 2>&1 || true
+    [ -e "$gitea_new" ] || sed -e 's/ for Jav3 / for CNTRL /' "$gitea_old" > "$gitea_new"
+    rm -f "$gitea_old"
+    ok "stopped and removed ${gitea_old##*/} (now ${gitea_new##*/})"
+  fi
+  # install_units leaves the monthly image rebuild to the operator: one that was
+  # set up by hand before the rename comes back under its new name
+  if [ "$rebuild" = 1 ]; then
+    sed -e "s#%h/cntrl#$REPO_DIR#g" scripts/cntrl-image-rebuild.service \
+      > "$SYSTEMD_USER_DIR/$UNIT-image-rebuild.service"
+    cp scripts/cntrl-image-rebuild.timer "$SYSTEMD_USER_DIR/$UNIT-image-rebuild.timer"
+  fi
+  systemctl --user daemon-reload >/dev/null 2>&1 || true
+  if [ -n "$gitea_new" ]; then
+    systemctl --user enable --now "${gitea_new##*/}" >/dev/null 2>&1 \
+      && ok "${gitea_new##*/} enabled and started" \
+      || warn "could not start ${gitea_new##*/}: systemctl --user start ${gitea_new##*/}"
+  fi
+  if [ "$rebuild" = 1 ]; then
+    systemctl --user enable --now "$UNIT-image-rebuild.timer" >/dev/null 2>&1 \
+      && ok "$UNIT-image-rebuild.timer installed and enabled" \
+      || warn "could not enable $UNIT-image-rebuild.timer"
+  fi
+  if cfg_move_owed; then
+    move_dir "$OLD_CFG_DIR" "$CFG_DIR"
+  elif [ -d "$OLD_CFG_DIR" ] && has_server_config "$OLD_CFG_DIR" && [ "$CFG_DIR" = "$HOME/.config/$UNIT" ]; then
+    warn "$OLD_CFG_DIR and $CFG_DIR both hold a server config: $CFG_DIR is used, $OLD_CFG_DIR left as is"
+  fi
+  if state_move_owed; then
+    move_dir "$OLD_STATE_DIR" "$STATE_DIR"
+  elif [ "$STATE_DIR" = "$DEFAULT_STATE_DIR" ] && has_state "$OLD_STATE_DIR"; then
+    warn "$OLD_STATE_DIR and $STATE_DIR both hold state: $STATE_DIR is used, $OLD_STATE_DIR left as is"
+  fi
+  if [ -f "$CFG_DIR/env" ]; then
+    rename_env_names "$CFG_DIR/env" && ok "JARVIS_ settings renamed to CNTRL_ in $CFG_DIR/env (was: env.bak)"
+    # the old default mDNS name came from the old app title: keep answering to it
+    if [ -z "$NAME_OPT" ] && ! grep -q '^CNTRL_INSTANCE_NAME=' "$CFG_DIR/env"; then
+      echo "CNTRL_INSTANCE_NAME=jav3" >> "$CFG_DIR/env"
+      ok "mDNS name stays jav3.local (CNTRL_INSTANCE_NAME in $CFG_DIR/env)"
+    fi
+  fi
+}
+
+# The checkout remembers a non-default instance, so the printed
+# `.venv/bin/python -m backend.cli ...` commands (and a bare re-run of this
+# script) land on it rather than on the default ~/.config/cntrl.
+record_instance() {
+  local was=""
+  [ ! -f .cntrl-instance ] || was="$(sed -n 's/^CNTRL_CONFIG_DIR=//p' .cntrl-instance | tail -1)"
+  [ -n "$was" ] || was="$DEFAULT_CFG_DIR"
+  [ "$was" = "$CFG_DIR" ] || [ -f .jarvis-instance ] \
+    || warn "this checkout now defaults to $UNIT ($CFG_DIR), was $was — bare backend.cli commands follow it"
+  if [ "$CFG_DIR" != "$DEFAULT_CFG_DIR" ]; then
+    printf 'CNTRL_INSTANCE=%s\nCNTRL_CONFIG_DIR=%s\n' "$NAME_OPT" "$CFG_DIR" > .cntrl-instance
+    ok "this checkout is instance ${NAME_OPT:-custom} ($CFG_DIR), recorded in .cntrl-instance"
+  else
+    rm -f .cntrl-instance
+  fi
+  rm -f .jarvis-instance           # the same record, from before the rename
+}
+
+# The systemd --user units, from the templates in scripts/.
+install_units() {
+  mkdir -p "$SYSTEMD_USER_DIR"
+  # The unit hardcodes %h/cntrl; if the checkout lives elsewhere, rewrite the
+  # paths rather than silently installing a unit that points at nothing.
+  # A non-default config dir reaches the app (and the backup) via the unit.
+  local cfgenv=()
+  [ "$CFG_DIR" = "$DEFAULT_CFG_DIR" ] || cfgenv=(-e "/^\[Service\]/a Environment=CNTRL_CONFIG_DIR=$CFG_DIR")
+  sed -e "s#%h/cntrl#$REPO_DIR#g" -e "s#--port 8000#--port $PORT#" ${cfgenv[@]+"${cfgenv[@]}"} \
+    scripts/cntrl.service > "$SYSTEMD_USER_DIR/$UNIT.service"
+  sed -e "s#%h/cntrl#$REPO_DIR#g" ${cfgenv[@]+"${cfgenv[@]}"} scripts/cntrl-backup.service \
+    > "$SYSTEMD_USER_DIR/$UNIT-backup.service"
+  # The pages server (published static pages) is its own unit beside the app's.
+  sed -e "s#%h/cntrl#$REPO_DIR#g" ${cfgenv[@]+"${cfgenv[@]}"} scripts/cntrl-pages.service \
+    > "$SYSTEMD_USER_DIR/$UNIT-pages.service"
+  cp scripts/cntrl-backup.timer "$SYSTEMD_USER_DIR/$UNIT-backup.timer" 2>/dev/null || true
+  chmod +x scripts/backup.sh 2>/dev/null || true
+  systemctl --user daemon-reload
+  systemctl --user enable "$UNIT.service" >/dev/null
+  systemctl --user enable --now "$UNIT-backup.timer" >/dev/null 2>&1 || true
+  ok "$UNIT.service installed and enabled"
+  systemctl --user enable "$UNIT-pages.service" >/dev/null 2>&1 \
+    && ok "$UNIT-pages.service installed and enabled (published pages, port 8090)" \
+    || warn "could not enable $UNIT-pages.service; published pages stay off"
 }
 
 # --------------------------------------------------------------- user phase --
@@ -828,67 +1104,34 @@ user_phase() {
   fi
 
   step "config"
+  rename_upgrade
   mkdir -p "$CFG_DIR"
   touch "$CFG_DIR/env"
   chmod 600 "$CFG_DIR/env"
-  # The checkout remembers a non-default instance, so the printed
-  # `.venv/bin/python -m backend.cli ...` commands (and a bare re-run of this
-  # script) land on it rather than on the default ~/.config/jarvis.
-  local was=""
-  [ ! -f .jarvis-instance ] || was="$(sed -n 's/^JARVIS_CONFIG_DIR=//p' .jarvis-instance | tail -1)"
-  [ -n "$was" ] || was="$DEFAULT_CFG_DIR"
-  [ "$was" = "$CFG_DIR" ] \
-    || warn "this checkout now defaults to $UNIT ($CFG_DIR), was $was — bare backend.cli commands follow it"
-  if [ "$CFG_DIR" != "$DEFAULT_CFG_DIR" ]; then
-    printf 'JARVIS_INSTANCE=%s\nJARVIS_CONFIG_DIR=%s\n' "$NAME_OPT" "$CFG_DIR" > .jarvis-instance
-    ok "this checkout is instance ${NAME_OPT:-custom} ($CFG_DIR), recorded in .jarvis-instance"
-  else
-    rm -f .jarvis-instance
-  fi
+  record_instance
   # A non-default state dir must reach the service too, not just this script.
-  if [ "$STATE_DIR" != "$HOME/.local/share/jarvis" ] \
-     && ! grep -qxF "JARVIS_STATE_DIR=$STATE_DIR" "$CFG_DIR/env"; then
-    sed -i '/^JARVIS_STATE_DIR=/d' "$CFG_DIR/env"
-    echo "JARVIS_STATE_DIR=$STATE_DIR" >> "$CFG_DIR/env"
+  if [ "$STATE_DIR" != "$DEFAULT_STATE_DIR" ] \
+     && ! grep -qxF "CNTRL_STATE_DIR=$STATE_DIR" "$CFG_DIR/env"; then
+    sed -i '/^CNTRL_STATE_DIR=/d' "$CFG_DIR/env"
+    echo "CNTRL_STATE_DIR=$STATE_DIR" >> "$CFG_DIR/env"
     ok "state dir $STATE_DIR recorded in $CFG_DIR/env"
   fi
-  # A named instance advertises its own mDNS name, not a second "jav3.local".
-  if [ -n "$NAME_OPT" ] && ! grep -q '^JARVIS_INSTANCE_NAME=' "$CFG_DIR/env"; then
-    echo "JARVIS_INSTANCE_NAME=jav3-$NAME_OPT" >> "$CFG_DIR/env"
-    ok "mDNS name jav3-$NAME_OPT.local recorded in $CFG_DIR/env"
+  # A named instance advertises its own mDNS name, not a second "cntrl.local".
+  if [ -n "$NAME_OPT" ] && ! grep -q '^CNTRL_INSTANCE_NAME=' "$CFG_DIR/env"; then
+    echo "CNTRL_INSTANCE_NAME=cntrl-$NAME_OPT" >> "$CFG_DIR/env"
+    ok "mDNS name cntrl-$NAME_OPT.local recorded in $CFG_DIR/env"
   fi
-  if [ "$PORT" != 8000 ] && ! grep -qxF "JARVIS_LAN_PORT=$PORT" "$CFG_DIR/env"; then
-    sed -i '/^JARVIS_LAN_PORT=/d' "$CFG_DIR/env"
-    echo "JARVIS_LAN_PORT=$PORT" >> "$CFG_DIR/env"
+  if [ "$PORT" != 8000 ] && ! grep -qxF "CNTRL_LAN_PORT=$PORT" "$CFG_DIR/env"; then
+    sed -i '/^CNTRL_LAN_PORT=/d' "$CFG_DIR/env"
+    echo "CNTRL_LAN_PORT=$PORT" >> "$CFG_DIR/env"
     ok "port $PORT recorded in $CFG_DIR/env"
   fi
-  if grep -q 'JARVIS_DEEPSEEK_API_KEY' "$CFG_DIR/env" 2>/dev/null; then
+  if grep -q 'CNTRL_DEEPSEEK_API_KEY' "$CFG_DIR/env" 2>/dev/null; then
     ok "API key present in $CFG_DIR/env"
   fi
 
   step "systemd user units"
-  mkdir -p "$HOME/.config/systemd/user"
-  # The unit hardcodes %h/jarvis; if the checkout lives elsewhere, rewrite the
-  # paths rather than silently installing a unit that points at nothing.
-  # A non-default config dir reaches the app (and the backup) via the unit.
-  local cfgenv=()
-  [ "$CFG_DIR" = "$DEFAULT_CFG_DIR" ] || cfgenv=(-e "/^\[Service\]/a Environment=JARVIS_CONFIG_DIR=$CFG_DIR")
-  sed -e "s#%h/jarvis#$REPO_DIR#g" -e "s#--port 8000#--port $PORT#" "${cfgenv[@]}" scripts/jarvis.service \
-    > "$HOME/.config/systemd/user/$UNIT.service"
-  sed -e "s#%h/jarvis#$REPO_DIR#g" "${cfgenv[@]}" scripts/jarvis-backup.service \
-    > "$HOME/.config/systemd/user/$UNIT-backup.service"
-  # The pages server (published static pages) is its own unit beside the app's.
-  sed -e "s#%h/jarvis#$REPO_DIR#g" "${cfgenv[@]}" scripts/jarvis-pages.service \
-    > "$HOME/.config/systemd/user/$UNIT-pages.service"
-  cp scripts/jarvis-backup.timer "$HOME/.config/systemd/user/$UNIT-backup.timer" 2>/dev/null || true
-  chmod +x scripts/backup.sh 2>/dev/null || true
-  systemctl --user daemon-reload
-  systemctl --user enable "$UNIT.service" >/dev/null
-  systemctl --user enable --now "$UNIT-backup.timer" >/dev/null 2>&1 || true
-  ok "$UNIT.service installed and enabled"
-  systemctl --user enable "$UNIT-pages.service" >/dev/null 2>&1 \
-    && ok "$UNIT-pages.service installed and enabled (published pages, port 8090)" \
-    || warn "could not enable $UNIT-pages.service; published pages stay off"
+  install_units
 
   if [ "$BUILD_IMAGE" = 1 ]; then
     step "guest golden image"
@@ -1025,7 +1268,7 @@ emit_json() {
     printf '"missing_packages":%s,' "$(jarr $(missing_pkgs 2>/dev/null))"
     if [ ${#MISSING_ROOT[@]} -gt 0 ]; then
       printf '"root_command":%s,' \
-        "$(jstr "sudo bash ${REPO_DIR:-<path-to-jarvis-checkout>}/scripts/install.sh --root-phase --user $TARGET_USER")"
+        "$(jstr "sudo bash ${REPO_DIR:-<path-to-cntrl-checkout>}/scripts/install.sh --root-phase --user $TARGET_USER")"
     else
       printf '"root_command":null,'
     fi
@@ -1045,7 +1288,7 @@ emit_json() {
 
 # Remote preflight: ship THIS script down the pipe and run its --check there.
 # Nothing is installed and nothing is copied — it answers "could this machine
-# host Jav3, and what exactly is it missing" in one command, which is the
+# host CNTRL, and what exactly is it missing" in one command, which is the
 # question you want answered the moment you walk away from a BIOS screen.
 if [ -n "$TARGET_HOST" ]; then
   [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ] \
@@ -1058,7 +1301,7 @@ if [ -n "$TARGET_HOST" ]; then
   ssh -o ConnectTimeout=10 "$TARGET_HOST" 'bash -s -- --check' < "${BASH_SOURCE[0]}"
   rc=$?
   if [ $rc -eq 0 ]; then
-    printf '\n%s%s is ready to host Jav3.%s\n' "$GREEN" "$TARGET_HOST" "$OFF"
+    printf '\n%s%s is ready to host CNTRL.%s\n' "$GREEN" "$TARGET_HOST" "$OFF"
   else
     printf '\n%s%s is not ready — see the fix lines above.%s\n' "$YELLOW" "$TARGET_HOST" "$OFF"
   fi
@@ -1067,6 +1310,23 @@ fi
 
 if [ "$DO_ROOT" = 1 ]; then
   root_phase
+  exit 0
+fi
+
+# Only the rename: no preflight, no build. The service is down from the moment
+# the old units stop until the new ones start, a few seconds.
+if [ "$RENAME_ONLY" = 1 ]; then
+  [ "$(id -u)" -ne 0 ] || die "run --rename-only as the service user, not root"
+  [ -n "$REPO_DIR" ] || die "--rename-only needs a checkout"
+  cd "$REPO_DIR"
+  rename_pending || { ok "no install from before the rename to move — nothing to do"; exit 0; }
+  rename_upgrade
+  record_instance
+  step "systemd user units"
+  install_units
+  systemctl --user restart "$UNIT" || warn "could not start $UNIT.service"
+  systemctl --user restart "$UNIT-pages.service" >/dev/null 2>&1 || true
+  ok "started $UNIT.service — check: systemctl --user status $UNIT"
   exit 0
 fi
 
@@ -1082,7 +1342,7 @@ if [ ${#MISSING_ROOT[@]} -gt 0 ]; then
   # the placeholder rather than printing `sudo bash /scripts/install.sh`.
   printf '\n%sNeeds one root window. Copy-paste this whole block:%s\n\n' "$BOLD" "$OFF"
   printf '    sudo bash %s/scripts/install.sh --root-phase --user %s\n\n' \
-    "${REPO_DIR:-<path-to-jarvis-checkout>}" "$TARGET_USER"
+    "${REPO_DIR:-<path-to-cntrl-checkout>}" "$TARGET_USER"
   NEED_PKGS="$(missing_pkgs | tr '\n' ' ')"
   printf '  It installs only the missing packages: %s\n' "${NEED_PKGS:-(none)}"
   printf '  and: loads kvm + vhost_vsock unless present or built in (persisting a\n'
@@ -1138,7 +1398,7 @@ printf '  state dir:            %s\n' "$(cd "$REPO_DIR" && .venv/bin/python -m b
 printf '  first-run setup:      %s/.venv/bin/python -m backend.cli setup   (or open the GUI; add logins with --add-user)\n' "$REPO_DIR"
 printf '  config:               %s/env\n' "$CFG_DIR"
 printf '  web UI:               http://localhost:%s/\n' "$PORT"
-printf '  backups (rclone):     set a remote via /api/backup/config, or JARVIS_BACKUP_REMOTE in %s/env\n' "$CFG_DIR"
+printf '  backups (rclone):     set a remote via /api/backup/config, or CNTRL_BACKUP_REMOTE in %s/env\n' "$CFG_DIR"
 printf '  start:                systemctl --user restart %s\n' "$UNIT"
 printf '  logs:                 journalctl --user -u %s -f\n' "$UNIT"
 printf '  re-check:             bash %s/scripts/install.sh --check\n' "$REPO_DIR"

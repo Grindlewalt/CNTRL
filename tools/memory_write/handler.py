@@ -213,7 +213,7 @@ async def run(name: str, content: str, mode: str | None = "append",
         await _refused_event(path.stem, src, hit)
         return ("error: refused — this turn read a " + ("screen" if src == "desk" else "web page")
                 + f" and the note recommends weakening a guard (\"{hit[:60]}\"). "
-                "Tell the operator what you needed instead; changing Jav3's "
+                "Tell the operator what you needed instead; changing CNTRL's "
                 "permissions is their call, made in Settings.")
     op_taint = write_taint.get()
     if path.exists():

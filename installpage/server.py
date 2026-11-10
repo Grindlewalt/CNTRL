@@ -3,7 +3,7 @@
 
     python3 installpage/server.py --bind 0.0.0.0 --port 8080
 
-Standalone on purpose: stdlib only, and it imports nothing from the Jav3
+Standalone on purpose: stdlib only, and it imports nothing from the CNTRL
 backend, so it can run on a box that has no checkout and no venv.
 
 It serves exactly three routes and nothing else:
@@ -34,12 +34,12 @@ import threading
 import time
 from pathlib import Path
 
-DEFAULT_TITLE = "Jav3"
-DEFAULT_COMMAND = ("curl -fsSL https://raw.githubusercontent.com/Grindlewalt/Jav3"
+DEFAULT_TITLE = "CNTRL"
+DEFAULT_COMMAND = ("curl -fsSL https://raw.githubusercontent.com/Grindlewalt/cntrl"
                    "/main/scripts/bootstrap.sh | sh")
 DEFAULT_BOOTSTRAP = Path(__file__).resolve().parent.parent / "scripts" / "bootstrap.sh"
 DEFAULT_GUIDE = Path(__file__).resolve().parent.parent / "docs" / "AGENT-INSTALL.md"
-DEFAULT_GUIDE_URL = ("https://raw.githubusercontent.com/Grindlewalt/Jav3"
+DEFAULT_GUIDE_URL = ("https://raw.githubusercontent.com/Grindlewalt/cntrl"
                      "/main/docs/AGENT-INSTALL.md")
 
 MAX_HEAD = 8 * 1024          # request line + headers, bytes
@@ -70,7 +70,7 @@ def agent_prompt(guide_url: str) -> str:
     Codex, OpenCode, OpenClaw...). docs/AGENT-INSTALL.md ends with the same text
     (tests/test_installpage.py keeps the two equal); the guide carries the rest."""
     return (
-        "You are installing and configuring Jav3, a self-hosted AI agent harness "
+        "You are installing and configuring CNTRL, a self-hosted AI agent harness "
         "(a server that runs AI agents inside a KVM or Docker sandbox, with the "
         "model key held on the host, an egress proxy and approval gates), on this "
         "Linux machine for me. First fetch and read the whole guide at "
@@ -83,7 +83,7 @@ def agent_prompt(guide_url: str) -> str:
 def render_page(title: str, command: str, prompt: str = "") -> bytes:
     t, c = html.escape(title), html.escape(command)
     agent = ("<p>Or let your coding agent (Claude Code, Codex, OpenCode, OpenClaw...) "
-             "do it: paste this into it, on the machine that will host Jav3:</p>"
+             "do it: paste this into it, on the machine that will host CNTRL:</p>"
              f"<pre style=\"white-space:pre-wrap\">{html.escape(prompt)}</pre>"
              if prompt else "")
     return (
@@ -366,7 +366,7 @@ class InstallPageServer(socketserver.ThreadingTCPServer):
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     env = os.environ
-    p = argparse.ArgumentParser(description="Serve the Jav3 install page.")
+    p = argparse.ArgumentParser(description="Serve the CNTRL install page.")
     p.add_argument("--bind", default=env.get("INSTALLPAGE_BIND", "127.0.0.1"),
                    help="address to listen on (default 127.0.0.1; '::' for all)")
     p.add_argument("--port", type=int, default=int(env.get("INSTALLPAGE_PORT", "8080")))

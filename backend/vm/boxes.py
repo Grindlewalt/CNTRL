@@ -1,4 +1,4 @@
-"""Boxes: the guests Jav3 runs, one record per box (DESIGN-BOXES.md, WP1).
+"""Boxes: the guests CNTRL runs, one record per box (DESIGN-BOXES.md, WP1).
 
 A *box* is one disposable guest with its own identity on every channel the host
 polices: its own CID (the gateway's key for "who is calling"), its own tap and
@@ -448,7 +448,7 @@ class Registry:
         held = [f"{b.id} {ram_cost(b.mem_mb, b.runtime)}" for b in self.all()]
         return (f"guest RAM budget: {used_mb} MB reserved ({', '.join(held)}) + "
                 f"{need_mb} MB for this box > {settings.vm_guest_ram_budget_mb} MB. "
-                "Destroy a box you do not need, or raise JARVIS_VM_GUEST_RAM_BUDGET_MB")
+                "Destroy a box you do not need, or raise CNTRL_VM_GUEST_RAM_BUDGET_MB")
 
     # allocate / release ------------------------------------------------------
     def allocate(self, kind: str, *, project: str | None = None,

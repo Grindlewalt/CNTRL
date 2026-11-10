@@ -1,6 +1,6 @@
 ---
 name: browser_hover
-description: Move the pointer over an element (by id from browser_read_page) in a Jav3 browser tab, to open a hover menu or tooltip.
+description: Move the pointer over an element (by id from browser_read_page) in a CNTRL browser tab, to open a hover menu or tooltip.
 when_to_use: When a menu or tooltip appears only on hover. Read the page again afterwards to get the ids of what appeared.
 enabled: true
 section: browser

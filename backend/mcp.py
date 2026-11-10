@@ -1,4 +1,4 @@
-"""MCP client — Jav3 reaching OUT to a local MCP server.
+"""MCP client — CNTRL reaching OUT to a local MCP server.
 
 Every other integration in this system is something reaching in. This is the
 first one that goes the other way, and the threat model is different enough to
@@ -230,7 +230,7 @@ class McpClient:
         if not self.cfg.configured:
             raise McpError(
                 f"the {self.cfg.name} MCP server is not configured "
-                f"(set JARVIS_MCP_{self.cfg.name.upper()}_URL and _TOKEN)")
+                f"(set CNTRL_MCP_{self.cfg.name.upper()}_URL and _TOKEN)")
         payload = {"jsonrpc": "2.0", "id": 1, "method": method,
                    "params": params or {}}
         try:
@@ -314,7 +314,7 @@ class McpClient:
                     detail={"server": self.cfg.name,
                             "url": self.cfg.url,
                             "ignored": sorted(unexpected),
-                            "note": "Jav3 never registers what a server "
+                            "note": "CNTRL never registers what a server "
                                     "advertises — tools/<name>/TOOL.md in this "
                                     "repo is the authority. A server growing a "
                                     "tool means it was updated (re-pin the "

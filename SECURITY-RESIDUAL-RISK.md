@@ -4,7 +4,7 @@ What the architecture is, what it actually buys, and — the point of this
 document — what it does **not** cover. Written to be read by someone deciding
 whether to trust the agent with a new capability. Last updated 2026-07-19,
 covering the monitored-egress build (Layers 1–6; deploy separation / Layer 7 is
-out of scope), amended 2026-07-20 for the **staging-quarantine removal** (operator decision: writes land live; git is the review/undo surface), and 2026-09-23 for the **removal of Computer Use and Cloudflare Access** (operator decision: LAN-first; see #12). Amended 2026-09-24 for **computer use rebuilt as `jav3-desk`** (see #15) and 2026-09-29 for **navigation** (element ids, description-based clicking, grounding; see #15, #18-#21). **This supersedes the netless posture** — the guest now has a
+out of scope), amended 2026-07-20 for the **staging-quarantine removal** (operator decision: writes land live; git is the review/undo surface), and 2026-09-23 for the **removal of Computer Use and Cloudflare Access** (operator decision: LAN-first; see #12). Amended 2026-09-24 for **computer use rebuilt as `cntrl-desk`** (see #15) and 2026-09-29 for **navigation** (element ids, description-based clicking, grounding; see #15, #18-#21). **This supersedes the netless posture** — the guest now has a
 real, monitored internet path, a deliberate trade of maximal containment for
 watchability and genuine developer autonomy.
 
@@ -181,10 +181,10 @@ a watched, policy-gated, cuttable pipe to the internet.
     The desktop client, its folder grants and the `computer_*` tools are gone,
     so the host can no longer reach into a paired desktop at all — the
     "desktop reach via grants" residual this entry used to carry no longer
-    exists. Jav3 is LAN-first: there is no Cloudflare service token to leak,
+    exists. CNTRL is LAN-first: there is no Cloudflare service token to leak,
     rotate or push, and the music server is reached host-to-host on the LAN.
     What that shifts: the unauthenticated device-login route is now
-    reachable by anything that can reach Jav3 on the network, with no Access
+    reachable by anything that can reach CNTRL on the network, with no Access
     policy in front — see entry 13 and the paste-code row below.
 
 13. **Paste-code login, the CLI, the installers and the web origin (2026-09-23
@@ -204,7 +204,7 @@ a watched, policy-gated, cuttable pipe to the internet.
       the LAN in cleartext; the session cookie is not `Secure` and, like all
       cookies, ignores the port. A passive LAN observer can take a device
       token and use it until it expires (90 days / 30 idle) or is revoked.
-      Settings and `jav3 login` both warn. TLS is a deployment choice.
+      Settings and `cntrl login` both warn. TLS is a deployment choice.
     - **The CLI and its installer are served by the server itself** over the
       same transport (`curl <server>/cli/install.sh | sh`), and the server
       bootstrap is `curl | sh` from a git host with an unpinned default
@@ -294,11 +294,11 @@ a watched, policy-gated, cuttable pipe to the internet.
     `service_port_events`, with at most 32 concurrent connections and an idle
     timeout. `loopback` binds 127.0.0.1. `lan` binds ONLY `services_lan_ip`, a
     dedicated second address added by `vm/net/services_lan_ip.sh` (label
-    `<iface>:jsvc` or macvlan `jsvc0`; the script also drops Jav3's UI port on
+    `<iface>:jsvc` or macvlan `jsvc0`; the script also drops CNTRL's UI port on
     it). Empty = no LAN exposure. At approval and at every bind, the relay
     refuses an address that is loopback, wildcard, public, inside 10.201/16,
     any other host address, the default-route source, or an IP listed as
-    Jav3's. Cookies ignore ports (#13), so a service on Jav3's own origin would
+    CNTRL's. Cookies ignore ports (#13), so a service on CNTRL's own origin would
     receive the session cookie. What remains: the operator's browser renders
     attacker-authored pages from the services' origin (phishing-shaped but not
     cookie-bearing); anything on the LAN can reach an exposed port, so the
@@ -336,7 +336,7 @@ a watched, policy-gated, cuttable pipe to the internet.
       writes freely; a malicious *project file* (pushed into the guest every
       turn, attacker-reachable via git or a prior tainted write that landed)
       is not taint, so content derived from it can persist. With
-      `JARVIS_VM_EGRESS` on, in-guest network reads by `run_code` go through
+      `CNTRL_VM_EGRESS` on, in-guest network reads by `run_code` go through
       the egress proxy, not the broker, and **do not taint** — `/persist`
       stays writable after them.
     - **Guest-global while mounted.** A mount is visible to every process in
@@ -352,7 +352,7 @@ a watched, policy-gated, cuttable pipe to the internet.
       turn makes `/persist` read-only for every concurrent turn of that
       project until the last one ends (fail-safe direction).
 
-15. **Computer use, rebuilt as `jav3-desk` (2026-09-24).** A client on the
+15. **Computer use, rebuilt as `cntrl-desk` (2026-09-24).** A client on the
     operator's computer (`clients/jav3-desk`) holds one outbound WebSocket to
     `/api/desk/ws` with a `desk`-scoped device token; the agent drives it with
     host-side `desk_*` tools, so every gate is host-side in `backend/desk.py`
@@ -362,7 +362,7 @@ a watched, policy-gated, cuttable pipe to the internet.
     and a desk cannot start turns. Grants (screen / input / shell) are per
     computer, server-side, and set only from cookie routes; the client's own
     ceiling can narrow them and never be widened — shell stays off until
-    `jav3-desk allow-shell` is run at that computer. Input is refused without
+    `cntrl-desk allow-shell` is run at that computer. Input is refused without
     a screenshot of that computer from this turn under 60 s old, with
     coordinates bounded by it; 10 input/s, 2 screenshots/s, one shell at a
     time; every action is audited (typed text as length + digest); typing a
@@ -393,16 +393,16 @@ a watched, policy-gated, cuttable pipe to the internet.
       Wayland client; anything else running as the operator can do the same.
       The client adds no new privilege, but it is a long-lived process holding
       a credential that drives the desktop.
-    - **Input reaching Jav3's own approval UI.** The operator is logged in to
-      Jav3 in a browser on that same computer. A screenshot of it shows the
+    - **Input reaching CNTRL's own approval UI.** The operator is logged in to
+      CNTRL in a browser on that same computer. A screenshot of it shows the
       approval queues (egress, grants, secrets, packages), and `desk_click`
       can press their buttons: the agent would approve its own requests.
       `desk_open` refuses the server's own names (the Host the computer
       connected by, the LAN names and IPs, `csrf_allowed_hosts`, loopback and
       its numeric spellings, `user@` and backslash URLs), so it cannot steer a
-      tab there. It cannot stop a click reaching a Jav3 tab that is ALREADY
+      tab there. It cannot stop a click reaching a CNTRL tab that is ALREADY
       open, or a redirect from another site, or a name that only resolves to
-      the server. On a computer granted Input, keep Jav3 in a browser profile
+      the server. On a computer granted Input, keep CNTRL in a browser profile
       the agent is not shown, or closed.
     - **Not yet built:** GNOME/KDE portals and `/dev/uinput` (M2). Wayland
       backends and Windows send no element list (clicks there are by
@@ -447,7 +447,7 @@ a watched, policy-gated, cuttable pipe to the internet.
     Screens are an injection channel exactly like `web_read` text, and are
     treated the same way.
 
-18. **Browser use, `jav3-browser` (2026-09-26).** A Chromium extension
+18. **Browser use, the CNTRL browser extension (2026-09-26).** A Chromium extension
     (`clients/jav3-browser`) holds one outbound WebSocket to `/api/browser/ws`
     with a `browser`-scoped device token sent in the first frame (a browser
     WebSocket cannot set a header; a URL token gets logged). The route is
@@ -463,7 +463,7 @@ a watched, policy-gated, cuttable pipe to the internet.
     with Cancel, which aborts it and pauses access; Pause and Disconnect sit in
     the popup. Verbs are a closed list validated on both sides; click/type need
     a read of that tab from this turn; one action at a time, 5/s; URLs and
-    typed text carrying a stored secret's value are refused, as are the Jav3
+    typed text carrying a stored secret's value are refused, as are the CNTRL
     server's own hosts, non-http(s) URLs, `user:pass@` URLs, and password/file
     fields. Every result taints the turn like `web_read`; every action is
     audited (typed text as length + digest). What deliberately remains:
@@ -494,7 +494,7 @@ a watched, policy-gated, cuttable pipe to the internet.
       may omit the element to type into whatever has focus (it still needs a
       read of the tab from this turn). Both run in the extension under the
       same checks as an id: per-site consent on the tab's current site, the
-      Jav3-host refusal, the password/file refusal, a click that lands in an
+      CNTRL-host refusal, the password/file refusal, a click that lands in an
       iframe is refused (go by id), focus inside a cross-origin frame needs
       that frame's domain allowed; the server still refuses text carrying a
       stored secret's value. Not covered: a page that moves its own layout
@@ -513,7 +513,7 @@ a watched, policy-gated, cuttable pipe to the internet.
     `desk_click(target=…)` that no element label settles sends the latest
     desk frame (the whole downscaled screenshot, at most 1280 px on its long
     edge, plus the description) through the model gateway to the vision model
-    chosen in Settings → Grounding: `JARVIS_GROUNDING_MODEL` if set, else the
+    chosen in Settings → Grounding: `CNTRL_GROUNDING_MODEL` if set, else the
     operator's pin, else the winner of the last model-finder run; with none of
     those nothing is sent and the click is refused. The gateway routes it to
     that model's provider with the host-side key and budgets and meters it like
@@ -798,11 +798,11 @@ a watched, policy-gated, cuttable pipe to the internet.
 | Generated-code backdoor | Critical | **Medium-High** | Advisory gates + git history only — no pre-landing human review since 2026-07-20; execution stays guest-only and commits stay gated. Release gate (planned) is the compensating control. |
 | Secret exposure | Critical | Very Low | No secrets in guest; wire injection AND web_read substitution are grant-scoped per project (profile `secrets` + project grants, a project revoke wins; the web path ignored grants until 2026-09-26); service boxes never get injection; key never crosses to a non-DeepSeek endpoint. |
 | LAN pivot | High | Very Low | nftables drops all RFC1918 + operator servers; guest reaches only host proxy/DNS. Holds for every project without LAN access (the default); the next row covers one that has it on. |
-| Per-project LAN access (box -> LAN through the proxy, `backend/lanaccess.py`) | High | **Medium** when on / Very Low off | Off by default, per project, operator-only (cookie API; every enable, disable or list change is a `lan_access_changed` security event). Only listed RFC1918 IPv4 targets (CIDR, address or name, optionally :port). The guest still has no L3 route to the LAN (nft unchanged); the proxy dials from the host. The name is resolved once host-side, every answer must be listed, and the proxy connects to the address it judged (no rebinding between check and dial). Refused at save AND at connect, even inside a listed CIDR: the Jav3 host (all its interface addresses and names, the services' LAN alias, host-internal bridge networks), 127/8, 0/8, 169.254/16 incl. cloud metadata, multicast/broadcast, the box network 10.201/16 (gateway, proxy), public addresses and IPv6. Cut, network-off and deny lists still win; service and builder boxes never get it; secret injection to a LAN target needs a key explicitly host-bound to it (an unbound grant is never sent). Every connection is an `egress_events` row with a `LAN:` reason and passes the anomaly check. Residual = whatever the listed devices expose: a prompt-injected agent can drive their APIs (Home Assistant can unlock doors), exploit unpatched LAN services, and read data to exfiltrate through the project's allowed hosts; HTTPS to a LAN device is a tunnel, so its payload is opaque. Prefer single host:port entries to whole ranges. |
+| Per-project LAN access (box -> LAN through the proxy, `backend/lanaccess.py`) | High | **Medium** when on / Very Low off | Off by default, per project, operator-only (cookie API; every enable, disable or list change is a `lan_access_changed` security event). Only listed RFC1918 IPv4 targets (CIDR, address or name, optionally :port). The guest still has no L3 route to the LAN (nft unchanged); the proxy dials from the host. The name is resolved once host-side, every answer must be listed, and the proxy connects to the address it judged (no rebinding between check and dial). Refused at save AND at connect, even inside a listed CIDR: the CNTRL host (all its interface addresses and names, the services' LAN alias, host-internal bridge networks), 127/8, 0/8, 169.254/16 incl. cloud metadata, multicast/broadcast, the box network 10.201/16 (gateway, proxy), public addresses and IPv6. Cut, network-off and deny lists still win; service and builder boxes never get it; secret injection to a LAN target needs a key explicitly host-bound to it (an unbound grant is never sent). Every connection is an `egress_events` row with a `LAN:` reason and passes the anomaly check. Residual = whatever the listed devices expose: a prompt-injected agent can drive their APIs (Home Assistant can unlock doors), exploit unpatched LAN services, and read data to exfiltrate through the project's allowed hosts; HTTPS to a LAN device is a tunnel, so its payload is opaque. Prefer single host:port entries to whole ranges. |
 | Hypervisor / kernel escape | Critical | Low | No passthrough, minimal devices, monthly patched image; unpatched-CVE window only. |
 | Persistence | High | Very Low (turn guests) | Ephemeral guest + idle scrub + versioned rebuild; nukeable at any time. What persists now depends on approved services (next row). |
 | Approved services (service boxes; replaces `/persist`) | High | **Medium** | Operator-only approval (cookie, acknowledge, explicit placement + exposure, never auto-handled) of a host-snapshotted, content-hashed artifact; no secrets; own box with no model/broker/workspace; root reset every boot, only a capped `nodev,nosuid,noexec` `/srv` persists; hardened DynamicUser units; deny-by-default egress on approved hosts only; revoke = kill the box; unreported box alerts. `/persist` frozen, imported, deleted 30 days after import. Residual = approved agent-written code can be malicious, `/srv` state survives, low-and-slow exfil to approved hosts, placement sets co-residence. |
-| Inbound service ports | Medium | **Low–Medium** | Off by default; per-port operator choice no wider than requested; relay through svcd's tunnel (no network path into the box), metered; loopback, or LAN only on a dedicated `services_lan_ip` that is refused if it is any address Jav3 answers on. Residual = the operator's browser renders attacker pages from the services' origin; LAN clients can reach an exposed port. |
+| Inbound service ports | Medium | **Low–Medium** | Off by default; per-port operator choice no wider than requested; relay through svcd's tunnel (no network path into the box), metered; loopback, or LAN only on a dedicated `services_lan_ip` that is refused if it is any address CNTRL answers on. Residual = the operator's browser renders attacker pages from the services' origin; LAN clients can reach an exposed port. |
 | Persistent package catalogue / image variants | Critical | **Medium-High** | Structured `package_request` only (per-manager name/version grammar; URLs, paths, `git+`, index/registry flags and shell syntax refused); the host builds the canonical argv and never runs the agent's string; a dry-run pins version + integrity (apt SHA256, pip sha256, npm dist.integrity) before the card can be approved, and the build re-resolves and refuses a changed integrity; never auto-handled; builds only in a builder box whose egress is the registry-only `__image_build__` profile; a new frozen layer version per change, never a mutated image; the card names every project on the variant (and on variants built from it). Residual = an approved malicious or typosquatted package (or its install script, run as root in the builder) lands in every box on that variant, and pip/npm dependencies are resolved by the registry, not pinned. Same class as the generated-code backdoor. |
 | In-box screenshots | Medium | Low | In-guest only (`desktop` variant), chromium through the box's egress proxy, app mode on a private Xvfb with no TCP listener; a non-loopback URL, or an app that opened any proxy connection during the run (TIME_WAIT included), taints the turn through the gateway `taint_note` op before the image is returned, and the image is withheld if the note fails. Residual = untrusted pixels in context (prompt injection by image), an app that reaches remote content only via a process started before the capture window, and whatever a response echoes back on screen. |
 | Egress mis-attribution | Low | **Medium** (shared box) / Very Low (own box) | Boxes of their own are attributed by their per-box proxy listener (nft-pinned + peer check), never the turn stack. The shared box still races (#7); approvals write only the project's own list, and unattributed traffic gets the Default profile only. Core cut/secret controls unaffected. |
@@ -814,17 +814,17 @@ a watched, policy-gated, cuttable pipe to the internet.
 | Web origin (CSRF / agent HTML) | Critical | Low | One global scheme+host+port same-origin gate for every cookie state change and WebSocket; agent files served sandboxed/inert. Residual = a missing-Origin non-browser client holding the cookie. |
 | Host-side project runner | Critical | Medium | Executes on the host by design; same-origin gated and audited per run. Existence is the operator's decision. |
 | Backup contents and destination | High | Medium | DB snapshot (incl. bcrypt hashes) uploaded unencrypted; secrets only through rclone crypt; destination changes raise a security event; rclone binary constrained; git hooks never restored. |
-| Computer use (`jav3-desk`) | Critical | **Medium** | `desk_open` refuses Jav3's own hosts (Input can still reach an already-open Jav3 tab: keep it out of a granted computer's view). Desk-scoped token, server-side per-computer grants under a client ceiling (shell off until allowed at the keyboard), screenshot-before-input, rate limits, audit, taint with shell falling back to asking; since 2026-09-29 also element ids resolved only against this turn's frame, clicks by description or coordinates through the same gates (#20), locked or asleep screens refused. Residual = on-screen prompt injection steering granted Input, and Input reaching a terminal., a wider `desk_open` app list whose terminal exclusion is by name (#21), and the live screen having moved since the frame a point was resolved on. |
-| Browser use (`jav3-browser`) | Critical | **Medium** | Browser-scoped token (first-frame, socket only), per-browser per-project Read/Act grants (none by default), own unfocused window and own tabs only, per-site consent in the extension, action notification with Cancel, Pause, closed verb list checked both sides, read-before-act, secret-value and Jav3-host refusals (also for clicks by x, y and typing into the focused element, under the same per-site and cross-origin-frame consent), taint like web_read, audit. Residual = acting with the operator's sessions on allowed sites outside the egress proxy, page prompt injection steering granted Act, host-level (not page-level) consent., a page moving its layout after the screenshot a coordinate click uses, and page text that imitates element-list lines in `read_page`. |
+| Computer use (`cntrl-desk`) | Critical | **Medium** | `desk_open` refuses CNTRL's own hosts (Input can still reach an already-open CNTRL tab: keep it out of a granted computer's view). Desk-scoped token, server-side per-computer grants under a client ceiling (shell off until allowed at the keyboard), screenshot-before-input, rate limits, audit, taint with shell falling back to asking; since 2026-09-29 also element ids resolved only against this turn's frame, clicks by description or coordinates through the same gates (#20), locked or asleep screens refused. Residual = on-screen prompt injection steering granted Input, and Input reaching a terminal., a wider `desk_open` app list whose terminal exclusion is by name (#21), and the live screen having moved since the frame a point was resolved on. |
+| Browser use (browser extension) | Critical | **Medium** | Browser-scoped token (first-frame, socket only), per-browser per-project Read/Act grants (none by default), own unfocused window and own tabs only, per-site consent in the extension, action notification with Cancel, Pause, closed verb list checked both sides, read-before-act, secret-value and CNTRL-host refusals (also for clicks by x, y and typing into the focused element, under the same per-site and cross-origin-frame consent), taint like web_read, audit. Residual = acting with the operator's sessions on allowed sites outside the egress proxy, page prompt injection steering granted Act, host-level (not page-level) consent., a page moving its layout after the screenshot a coordinate click uses, and page text that imitates element-list lines in `read_page`. |
 | Screenshots sent to a grounding model provider | High | **Medium** | Only when `desk_click(target=…)` is not settled by an element label, only to a model the operator enabled and pinned or ranked in Settings → Grounding, only after grant / ceiling / fresh-frame / unlocked checks; via the model gateway (host-side key, budgeted, metered); the model finder uses synthetic screens; the agent cannot choose the model, provider or request fields; the desk audit row keeps target, model and confidence. Residual = the whole screenshot, unredacted, reaches a third-party provider (automatic mode picks by hit rate, price and latency, not by trust), no per-image audit row, no re-check that the ranked model is still one the operator wants. |
 | Description-based clicking (`desk_click target=`) | High | **Medium** | Same gates as any coordinate click; label match first, unique only; "could not find" instead of a guess; the result says how the point was chosen and returns the after-screenshot; taint. Residual = on-screen text can steer the grounding model to a look-alike element; confidence is shown, never a threshold; label matching is by unique substring; the grounded point is not cross-checked against the accessibility tree; the screen may change between frame and click. |
 | Live desktop of a box, operator take-over (#24) | High | **Medium** | KVM `desktop` box only, started by the operator's click (RAM-budgeted). A window is a view until it takes control; the host parses client RFB and admits key / pointer only from the holder's socket, never clipboard, resize or power; the agent's `desk` input is refused while the operator holds it and the seat is told input is off (grants row untouched); `operator_control` audit rows with key / pointer counts only, a quiet `by_operator` event; hand back only by button or by the window staying gone 10 s; held keys released. Residual = the operator's keystrokes land in a box the agent reads, guest-controlled RFB bytes reach noVNC in the operator's origin, the pause does not cover the box's own shell (`xdotool` through `run_code`), and a held desktop stays held while the window is open. |
 | Wider `desk_open` app list | Medium | Low–Medium | Server accepts only client-reported names and http(s) URLs; client drops terminals and script runners by name and terminal-flagged `.desktop` entries; shell has its own grants. Residual = the exclusion is by name (IDEs with terminals, Emacs, IDLE, System Settings are offered), a keystroke reaches a terminal anyway with Input, and `desk-apps.json` entries are taken unfiltered. |
 | Captured model context (`backend/ctxstore.py`, on by default) | High | **Medium** | Host-side only; read route, switch and retention are cookie-session only; blobs age out after 7 days by default (1-30 chosen in Logs); images redacted. Residual: an unscrubbed, compressed second copy of everything the model saw (system prompt, memory, tool results) that outlives its chat (chat delete leaves it) and rides in the unencrypted DB backup (#22); incognito turns are excluded. |
-| `/local` chats (agent file + shell tools on the `jav3` client's machine) | Critical | **Medium** | Opt-in per chat at the client; the server can only ask over the turn's stream, the client executes. Writes, edits and commands wait for y / a (always, per kind, this session) / n at that keyboard; reads never ask and may reach any path the operator's user can. Only the actor that opened the chat may answer a call; unanswered calls time out (15 min) and die with stop; args carrying a stored secret are refused; results are capped, secret-scrubbed and taint the turn. Residual = a prompt-injected turn reading local files the operator never meant to share (they go to the model provider), and "always" for shell turning every later command in that session into an unattended one. |
+| `/local` chats (agent file + shell tools on the `cntrl` client's machine) | Critical | **Medium** | Opt-in per chat at the client; the server can only ask over the turn's stream, the client executes. Writes, edits and commands wait for y / a (always, per kind, this session) / n at that keyboard; reads never ask and may reach any path the operator's user can. Only the actor that opened the chat may answer a call; unanswered calls time out (15 min) and die with stop; args carrying a stored secret are refused; results are capped, secret-scrubbed and taint the turn. Residual = a prompt-injected turn reading local files the operator never meant to share (they go to the model provider), and "always" for shell turning every later command in that session into an unattended one. |
 | Permission modes (`yolo` / `auto` / `ask` per chat, permissions.py) and `ask_user` (operator_ask.py) | Low | **Low** | An operator control, not a boundary: the VM, the write chokepoint, diff gates and git/egress approvals hold in every mode, and `yolo` (the default) is today's behaviour. `auto` sends only the tool name and args to a one-shot judge (fixed prompt, args JSON-quoted between per-call random markers, 5 output tokens, only an exact SAFE runs); args that address the reviewer (verdict words, injection phrasing, markers) skip it and ask; any judge error asks. Always-rules are exact tool + normalised prefix per project: a run_code rule never matches a command with shell chaining/substitution, and none is offered for git remotes/commits or broad heads (rm, curl, sh, python…); revocable in Settings and /security. In-guest writes are gated by the guest asking the host first, so a compromised guest can skip the ask (it could already write its own disposable copy; staging still crosses the host gates). Residual = a judge talked into SAFE by args that avoid the filter, and an operator clicking "always" too broadly. |
 | Process telemetry is guest-reported (Security > Persistent, boxes flag) | Medium | **Medium** | The process tree, socket owners and per-socket byte counters come from inside the guest (`procwatch`), so the guest can lie. The host treats every field as untrusted. Replies are capped at 8 MiB with a 3 s timeout. It keeps at most 2048 processes, 4096 sockets and 64 connections per process. Strings are clipped, and control and bidi characters are replaced. ppid cycles cannot hang the tree builder. A box raises at most 10 alerts an hour, and each (exe, unit) alerts once per boot. Host truth comes from the host's own kernel: an established connection from the guest IP that no reported process owns for two polls, or byte counts more than 5% (+64 KiB) apart, raise `proc_report_mismatch`. Proxy `egress_events` (peer_port) give host names, and relay counters give inbound bytes. "Not OS" means not in the image's baseline (exe, unit) set; when no baseline is recorded, a small built-in set is used instead. Residual: a root implant with no network traffic, or one reusing a baseline (exe, unit), can hide from the tree. Short connections that open and close between polls are named but never flagged. Without iproute2 on the host (or on a non-Linux dev machine), the host-truth checks are skipped and connections show as unverified. |
-| Host Gitea (`backend/gitea.py`, docs/gitea.md) | High | **Low–Medium** | A new HTTP service on the LAN (default :3000, plain http like Jav3 itself; SSH off, registration off, sign-in required to view, offline mode, pinned + sha256-checked static binary, no package manager). Two API tokens 0600 in the config dir, read host-side only: the operator's (admin; merges, account admin, pushes main) and the `jav3-agent` bot's (`write:repository`). Neither enters a box, argv, `.git/config`, the DB or a tool result (per-command `http.extraheader`; scrubbed errors). The bot is a write collaborator, so Gitea itself would let it push any non-protected branch: the `agent/*`-only rule is enforced host-side (the host builds the name, the model never passes a ref), and `main` is protected with the operator as the only push/merge whitelist entry. Boxes cannot reach Gitea at all (the egress proxy refuses its name and host:port before any policy; the host's own IPs are refused by LAN access). Residual: anyone on the LAN can reach the login page; a stolen admin token is full Gitea admin; the Gitea data dir sits in the state dir unencrypted. |
+| Host Gitea (`backend/gitea.py`, docs/gitea.md) | High | **Low–Medium** | A new HTTP service on the LAN (default :3000, plain http like CNTRL itself; SSH off, registration off, sign-in required to view, offline mode, pinned + sha256-checked static binary, no package manager). Two API tokens 0600 in the config dir, read host-side only: the operator's (admin; merges, account admin, pushes main) and the `jav3-agent` bot's (`write:repository`). Neither enters a box, argv, `.git/config`, the DB or a tool result (per-command `http.extraheader`; scrubbed errors). The bot is a write collaborator, so Gitea itself would let it push any non-protected branch: the `agent/*`-only rule is enforced host-side (the host builds the name, the model never passes a ref), and `main` is protected with the operator as the only push/merge whitelist entry. Boxes cannot reach Gitea at all (the egress proxy refuses its name and host:port before any policy; the host's own IPs are refused by LAN access). Residual: anyone on the LAN can reach the login page; a stolen admin token is full Gitea admin; the Gitea data dir sits in the state dir unencrypted. |
 | Single-process assumption | Medium | Low | In-memory codes/throttle/turns; `--workers 1` + startup refusal of WEB_CONCURRENCY > 1. |
 
 **Closing frame:** the netless design made the room have no phone; this design

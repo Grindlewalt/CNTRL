@@ -1,6 +1,6 @@
 ---
 name: browser_close_tab
-description: Close one of Jav3's browser tabs.
+description: Close one of CNTRL's browser tabs.
 when_to_use: When done with a tab.
 enabled: true
 section: browser

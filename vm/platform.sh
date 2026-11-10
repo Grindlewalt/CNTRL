@@ -56,11 +56,13 @@ jarvis_platform_firmware() {
 
   # Explicit override, for a distro whose layout is not below (NixOS, a hand-
   # built edk2) — and the seam that makes this resolver testable at all.
-  if [ -n "${JARVIS_FW_CODE:-}" ] || [ -n "${JARVIS_FW_VARS:-}" ]; then
-    [ -r "${JARVIS_FW_CODE:-}" ] || { echo "JARVIS_FW_CODE not readable: ${JARVIS_FW_CODE:-unset}" >&2; return 1; }
-    [ -r "${JARVIS_FW_VARS:-}" ] || { echo "JARVIS_FW_VARS not readable: ${JARVIS_FW_VARS:-unset}" >&2; return 1; }
-    FW_CODE="$JARVIS_FW_CODE"
-    FW_VARS="$JARVIS_FW_VARS"
+  # CNTRL_FW_CODE / CNTRL_FW_VARS; the old JARVIS_ names still count when unset.
+  code="${CNTRL_FW_CODE:-${JARVIS_FW_CODE:-}}" vars="${CNTRL_FW_VARS:-${JARVIS_FW_VARS:-}}"
+  if [ -n "$code" ] || [ -n "$vars" ]; then
+    [ -r "$code" ] || { echo "CNTRL_FW_CODE not readable: ${code:-unset}" >&2; return 1; }
+    [ -r "$vars" ] || { echo "CNTRL_FW_VARS not readable: ${vars:-unset}" >&2; return 1; }
+    FW_CODE="$code"
+    FW_VARS="$vars"
     return 0
   fi
 

@@ -39,7 +39,7 @@ active_project = contextvars.ContextVar("jav3_active_project",
 
 # The browser tab this turn was asked from (backend/gui.py's tab registry), so
 # a tool that puts something on a screen or through speakers can pick the right
-# machine. Without it "play something" started the track in every open Jav3
+# machine. Without it "play something" started the track in every open CNTRL
 # tab at once — laptop, desktop and phone, slightly out of sync. None means the
 # turn has no asking tab (a schedule, an agent run), and the tool falls back to
 # the most recently used one rather than to all of them.

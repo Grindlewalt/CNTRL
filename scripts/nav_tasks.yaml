@@ -104,12 +104,12 @@ tasks:
     tags: [type-save]
     prompt: >-
       In TextEdit, the document hello.txt is open. Type exactly
-      "Hello from the Jav3 navigation test" into it and save it with cmd+s.
+      "Hello from the CNTRL navigation test" into it and save it with cmd+s.
     setup:
       - ": > hello.txt"
       - open -a TextEdit "$TASK_DIR/hello.txt" && sleep 2
     check:
-      - test "$(cat hello.txt)" = "Hello from the Jav3 navigation test"
+      - test "$(cat hello.txt)" = "Hello from the CNTRL navigation test"
     cleanup:
       - osascript -e 'tell application "TextEdit" to close every document saving no' || true
 

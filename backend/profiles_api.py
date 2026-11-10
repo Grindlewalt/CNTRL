@@ -59,10 +59,10 @@ def _fail(e: profiles.ProfileError):
 
 
 # Secrets that open the operator's OWN infrastructure (the Cloudflare Access
-# service token in front of Jav3, Jav3's own credentials, the host's Gitea), as
+# service token in front of CNTRL, CNTRL's own credentials, the host's Gitea), as
 # opposed to a third-party API a project might really need. Judged by name: the
 # profile form hides these unless the operator asks to see them (WEB-20).
-INFRASTRUCTURE = re.compile(r"^(CF_ACCESS_|CLOUDFLARE_|JARVIS_|JAV3_|GITEA_)")
+INFRASTRUCTURE = re.compile(r"^(CF_ACCESS_|CLOUDFLARE_|CNTRL_|JARVIS_|JAV3_|GITEA_)")
 
 
 @router.get("/secret-choices")

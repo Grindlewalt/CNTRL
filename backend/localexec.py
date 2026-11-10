@@ -1,7 +1,7 @@
 """/local: a chat whose file and shell tools run on the operator's machine.
 
-The operator types /local in the `jav3` terminal client, and the next chat it
-opens works in the directory `jav3` was launched from, on whatever computer
+The operator types /local in the `cntrl` terminal client, and the next chat it
+opens works in the directory `cntrl` was launched from, on whatever computer
 that is. The model still runs through this server (the gateway keeps the key,
 the loop still runs in the guest); only the six local_* tools execute on the
 client:
@@ -209,7 +209,7 @@ async def call(name: str, args: dict) -> str:
     if spec is None:
         return ("error: this chat is not a local session, so there is no machine "
                 "for local tools to act on. The operator starts one with /local "
-                "in the jav3 terminal client.")
+                "in the cntrl terminal client.")
     from . import chat
     if cid not in chat._active_turns:
         return "error: this chat has no running turn (it was stopped)"
@@ -227,7 +227,7 @@ async def call(name: str, args: dict) -> str:
         ok, result = await asyncio.wait_for(fut, CALL_TIMEOUT_S)
     except asyncio.TimeoutError:
         return (f"error: {spec['hostname']} did not answer within "
-                f"{CALL_TIMEOUT_S // 60} minutes (the jav3 client may have closed "
+                f"{CALL_TIMEOUT_S // 60} minutes (the cntrl client may have closed "
                 "or lost its connection). Nothing is known about whether it ran.")
     except LocalCancelled:
         return "error: the operator stopped this turn before the call finished"

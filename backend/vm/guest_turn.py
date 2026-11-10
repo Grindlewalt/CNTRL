@@ -27,7 +27,7 @@ from ..config import settings
 from . import boxes, broker, deathnote, workspace_xfer
 from . import persist as persist_mod
 
-log = logging.getLogger("jav3.guest_turn")
+log = logging.getLogger("cntrl.guest_turn")
 
 GUEST_RUNTURN_PORT = 5556                   # must match jarvis_guest.server.PORT
 

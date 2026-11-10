@@ -16,11 +16,11 @@ Where it binds (operator decision 0.4):
   loopback  127.0.0.1 only.
   lan       ONLY `settings.services_lan_ip`, a dedicated second LAN address
             (vm/net/services_lan_ip.sh adds it). Empty = LAN exposure is
-            unavailable. It must never be an address Jav3's own UI is served
+            unavailable. It must never be an address CNTRL's own UI is served
             on: cookies ignore the port (residual #13), so a hostile service
-            on Jav3's own address would receive the operator's session
+            on CNTRL's own address would receive the operator's session
             cookie. `lan_address()` refuses loopback/wildcard/non-private
-            addresses, the egress /16, and every address Jav3 answers on
+            addresses, the egress /16, and every address CNTRL answers on
             (every other host address, the default-route source address, IP
             literals in csrf_allowed_hosts). Where iproute2 exists it must
             also carry the script's label (<iface>:jsvc, or be on jsvc0):
@@ -95,9 +95,9 @@ def _is_svc_label(label: str) -> bool:
 
 
 def jav3_addresses() -> set[str]:
-    """Every address Jav3's own UI can be reached on (as far as the host can
+    """Every address CNTRL's own UI can be reached on (as far as the host can
     tell): every host address that is NOT the dedicated services alias, the
-    default-route source, and IP literals the operator listed as Jav3's. A
+    default-route source, and IP literals the operator listed as CNTRL's. A
     LAN relay may bind none of them."""
     out: set[str] = set()
     addrs = host_addresses()
@@ -139,7 +139,7 @@ def check_lan_ip(value: str) -> str:
     if ip in ipaddress.ip_network("10.201.0.0/16"):
         raise PortfwdError(f"services_lan_ip {value} is inside the guests' network")
     if value in jav3_addresses():
-        raise PortfwdError(f"services_lan_ip {value} is an address Jav3's own UI "
+        raise PortfwdError(f"services_lan_ip {value} is an address CNTRL's own UI "
                            "is served on; a service there would receive the "
                            "operator's session cookie. Use a dedicated second "
                            "address")
@@ -185,7 +185,7 @@ class Relay:
     async def start(self) -> None:
         self.address = bind_address(self.bind)       # re-checked at every bind
         if self.port == settings.lan_port:
-            raise PortfwdError(f"port {self.port} is Jav3's own")
+            raise PortfwdError(f"port {self.port} is CNTRL's own")
         self.server = await asyncio.start_server(self._handle, self.address, self.port,
                                                  reuse_address=True)
 

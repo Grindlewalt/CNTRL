@@ -1,0 +1,7 @@
+[Unit]
+Description=CNTRL durable-state backup (rclone)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/cntrl/scripts/backup.sh

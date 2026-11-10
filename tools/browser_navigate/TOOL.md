@@ -1,6 +1,6 @@
 ---
 name: browser_navigate
-description: Load a URL in one of Jav3's browser tabs.
+description: Load a URL in one of CNTRL's browser tabs.
 when_to_use: To go somewhere else in a tab you opened.
 enabled: true
 section: browser

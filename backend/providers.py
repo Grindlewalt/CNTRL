@@ -1,4 +1,4 @@
-"""LLM provider registry: which endpoints Jav3 can call, which of their models
+"""LLM provider registry: which endpoints CNTRL can call, which of their models
 the operator switched on, and the default model.
 
 Three layers, each with one owner:
@@ -6,14 +6,14 @@ Three layers, each with one owner:
     rebuilt by scripts/refresh_providers.py) says what exists: id, label, kind
     (the wire format: openai | anthropic | google | ollama), default base_url,
     auth style, and per-model ctx + $/Mtok. An operator file at
-    ~/.config/jarvis/providers.json is merged on top (new providers, or fields
+    ~/.config/cntrl/providers.json is merged on top (new providers, or fields
     and models overriding the shipped ones).
   - STATE (<data_dir>/providers_state.json) is what the operator chose:
     provider enabled / base_url override, per-model enabled, the discovered
     models a /test call listed, and the default model.
   - KEYS live in the 0600 secrets store (backend/secrets.py) as
     PROVIDER_<ID>_API_KEY, unbound to any web host so the agent can never
-    substitute one into a fetch; the old JARVIS_DEEPSEEK_API_KEY env stays the
+    substitute one into a fetch; the old CNTRL_DEEPSEEK_API_KEY env stays the
     deepseek fallback. Nothing here ever returns or logs a key value.
 
 Model ids are `provider/model` everywhere outside this file; a bare id means
@@ -200,7 +200,7 @@ def _enabled(st: dict, pid: str) -> bool:
 
 
 def _base(st: dict, p: dict) -> str:
-    # an explicit JARVIS_DEEPSEEK_BASE_URL routes the out-of-the-box provider
+    # an explicit CNTRL_DEEPSEEK_BASE_URL routes the out-of-the-box provider
     # (a test instance's fake model, a regional endpoint); a Settings override
     # still wins over both
     default = p["base_url"]
@@ -336,7 +336,7 @@ def price_for(model_id: str | None) -> tuple[bool, dict | None]:
 
 
 def is_deprecated(m: dict) -> bool:
-    """The catalogue keeps a deprecated model only when Jav3 must still resolve
+    """The catalogue keeps a deprecated model only when CNTRL must still resolve
     it (scripts/refresh_providers.py), and marks it in the label."""
     return bool(m.get("deprecated")) or \
         "(deprecated)" in (m.get("label") or "").lower()
@@ -657,7 +657,7 @@ def resolve(model_name: str | None, base_url: str | None = None,
         if not base_url_allowed(base_url):
             raise ProviderError(
                 f"refused model base_url {base_url!r}: not on the endpoint "
-                "allowlist (enabled providers + JARVIS_MODEL_BASE_URL_ALLOWLIST)")
+                "allowlist (enabled providers + CNTRL_MODEL_BASE_URL_ALLOWLIST)")
         target = endpoint(base_url)
         matches = [p for p in cat.values()
                    if _enabled(st, p["id"]) and not needs_base_url(_base(st, p))
@@ -688,7 +688,7 @@ def resolve(model_name: str | None, base_url: str | None = None,
     missing = None
     if needs_key(p) and not key:
         missing = ("DEEPSEEK_API_KEY is not set (Settings → Providers, or "
-                   f"{ENV_FILE} JARVIS_DEEPSEEK_API_KEY=...)"
+                   f"{ENV_FILE} CNTRL_DEEPSEEK_API_KEY=...)"
                    if pid == "deepseek" else
                    f"no API key for provider {pid} (Settings → Providers)")
     return Route(pid, p["kind"], base, mid, f"{pid}/{mid}", key or "local",

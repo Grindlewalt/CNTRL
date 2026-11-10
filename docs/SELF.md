@@ -1,4 +1,4 @@
-# Jav3 — technical self-reference
+# CNTRL — technical self-reference
 
 This is your own manual. `self_docs` with no args returns the section list;
 `self_docs(section="...")` returns one section. Everything here describes the
@@ -32,7 +32,7 @@ each one read-only, so the operator pulls with plain git (on by default,
     git clone http://<host>:<port>/git/<slug>      # first time, e.g. http://10.0.0.82:8000
     cd <slug> && git pull                          # afterwards
 
-git asks for the operator's Jav3 username and password (HTTP Basic, the same
+git asks for the operator's CNTRL username and password (HTTP Basic, the same
 login as the app). To stop it asking: macOS `git config --global
 credential.helper osxkeychain`; elsewhere `store` (plain text in
 `~/.git-credentials`) or `cache` (kept in memory, 15 minutes by default).
@@ -51,11 +51,11 @@ the terminal's `/pull` prints them.
 With Gitea enabled (`python -m backend.cli gitea-setup`, see docs/gitea.md)
 each project is also a private repo there (port 3000 by default): approved
 commits push main to it, and a helper turn's project info carries its clone
-command. The operator signs in with their Jav3 username and the Gitea password
-chosen at setup (setup offers to reuse the Jav3 password; without a terminal it
-wrote a random one to `~/.config/jarvis/gitea-admin.password` on the host and
+command. The operator signs in with their CNTRL username and the Gitea password
+chosen at setup (setup offers to reuse the CNTRL password; without a terminal it
+wrote a random one to `~/.config/cntrl/gitea-admin.password` on the host and
 Gitea asks for a new one at first sign-in). This is how to give someone else
-read access without handing out the Jav3 password: create them an account on
+read access without handing out the CNTRL password: create them an account on
 the web app's Git page (nav ⋯ menu, Accounts card; password session only), and
 every enabled account that is not an admin gets read on every repo at once
 (new repos and re-enabled accounts too; `gitea-setup --access` re-applies it).
@@ -67,22 +67,22 @@ setup minted are the server's own and stay on the host.
 You never create, see or rotate credentials. When one is needed, tell the
 operator the steps; they do it.
 
-- Terminal client: `jav3 login` or `/login`. Two kinds. A device token is chat
+- Terminal client: `cntrl login` or `/login`. Two kinds. A device token is chat
   only (no security pages, no secrets). A password session has full access. For
   a device login the operator opens the web app, Settings > Access > Add
   computer, which shows a single-use login code and the install line; the code
-  goes to `jav3 login`. The same panel lists and revokes devices, and a code can
+  goes to `cntrl login`. The same panel lists and revokes devices, and a code can
   be cancelled before it is used. `/login password` signs in with the password.
 - Model API keys (e.g. `deepseek_api_key`) are server settings on the host. The
   model gateway holds them; they never enter your box.
-- git: the Jav3 username and password (see getting your code).
+- git: the CNTRL username and password (see getting your code).
 - Gitea: the operator's own Gitea sign-in (see getting your code).
 - Secrets a project needs are added by the operator under Secrets; you see
   names, not values.
 
 ## terminal client
 
-`jav3` is a keyboard-first copy of the web app. `/help` lists everything. Keys:
+`cntrl` is a keyboard-first copy of the web app. `/help` lists everything. Keys:
 - ctrl+t splits the tile with a new chat; ctrl+w closes the tile
 - ctrl+x then a key is the leader: arrows move between tiles, z zooms, t new
   tab, w close tab, 1-9 jump to a tab, [ ] previous or next tab, v security
@@ -111,7 +111,7 @@ restart into it; `/restart` starts the client again with your tabs, chats and
 drafts (turns keep running on the server); `/sessions`
 switches chats; `/permissions`; `/vms`; `/security`; `/pull` prints the
 clone and pull commands for this chat's project; `/helper` loads this manual
-into the chat so you can answer questions about Jav3 itself.
+into the chat so you can answer questions about CNTRL itself.
 
 ## boxes and images
 
@@ -166,7 +166,7 @@ was. Notes written in a turn that had read outside content (a web page, a
 screen, files, another agent's message) also carry a persistent *taint*, shown
 to the operator as a warning. Keep a few notes, one topic each, updated in place
 (replace, don't append under a stale claim); deleted notes go to a trash the
-operator can restore. Notes about how Jav3's own tools behave go stale: use
+operator can restore. Notes about how CNTRL's own tools behave go stale: use
 report_harness_fault for those.
 
 ## projects
@@ -329,4 +329,4 @@ parts (one per item and its branch), the files and the diffstat against the job'
   dirty", and its file list and diff include them.
 - Reject: the copies and branches are removed; the project is untouched.
 - With Gitea on, the PR branch is also pushed as the bot and a read-only Gitea PR
-  mirrors the summary; it is closed when you decide in Jav3.
+  mirrors the summary; it is closed when you decide in CNTRL.

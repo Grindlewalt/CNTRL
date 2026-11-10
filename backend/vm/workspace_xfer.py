@@ -34,7 +34,7 @@ from ..config import settings
 from ..fsutil import list_tree
 from ..worktrees import project_of, resolve as _resolve_key
 
-log = logging.getLogger("jav3.workspace_xfer")
+log = logging.getLogger("cntrl.workspace_xfer")
 
 SKIP = {".git", ".venv", "node_modules", "__pycache__", ".pytest_cache",
         ".workspace.json", ".context.json", ".staging"}
