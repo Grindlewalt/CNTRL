@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from './api.js'
 import { useAsk } from './ask.jsx'
-import { sevClass, ts } from './format.js'
+import { ts } from './format.js'
 import { notify, notifyError } from './notify.js'
-import { baselineAsk, faultText } from './securityCopy.js'
+import { FAULTS_LEDE, baselineAsk, faultText } from './securityCopy.js'
 import {
-  MUTE_MODES, UNTRUSTED, chatHref, clock, countsParts, eventActions, kindsToMute, lineTitle,
-  muteAsk, programOf, resolveAsk, runState, stopRunAsk, subjectsText,
+  MUTE_MODES, UNTRUSTED, cardTitle, chatHref, clock, countsParts, eventActions, eventState,
+  kindsToMute, lineTitle, muteAsk, programOf, resolveAsk, runState, stopRunAsk, subjectsText,
 } from './securityRuns.js'
+import { Button } from './components/index.js'
+import { Group, State, Ticks } from './securityParts.jsx'
 
 // The Security Queue, one card per RUN (backend/secruns.py, GET /api/security/runs).
 // A card is a run's whole story: what waits on you, how many rows rules filed as
@@ -22,7 +24,7 @@ const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(bo
 
 export default function RunCards({ runs, onChanged, onOpenBoard, slug }) {
   return (
-    <div className="srun-list">
+    <div className="sq-queue">
       {runs.map((r) => (
         <RunCard key={r.key} run={r} onChanged={onChanged} onOpenBoard={onOpenBoard}
                  inProject={!!slug} />
@@ -38,7 +40,6 @@ function RunCard({ run, onChanged, onOpenBoard, inProject }) {
   const [showFiltered, setShowFiltered] = useState(false)
   // the card carries each kind's newest event; "show more" asks for all of them
   const [full, setFull] = useState(null)
-  const sev = sevClass(run.severity)
   const state = runState(run)
   const events = run.events || []
   const key = encodeURIComponent(run.key)
@@ -103,27 +104,31 @@ function RunCard({ run, onChanged, onOpenBoard, inProject }) {
   })
 
   const lines = [...(run.kinds || []), ...(run.report_kinds || [])]
+  const counts = countsParts(run.counts)
+  const many = (run.counts?.need || 0) + (run.counts?.reports || 0) > 1 || (run.counts?.filtered || 0) > 0
   return (
-    <section className={`srun sev-${sev}`}>
-      <header className="srun-head">
-        {run.project && <span className="tag">{run.project}</span>}
-        <strong className="srun-title">{run.title}</strong>
-        {state && <span className={`tag srun-state ${state}`}>{state}</span>}
-        <span className="grow" />
-        <span className="dim small" title={`last ${ts(run.last_at)} UTC`}>{clock(run.last_at)}</span>
+    <Group className="sq-run">
+      <header className="sq-run-head">
+        <div className="sq-meta">
+          <b>{run.project || 'No project'}</b>
+          {state && <>, {state}</>}
+          {run.last_at && <span title={`last ${ts(run.last_at)} UTC`}>, last at {clock(run.last_at)}</span>}
+        </div>
+        <div className="sq-title">{cardTitle(run)}</div>
+        {many && counts.length > 0 && (
+          <div className="sq-run-counts">
+            {counts.map((p, i) => (
+              <span key={p.key}>
+                {i > 0 && ', '}
+                {p.text}
+                {p.show && (
+                  <> (<button type="button" className="sq-fold" onClick={toggleFiltered}
+                              aria-expanded={showFiltered}>
+                    {showFiltered ? 'hide' : 'show'}</button>)</>)}
+              </span>
+            ))}
+          </div>)}
       </header>
-      <div className="srun-counts">
-        {countsParts(run.counts).map((p, i) => (
-          <span key={p.key}>
-            {i > 0 && ' · '}
-            {p.text}
-            {p.show && (
-              <> (<button type="button" className="srun-link" onClick={toggleFiltered}
-                          aria-expanded={showFiltered}>
-                {showFiltered ? 'hide' : 'show'}</button>)</>)}
-          </span>
-        ))}
-      </div>
       {showFiltered && <FilteredRows rows={filtered} onOpen={onOpenBoard} />}
       {lines.map((line) => (
         <KindLine key={line.kind} line={line} run={run}
@@ -132,33 +137,33 @@ function RunCard({ run, onChanged, onOpenBoard, inProject }) {
                   busy={busy} guard={guard} changed={changed} onOpenBoard={onOpenBoard}
                   inProject={inProject} />
       ))}
-      <footer className="srun-foot">
+      {(many || run.running === true) && <footer className="sq-run-foot">
         {run.running === true && (
-          <button type="button" className="ghost danger" disabled={busy} onClick={stopRun}
-                  title="stop every agent in this run (asks first)">Stop whole run</button>)}
+          <Button variant="ghost" danger disabled={busy} onClick={stopRun}
+                  title="stop every agent in this run (asks first)">Stop whole run</Button>)}
         {kindsToMute(run).length > 1 && (
-          <button type="button" className="ghost" disabled={busy} onClick={muteAll}
-                  title="file these kinds in the History only">Mute these kinds</button>)}
-        <span className="grow" />
-        <button type="button" className="ghost" disabled={busy} onClick={resolve}
-                title="mark everything waiting in this run as seen">Resolve group</button>
-      </footer>
-    </section>
+          <Button variant="ghost" disabled={busy} onClick={muteAll}
+                  title="file these kinds in the History only">Mute these kinds</Button>)}
+        <span className="sq-spacer" />
+        <Button variant="ghost" disabled={busy} onClick={resolve}
+                title="mark everything waiting in this run as seen">Resolve group</Button>
+      </footer>}
+    </Group>
   )
 }
 
 // The rows rules filed as normal work: one line each, with the reason
 function FilteredRows({ rows, onOpen }) {
-  if (rows === null) return <p className="dim small srun-filtered">Loading…</p>
-  if (!rows.length) return <p className="dim small srun-filtered">Nothing recorded.</p>
+  if (rows === null) return <p className="sq-run-filtered">Loading…</p>
+  if (!rows.length) return <p className="sq-run-filtered">Nothing recorded.</p>
   return (
-    <ul className="srun-filtered">
+    <ul className="sq-run-filtered">
       {rows.map((r) => (
         <li key={r.id}>
-          <button type="button" className="srun-link" onClick={() => onOpen(r)}
+          <button type="button" className="sq-fold" onClick={() => onOpen(r)}
                   title="open the evidence">{r.summary}</button>
-          {r.count > 1 && <span className="dim small"> ×{r.count}</span>}
-          {r.rule && <span className="dim small"> — {r.rule}</span>}
+          {r.count > 1 && <> ({r.count} times)</>}
+          {r.rule && <>: {r.rule}</>}
         </li>
       ))}
     </ul>
@@ -172,24 +177,25 @@ function KindLine({ line, run, events, onMore, busy, guard, changed, onOpenBoard
   const [first, ...rest] = events
   const toggle = () => { setMore(!more); if (!more && line.n > events.length) onMore() }
   return (
-    <div className="srun-kind">
+    <>
       <EventBlock ev={first} line={line} run={run} busy={busy} guard={guard} changed={changed}
                   onOpenBoard={onOpenBoard} head inProject={inProject} />
-      {line.n > 1 && (
-        <button type="button" className="srun-link srun-more" onClick={toggle}
-                aria-expanded={more}>
-          {more ? 'show fewer' : `show ${line.n - 1} more of this kind`}</button>)}
       {more && rest.map((ev) => (
         <EventBlock key={ev.id} ev={ev} line={line} run={run} busy={busy} guard={guard}
                     changed={changed} onOpenBoard={onOpenBoard} inProject={inProject} />))}
-      {more && line.n > events.length && <p className="dim small">Loading…</p>}
-    </div>
+      {more && line.n > events.length && <p className="sq-ev-more sq-change">Loading…</p>}
+      {line.n > 1 && (
+        <div className="sq-ev-more">
+          <button type="button" className="sq-fold" onClick={toggle} aria-expanded={more}>
+            {more ? 'Show fewer' : `Show ${line.n - 1} more of this kind`}</button>
+        </div>)}
+    </>
   )
 }
 
 function EventBlock({ ev, line, run, busy, guard, changed, onOpenBoard, head }) {
   const ask = useAsk()
-  const sev = sevClass(ev.severity)
+  const st = eventState(ev)
   const cid = ev.doing?.conversation?.id || ev.conversation_id || ev.detail?.conversation_id || null
   const actions = eventActions(ev, { running: run.running, hasChat: !!cid })
   const d = ev.detail && typeof ev.detail === 'object' ? ev.detail : {}
@@ -254,18 +260,21 @@ function EventBlock({ ev, line, run, busy, guard, changed, onOpenBoard, head }) 
   })
 
   return (
-    <div className={`srun-ev sev-${sev}`}>
-      <div className="srun-evtop">
-        <span className={`tag sev-${sev}-tag`}>{ev.severity}</span>
-        <span className="srun-evtitle">{title}</span>
-        {head && line.n > 1 && <span className="tag" title={`${line.n} events`}>×{line.n}</span>}
-        {ev.count > 1 && <span className="tag" title="repeated while it waited">×{ev.count}</span>}
-        {sub && <span className="mono small srun-subjects">{sub}</span>}
-        {ev.actor === 'operator' && <span className="tag by-you">by you</span>}
+    <div className="sq-ev">
+      <div className="sq-ev-top">
+        <State tone={st.tone} why={st.why || undefined}>{st.word}</State>
+        {ev.actor === 'operator' && <span className="sq-ev-n">by you</span>}
       </div>
-      {!head && d.path && <div className="mono small srun-subject">{d.path}</div>}
+      <div className="sq-ev-top">
+        <span className="sq-ev-title"><Ticks text={title} /></span>
+        {head && line.n > 1 && <span className="sq-ev-n">{line.n} of this kind</span>}
+        {ev.count > 1 && <span className="sq-ev-n" title="repeated while it waited">{ev.count} times</span>}
+      </div>
+      {sub && <div className="mono sq-ev-subject">{sub}</div>}
+      {head && ev.kind === 'harness_fault' && <p className="sq-change">{FAULTS_LEDE}</p>}
+      {!head && d.path && <div className="mono sq-ev-subject">{d.path}</div>}
       {ev.doing && <Doing doing={ev.doing} />}
-      <div className="srun-actions">
+      <div className="sq-ev-actions">
         {actions.map((a) => {
           if (a.id === 'chat') {
             return (
@@ -274,9 +283,9 @@ function EventBlock({ ev, line, run, busy, guard, changed, onOpenBoard, head }) 
           }
           if (a.id === 'mute') {
             return (
-              <details key="mute" className="srun-mute">
-                <summary className="ghost" title={a.tip}>{a.label} ▾</summary>
-                <div className="srun-mute-menu">
+              <details key="mute" className="sq-mute">
+                <summary className="ghost-link" title={a.tip}>{a.label}</summary>
+                <div className="sq-mute-menu">
                   {MUTE_MODES.map((m) => (
                     <button key={m.mode} type="button" className="ghost" disabled={busy}
                             title={m.tip} onClick={() => mute(m.mode)}>{m.label}</button>))}
@@ -284,8 +293,8 @@ function EventBlock({ ev, line, run, busy, guard, changed, onOpenBoard, head }) 
               </details>)
           }
           return (
-            <button key={a.id} type="button" className={`ghost${a.id === 'ack' ? ' srun-ack' : ''}`}
-                    disabled={busy} title={a.tip} onClick={run1[a.id]}>{a.label}</button>)
+            <Button key={a.id} variant="ghost" className={a.id === 'ack' ? 'sq-ack' : ''}
+                    disabled={busy} title={a.tip} onClick={run1[a.id]}>{a.label}</Button>)
         })}
       </div>
     </div>
@@ -298,19 +307,18 @@ function Doing({ doing }) {
   const says = doing.says
   if (!step && !says) return null
   return (
-    <div className="srun-doing">
-      <div className="srun-doing-head dim small">
-        What the agent was doing <span className="srun-untrusted">({UNTRUSTED})</span></div>
+    <div className="sq-doing">
+      <div className="sq-doing-h">What the agent was doing <em>({UNTRUSTED})</em></div>
       {step && (
-        <div className="srun-step mono small">
+        <div className="mono">
           step #{step.id} {step.tool}{step.command ? `: ${step.command}` : ''}
           {step.match === 'nearest' && (
-            <span className="dim"> (nearest earlier step: the event names none)</span>)}
+            <span className="sq-doing-h"> (nearest earlier step: the event names none)</span>)}
         </div>)}
       {says && (
-        <div className="srun-says small">
-          {says.source === 'narration' ? 'says' : says.source === 'todo' ? 'its todo list says'
-            : 'its chat is titled'}: “{says.text}”</div>)}
+        <div>
+          {says.source === 'narration' ? 'It said' : says.source === 'todo' ? 'Its todo list says'
+            : 'Its chat is titled'}: “{says.text}”</div>)}
     </div>
   )
 }

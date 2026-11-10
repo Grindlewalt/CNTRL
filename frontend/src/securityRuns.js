@@ -53,7 +53,44 @@ export function lineTitle(ev) {
   if (!ev) return ''
   if (ev.kind === 'unexpected_process') return 'New program outside the box baseline'
   if (ev.kind === 'proc_report_mismatch') return 'A connection no reported process owns'
+  // the state word already says it was approved unasked
+  if (ev.kind === 'yolo_auto_approved') {
+    return String(ev.summary || '').replace(/^approved unasked \(yolo\):\s*/i, '') || ev.kind
+  }
   return ev.summary || ev.kind
+}
+
+// A card's title without the project the meta line already names, a bare kind
+// ("git_mirror_failed") as words, and no " · " joins:
+//   'website · git_mirror_failed'  -> 'Git mirror failed'
+//   'site · chat 4 "Fix the nav"'  -> 'Chat 4 "Fix the nav"'
+export function cardTitle(run) {
+  let t = String(run?.title || '')
+  const p = run?.project
+  if (p && t.startsWith(`${p} · `)) t = t.slice(p.length + 3)
+  if (t === 'harness_fault') t = 'agent report'
+  if (/^[a-z0-9_]+$/.test(t)) t = t.replace(/_/g, ' ')
+  t = t.replace(/ · /g, ', ')
+  return t ? t[0].toUpperCase() + t.slice(1) : ''
+}
+
+// What an event's state says, as a word with a tone (ok | warn | bad | quiet):
+// its severity, unless the kind says something plainer. A request approved in
+// yolo mode was never shown to anyone, and a push that failed after its commit
+// landed is a failure, not a warning.
+export function eventState(ev) {
+  const d = ev?.detail && typeof ev.detail === 'object' ? ev.detail : {}
+  if (ev?.kind === 'yolo_auto_approved') {
+    return { tone: 'warn', word: 'Approved without asking', why: 'the chat runs in yolo mode' }
+  }
+  if (ev?.kind === 'git_mirror_failed') {
+    return { tone: 'bad', word: 'Push failed', why: d.error || '' }
+  }
+  if (ev?.kind === 'harness_fault') return { tone: 'quiet', word: 'Agent report', why: d.tool || '' }
+  const s = String(ev?.severity || 'info').toLowerCase()
+  if (s === 'critical' || s === 'crit') return { tone: 'bad', word: 'Critical', why: '' }
+  if (s === 'warn' || s === 'warning') return { tone: 'warn', word: 'Warning', why: '' }
+  return { tone: 'quiet', word: 'Info', why: '' }
 }
 
 // "(node, crashpad)": the distinct subjects of a kind line, if there is more than one thing

@@ -6,18 +6,19 @@
 // reply and not a tool result). Only messages and narration are prose, and only
 // narration is labelled as the agent thinking aloud.
 
-// The one line above the timeline: how many items, and how many of them are the
-// agent's between-calls text (left out when a chat from before that was kept
-// has none)
+// The one line above the timeline, as a sentence: how many items, and how many
+// of them are the agent's between-calls text (left out when a chat from before
+// that was kept has none)
 export function timelineHeader(items = []) {
   const notes = items.filter((i) => i.kind === 'narration').length
-  const parts = [`${items.length} item${items.length === 1 ? '' : 's'}`]
-  if (notes) parts.push(`${notes} agent note${notes === 1 ? '' : 's'}`)
-  parts.push('in order')
-  return parts.join(' · ')
+  const n = `${items.length} item${items.length === 1 ? '' : 's'} in order`
+  return notes ? `${n}, ${notes} of them the agent's own notes.` : `${n}.`
 }
 
 // The role label of a prose item: what the reader sees as its head
 export function proseLabel(item) {
-  return item.kind === 'narration' ? "agent's own text" : item.role
+  if (item.kind === 'narration') return "Agent's own text"
+  if (item.role === 'user') return 'You'
+  if (item.role === 'assistant') return 'Assistant'
+  return item.role ? item.role[0].toUpperCase() + item.role.slice(1) : ''
 }
