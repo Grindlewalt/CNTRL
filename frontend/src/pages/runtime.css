@@ -1,24 +1,65 @@
+/* Every rule is prefixed with :root so it outranks styles.css whatever the bundle order
+   (the pages' imports load before main.jsx's styles.css). */
 /* Login and first-run setup. Loaded after styles.css, overrides by order. */
 
 /* the card sits on paper with a hairline, no floating glow */
-.login { background: var(--surface); box-shadow: none; border-color: var(--line-strong); }
-.login-lede { margin: 0 0 var(--sp-4); text-align: center; color: var(--slate);
+:root .login { background: var(--surface); box-shadow: none; border-color: var(--line-strong); }
+:root .login-lede { margin: 0 0 var(--sp-4); text-align: center; color: var(--slate);
   font-size: var(--fs-md); line-height: 1.45; }
-.login .login-title { margin: 0; font-size: var(--fs-xl); font-weight: 600;
+:root .login .login-title { margin: 0; font-size: var(--fs-xl); font-weight: 600;
   letter-spacing: var(--track-head); text-align: left; }
-.login .login-sub { margin: calc(var(--sp-4) * -1) 0 0; color: var(--slate);
+:root .login .login-sub { margin: calc(var(--sp-4) * -1) 0 0; color: var(--slate);
   font-size: var(--fs-md); }
-.login-foot { margin: 0; color: var(--faint); font-size: var(--fs-sm); text-align: center; }
-.login .error { color: var(--bad); font-size: var(--fs-md); }
-.login button[type="submit"] { width: 100%; }
+:root .login-foot { margin: 0; color: var(--faint); font-size: var(--fs-sm); text-align: center; }
+:root .login .error { color: var(--bad); font-size: var(--fs-md); }
+:root .login button[type="submit"] { width: 100%; }
 
-.setup-num { font-weight: 600; background: var(--wash); border-color: transparent;
+:root .setup-num { font-weight: 600; background: var(--wash); border-color: transparent;
   color: var(--ink); }
-.setup-step h2 { letter-spacing: var(--track-head); }
-.setup-step .field-hint { line-height: 1.45; }
-.setup-miss { display: block; margin: 0; color: var(--slate); font-size: var(--fs-sm); }
-.setup-miss + .setup-miss { margin-top: var(--sp-2); }
+:root .setup-step h2 { letter-spacing: var(--track-head); }
+:root .setup-step .field-hint { line-height: 1.45; }
+:root .setup-miss { display: block; margin: 0; color: var(--slate); font-size: var(--fs-sm); }
+:root .setup-miss + .setup-miss { margin-top: var(--sp-2); }
 @media (max-width: 520px) {
-  .setup-wrap { padding-left: var(--sp-5); padding-right: var(--sp-5); }
-  .login, .login.setup { padding: var(--sp-8) var(--sp-7); }
+  :root .setup-wrap { padding-left: var(--sp-5); padding-right: var(--sp-5); }
+  :root .login, :root .login.setup { padding: var(--sp-8) var(--sp-7); }
 }
+
+/* ---- VMs: boxes, RAM budget, runtime status ---- */
+:root .bx-page .dim.small, :root .bx-page .small { font-size: var(--fs-md); }
+:root .bx-budget { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: var(--sp-7); }
+:root .bx-bar { height: 8px; background: var(--wash); border: 0; }
+:root .bx-seg { border-right: 2px solid var(--surface); opacity: .4; }
+:root .bx-seg.loose { background-image: repeating-linear-gradient(135deg, transparent 0 4px,
+  var(--surface) 4px 6px); }
+/* four kinds, four distinct tokens (shared and project were both green) */
+:root .k-shared { background: var(--ink); }
+:root .k-project { background: var(--accent); }
+:root .k-service { background: var(--warn); }
+:root .k-builder { background: var(--faint); }
+:root .bx-legend { gap: var(--sp-3) var(--sp-7); color: var(--slate); }
+:root .bx-legend i { width: 8px; height: 8px; border-radius: 50%; margin-right: var(--sp-3);
+  vertical-align: 0; }
+
+:root .bx-runtimes { display: flex; flex-direction: column; gap: var(--sp-2); }
+:root .sbx-card.bx-runtimes { background: none; border: 0; padding: 0; }
+:root .bx-rt-on { color: var(--ok); }
+:root .bx-rt-off { color: var(--slate); }
+:root .bx-runtime-off { opacity: 1; }
+
+/* the boxes table: a header row in slate, rows as hairlines, no pill per row */
+:root .bx-table { gap: 0; }
+:root .bx-th { color: var(--slate); font-size: var(--fs-sm); font-weight: 600; text-transform: none;
+  letter-spacing: 0; padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--line-strong);
+  border-radius: 0; }
+:root .bx-tr { background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
+:root .bx-tr.off { background: none; }
+:root .bx-tr:not(.bx-th):hover { background: var(--wash); }
+:root .bx-kv dt { text-transform: none; letter-spacing: 0; font-size: var(--fs-sm); font-weight: 600;
+  color: var(--slate); }
+:root .bx-unavail { border: 1px solid var(--line); border-radius: var(--radius-md); color: var(--slate); }
+:root .bx-unavail.error { border-color: var(--bad); color: var(--bad); }
+:root .bx-orphans { border-left-color: var(--bad); }
+:root .bx-warn-box { border-left-color: var(--warn); }
+:root .bx-d-add { color: var(--ok); }

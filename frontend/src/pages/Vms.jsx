@@ -23,6 +23,7 @@ import {
 } from '../boxes/glance.js'
 import { requestPackages } from '../boxes/api/packages.js'
 import { listProfiles } from '../boxes/api/profiles.js'
+import './runtime.css'
 import { deletePersist, getPersist, importPersist, listProjects } from '../boxes/api/persist.js'
 import {
   applyBuildEvent, budgetSegments, buildNeedsReload, bytes, mb, mergeBuildRest, persistDaysLeft, sortBoxes,
@@ -141,7 +142,7 @@ export function Boxes() {
               <span role="columnheader">Doing now</span>
               <span role="columnheader">Stops</span>
               <span role="columnheader">Runtime</span>
-              <span role="columnheader">Image · RAM · CPU</span>
+              <span role="columnheader">Image, RAM, CPU</span>
               <span role="columnheader">Up</span>
               <span role="columnheader" />
             </div>
@@ -400,13 +401,13 @@ function Budget({ data, noLimit }) {
         })}
       </div>
       <div className="bx-legend dim small">
-        <span><i className="k-shared" /> shared</span>
+        <span><i className="k-shared" /> shared box</span>
         <span><i className="k-project" /> project</span>
         <span><i className="k-service" /> service</span>
         <span><i className="k-builder" /> builder</span>
-        <span>faded = reserved but stopped (every reservation counts)</span>
+        <span>Faded: reserved but stopped. Every reservation counts.</span>
         {noLimit && (data?.boxes || []).some((x) => x.runtime === 'docker')
-          && <span>hatched = Docker box with no enforced limit</span>}
+          && <span>Hatched: Docker box with no enforced limit.</span>}
       </div>
     </section>
   )
