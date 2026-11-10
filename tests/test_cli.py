@@ -2964,12 +2964,38 @@ def test_old_config_dir_moves_over_when_only_it_exists(cfg, tmp_path):
     assert jav3.load_credentials()["token"] == "jvd_old"
 
 
-def test_new_config_dir_wins_and_the_old_is_left_alone(cfg, tmp_path):
+def test_a_name_already_in_the_new_dir_wins_and_its_old_copy_stays(cfg, tmp_path):
     old = _old_config(tmp_path)
     jav3.save_credentials("new:1", "jvd_new")
-    assert jav3.migrate_old_config() is False
+    assert jav3.migrate_old_config() is True                  # tui.json moved
     assert jav3.load_credentials()["token"] == "jvd_new"
     assert (old / "credentials.json").read_text().count("jvd_old") == 1
+    assert (cfg / "tui.json").exists() and not (old / "tui.json").exists()
+
+
+def test_client_files_join_a_dir_the_servers_upgrade_made_first(cfg, tmp_path):
+    """On a host with both, the server's upgrade may have moved ~/.config/jarvis to
+    ~/.config/cntrl before the client starts: the login must still come over."""
+    old = _old_config(tmp_path)
+    cfg.mkdir(parents=True, mode=0o700)
+    (cfg / "env").write_text("CNTRL_LAN_PORT=8000\n")
+    (cfg / "secrets.json").write_text("{}")
+    assert jav3.migrate_old_config() is True
+    assert jav3.load_credentials()["token"] == "jvd_old"
+    assert stat.S_IMODE((cfg / "credentials.json").stat().st_mode) == 0o600
+    assert (cfg / "env").read_text() == "CNTRL_LAN_PORT=8000\n"    # the server's, untouched
+    assert not old.exists()
+    assert jav3.migrate_old_config() is False                 # nothing left to move
+
+
+def test_a_symlinked_new_dir_is_not_merged_into(cfg, tmp_path):
+    _old_config(tmp_path)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    cfg.symlink_to(elsewhere)
+    assert jav3.migrate_old_config() is False
+    assert list(elsewhere.iterdir()) == []
 
 
 def test_new_config_dir_only_and_none_at_all_are_no_ops(cfg):

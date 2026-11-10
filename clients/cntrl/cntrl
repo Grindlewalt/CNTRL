@@ -82,14 +82,33 @@ def config_dir() -> Path:
 
 def migrate_old_config() -> bool:
     """Before CNTRL the config dir was ~/.config/jav3. When only that one exists, move
-    it over (rename: credentials.json keeps its 0600 in the 0700 dir). When the new one
-    exists it wins and the old is left alone. True when it moved."""
+    it over (rename: credentials.json keeps its 0600 in the 0700 dir). The new dir can
+    already exist without the client's files: the server's upgrade moves its own
+    config (env, secrets.json) into ~/.config/cntrl too. Then each old entry moves in
+    by name, a name already there wins (its old copy stays behind), and the old dir
+    goes once empty. A symlinked dir on either side is left alone. True when
+    anything moved."""
     new, old = config_dir(), _config_base() / "jav3"
     try:
-        if os.path.lexists(new) or old.is_symlink() or not old.is_dir():
+        if old.is_symlink() or not old.is_dir() or new.is_symlink():
             return False
-        os.rename(old, new)
-        return True
+        if not os.path.lexists(new):
+            os.rename(old, new)
+            return True
+        if not new.is_dir():
+            return False
+        moved = False
+        for entry in old.iterdir():
+            dest = new / entry.name
+            if os.path.lexists(dest):
+                continue
+            os.rename(entry, dest)
+            moved = True
+        try:
+            old.rmdir()
+        except OSError:
+            pass                                    # names the new dir already had
+        return moved
     except OSError:
         return False
 

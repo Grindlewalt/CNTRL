@@ -275,9 +275,10 @@ unset; until the move, the app runs from the old directories as they are; the
 it; the session cookie, the device token prefix, the database file
 (`jarvis.db`) and the Gitea bot account keep their names, so logins and paired
 devices stay valid. The new terminal client moves `~/.config/jav3` to
-`~/.config/cntrl` on its first start, unless `~/.config/cntrl` already exists
-(for example the server's own config on the same machine): then the old
-directory is left alone and you log in again.
+`~/.config/cntrl` on its first start. When `~/.config/cntrl` already exists (the
+server's own config on the same machine), its files move in one by one beside
+the server's, a name already there wins, and you stay logged in. The desktop
+client for computer use moves its own `desk*` files the same way.
 
 ## Security model
 

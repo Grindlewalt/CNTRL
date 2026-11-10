@@ -260,7 +260,9 @@ move below, installs the new units and restarts.
 - The `jav3` command stays as a second launcher, and the server still serves
   `/cli/jav3` and `/cli/jav3-browser.zip`. The new terminal client installs
   into `~/.local/share/cntrl-cli` and moves `~/.config/jav3` to
-  `~/.config/cntrl` on first start unless that directory already exists.
+  `~/.config/cntrl` on first start; into the server's own `~/.config/cntrl`
+  on the same machine its files move one by one, a name already there winning,
+  so you stay logged in. The computer-use desktop client's `desk*` files follow.
 - The session cookie, the device token prefix, the database file
   (`jarvis.db`) and the Gitea bot account keep their names, so logins and
   paired devices stay valid.

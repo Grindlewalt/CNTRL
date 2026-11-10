@@ -1447,5 +1447,11 @@ def test_config_dir_follows_the_terminal_clients_rename(tmp_path, monkeypatch):
     assert jd.config_dir() == tmp_path / "cntrl"            # fresh machine
     (tmp_path / "jav3").mkdir()
     assert jd.config_dir() == tmp_path / "jav3"             # old install, not moved yet
-    (tmp_path / "cntrl").mkdir()
-    assert jd.config_dir() == tmp_path / "cntrl"            # moved (or both): the new one
+    (tmp_path / "jav3" / "desk.json").write_text('{"token": "old"}')
+    (tmp_path / "jav3" / "credentials.json").write_text("{}")   # the terminal client's
+    (tmp_path / "cntrl").mkdir()                            # the server's upgrade, first
+    (tmp_path / "cntrl" / "env").write_text("")
+    monkeypatch.setattr(jd, "_moved_old_desk_files", False)
+    assert jd.config_dir() == tmp_path / "cntrl"
+    assert (tmp_path / "cntrl" / "desk.json").read_text() == '{"token": "old"}'
+    assert (tmp_path / "jav3" / "credentials.json").exists()   # left for its own client

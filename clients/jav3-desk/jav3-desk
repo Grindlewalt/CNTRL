@@ -120,13 +120,32 @@ class DeskError(Exception):
 
 # --- config files -------------------------------------------------------------------
 
+_moved_old_desk_files = False
+
+
 def config_dir() -> Path:
-    """~/.config/cntrl, shared with the terminal client. Before the rename it was
-    ~/.config/jav3; while only that one exists (the terminal client, which moves it,
-    not updated yet) it is still used, so a paired desk keeps its token."""
+    """~/.config/cntrl, shared with the terminal client and the server's config.
+    Before the rename it was ~/.config/jav3. While only that one exists it is still
+    used (the terminal client moves it whole on its first start). When both exist
+    (the server's upgrade made ~/.config/cntrl first), this desk's own files move
+    over by name, once, a name already there winning; so a paired desk keeps its
+    token either way."""
+    global _moved_old_desk_files
     base = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
     new, old = base / "cntrl", base / "jav3"
-    return old if old.is_dir() and not new.exists() else new
+    if not old.is_dir() or old.is_symlink():
+        return new
+    if not os.path.lexists(new):
+        return old
+    if new.is_dir() and not new.is_symlink() and not _moved_old_desk_files:
+        _moved_old_desk_files = True
+        for entry in old.glob("desk*"):
+            try:
+                if not os.path.lexists(new / entry.name):
+                    os.rename(entry, new / entry.name)
+            except OSError:
+                pass
+    return new
 
 
 def _path(name: str) -> Path:
