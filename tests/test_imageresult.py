@@ -18,6 +18,7 @@ from backend.agent.tools import registry
 from backend.vm import broker
 from backend.vm.gateway_server import handle_conn
 from backend.vm.guest_pkg import build_package_tar
+from tests.platform_caps import needs_vsock_names
 
 PNG = (b"\x89PNG\r\n\x1a\n" + b"\x00" * 32)
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 32
@@ -118,6 +119,7 @@ async def test_broker_plain_result_has_no_image(monkeypatch):
     assert res == {"result": "just text", "taint": "trusted"}
 
 
+@needs_vsock_names
 def test_guest_registry_reattaches_the_inline_image():
     """In the real guest package: a broker_result carrying `image` comes out of
     the guest registry as a result the loop can split into text + image."""

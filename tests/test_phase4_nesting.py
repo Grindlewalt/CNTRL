@@ -18,6 +18,7 @@ import tarfile
 import tempfile
 
 from backend.vm.guest_pkg import build_package_tar
+from tests.platform_caps import needs_vsock_names
 
 
 def _extract_pkg():
@@ -27,6 +28,7 @@ def _extract_pkg():
     return d
 
 
+@needs_vsock_names
 def test_guest_turn_state_is_task_local():
     """Two concurrent turns bind different op_id/specs/rules/slug via turnctx and
     read back their OWN values throughout — the fix that makes one guest safe for a

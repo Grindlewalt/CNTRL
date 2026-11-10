@@ -10,8 +10,10 @@ import tarfile
 import tempfile
 
 from backend.vm.guest_pkg import build_package_tar
+from tests.platform_caps import needs_vsock_names
 
 
+@needs_vsock_names
 def test_guest_package_assembles_and_imports_stdlib_only():
     data = build_package_tar()
     d = tempfile.mkdtemp()
@@ -41,6 +43,7 @@ def _extract_pkg():
     return d
 
 
+@needs_vsock_names
 def test_in_guest_tool_runs_locally_against_pushed_workspace():
     """M3: a clean tool (read_file) loads its handler from the pushed package and
     runs IN the guest against a pushed workspace — its `from backend.X` imports

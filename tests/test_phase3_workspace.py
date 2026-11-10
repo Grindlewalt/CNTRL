@@ -14,6 +14,7 @@ from pathlib import Path
 from backend.config import settings
 from backend.vm import workspace_xfer
 from backend.vm.guest_pkg import build_package_tar
+from tests.platform_caps import needs_vsock_names
 
 
 def _tar_dir(root: Path) -> bytes:
@@ -25,6 +26,7 @@ def _tar_dir(root: Path) -> bytes:
     return buf.getvalue()
 
 
+@needs_vsock_names
 async def test_workspace_roundtrip_edit_in_guest_reconciled(tmp_env):
     # host: a project with one canonical file
     proj = settings.projects_dir / "demo"
