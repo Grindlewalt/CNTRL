@@ -176,7 +176,8 @@ After installing:
 - **Docker.** A container per box with no network interface (`--network
   none`), reaching the host only over two unix sockets
   ([docs/docker-runtime.md](docs/docker-runtime.md)). It is lighter and weaker
-  than a VM: it shares the host kernel. On a host without KVM, chats outside a
+  than a VM: it shares the host kernel unless you configure gVisor
+  (`CNTRL_DOCKER_OCI_RUNTIME=runsc`). On a host without KVM, chats outside a
   project cannot run, and a project runs only when set to its own container.
 
 ## Network access for agents
