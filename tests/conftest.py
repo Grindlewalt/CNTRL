@@ -51,3 +51,25 @@ def tmp_env(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "vm_dir", tmp_path / "data" / "vm")
     monkeypatch.setattr(settings, "secrets_path", tmp_path / "secrets.json")
     return tmp_path
+
+
+@pytest.fixture(scope="session", autouse=True)
+def no_real_state(tmp_path_factory):
+    """Every test, tmp_env or not, keeps durable state in a temp dir. Tests that
+    skipped tmp_env wrote the developer's real install (the DB, registry.json,
+    seeded skills, jwt_secret, once secrets.json). Session-wide, so tests that
+    share state without tmp_env still share it; tmp_env still gives a test its
+    own dir on top."""
+    root = tmp_path_factory.mktemp("state")
+    mp = pytest.MonkeyPatch()
+    for name, path in (("state_dir", root), ("data_dir", root / "data"),
+                       ("db_path", root / "data" / "jarvis.db"),
+                       ("memory_dir", root / "memory"), ("projects_dir", root / "projects"),
+                       ("skills_dir", root / "skills"), ("agents_dir", root / "agents"),
+                       ("vm_dir", root / "data" / "vm"), ("gitea_dir", root / "gitea"),
+                       ("secrets_path", root / "config" / "secrets.json"),
+                       ("gitea_admin_token_path", root / "config" / "gitea-admin.token"),
+                       ("gitea_bot_token_path", root / "config" / "gitea-bot.token")):
+        mp.setattr(settings, name, path)
+    yield root
+    mp.undo()

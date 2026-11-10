@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import httpx
+import pytest
 
 CLI = Path(__file__).resolve().parents[1] / "clients" / "jav3cli" / "jav3"
 
@@ -19,6 +20,14 @@ def _load():
 
 
 jav3 = _load()
+
+
+@pytest.fixture(autouse=True)
+def _own_config(tmp_path, monkeypatch):
+    # the TUI saves tui.json and history.jsonl: never into the developer's real
+    # client config
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+
 
 QS = [{"question": "Which database?", "options": ["SQLite", "Postgres"],
        "multi_select": False},
