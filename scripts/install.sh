@@ -1417,7 +1417,19 @@ fi
 
 # A missing root phase is not fatal for the user phase — the venv and the
 # frontend build fine without KVM, and the image build skips itself with a
-# clear message. Only stop if the operator has not seen the list yet.
+# clear message. But they need a python that can make a venv and npm: on a fresh
+# Debian those are root packages too, so stop here (--yes or not) rather than
+# fail deep inside pip. Only ask if the operator has not seen the list yet.
+if [ ${#MISSING_ROOT[@]} -gt 0 ]; then
+  needs=()
+  if [ ! -x "$REPO_DIR/.venv/bin/python" ]; then
+    vt=$(mktemp -d)
+    python3 -m venv "$vt/v" >/dev/null 2>&1 || needs+=("a python that can make a venv (python3-venv)")
+    rm -rf "$vt"
+  fi
+  command -v npm >/dev/null 2>&1 || needs+=("npm")
+  [ ${#needs[@]} -eq 0 ] || die "the unprivileged install needs ${needs[*]}, which the root block above installs: run it, then run this again"
+fi
 if [ ${#MISSING_ROOT[@]} -gt 0 ] && [ "$ASSUME_YES" != 1 ]; then
   printf '\n'
   read -r -p "Root steps are outstanding. Continue with the unprivileged install anyway? [y/N] " reply
