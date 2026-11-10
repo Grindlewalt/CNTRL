@@ -6,6 +6,7 @@ import {
 } from './securityCopy.js'
 import { notifyError } from './notify.js'
 import { Button, Toggle } from './components/index.js'
+import { State } from './securityParts.jsx'
 
 // Control strip for Auto review — the isolated triage reviewer
 // (backend/reviewer.py; "triage" stays the internal name) — the first section
@@ -68,64 +69,61 @@ export default function TriagePanel() {
     catch (e) { setS((p) => ({ ...p, enabled: !on })); notifyError(e) }
   }
 
+  const recent = s.recent_auto || []
   return (
-    <section className="sbx-sec triage-card">
-      <div className="sbx-sec-head">
-        <h3>Auto review</h3>
-        {/* the switch sits against the heading it names, not among the
-            actions: "Auto review [on] Auto" reads as one setting */}
+    <section className="sq-rail-sec" aria-label="Auto review">
+      <h3 className="sq-rail-h">
+        Auto review
+        {/* the switch sits against the heading it names */}
         <Toggle checked={!!s.enabled} onChange={toggle} label="Auto review"
                 onText="On" offText="Off"
                 title={s.enabled ? AUTO_REVIEW_ON_TIP : AUTO_REVIEW_OFF_TIP} />
-        {/* "clear" only when nothing is waiting on anyone: an item the
-            reviewer flagged is reviewed, but it is not clear — it is waiting
-            on the operator, so the flag count stands in for the chip */}
-        {untriaged > 0 && <span className="sec-count">{untriaged} not reviewed yet</span>}
-        {flagged > 0 && (
-          <span className="tag triage-flag">{flagged} flagged for you below</span>)}
-        {untriaged === 0 && flagged === 0 && (
-          <span className="sec-count clear">clear</span>)}
-        {(untriaged > 0 || s.running) && (
-          <div className="sec-actions">
-            <Button variant="ghost" disabled={busy || s.running}
-                    title={`run Auto review over the ${untriaged} item(s) not reviewed yet, now`}
-                    onClick={() => act('/api/reviewer/run')}>
-              {s.running ? 'Running…' : 'Review now'}
-            </Button>
-          </div>
-        )}
-      </div>
+      </h3>
+      {AUTO_REVIEW_LEDE.map((t) => <p key={t}>{t}</p>)}
 
-      {AUTO_REVIEW_LEDE.map((t) => <p key={t} className="dim small triage-lede">{t}</p>)}
-
-      {last && (
-        <div className="dim small triage-tally">
-          Last run {ts(last.finished_at || last.started_at)}: {tallyLine(last)}
+      {/* what waits on it, and what it handed to you: an item it flagged is
+          reviewed but not clear, it waits on the operator in the queue */}
+      {(untriaged > 0 || flagged > 0) && (
+        <div className="sq-states">
+          {flagged > 0 && <State tone="warn">{flagged} flagged for you in the queue</State>}
+          {untriaged > 0 && <State>{untriaged} not reviewed yet</State>}
         </div>
       )}
+      {(untriaged > 0 || s.running) && (
+        <Button variant="ghost" className="sq-more-btn" disabled={busy || s.running}
+                title={`run Auto review over the ${untriaged} item(s) not reviewed yet, now`}
+                onClick={() => act('/api/reviewer/run')}>
+          {s.running ? 'Running…' : 'Review now'}
+        </Button>
+      )}
 
-      {(s.recent_auto?.length || 0) > 0 && (
+      {last && (
+        <p>Last run {ts(last.finished_at || last.started_at)}: {tallyLine(last)}.</p>
+      )}
+
+      {recent.length > 0 && (
         <>
-          <button className="triage-log-toggle" type="button"
+          <button className="sq-fold" type="button" aria-expanded={logOpen}
                   onClick={() => setLogOpen((o) => !o)}>
-            <span className={logOpen ? 'chev open' : 'chev'} aria-hidden="true">›</span>
-            Handled by Auto review recently ({s.recent_auto.length}), each can be undone
+            {logOpen ? 'Hide' : 'Show'} what it handled recently ({recent.length})
           </button>
-          {logOpen && s.recent_auto.map((l) => (
-            <div key={`l${l.id}`} className="sbx-row triage-row">
-              <div className="grow" style={{ minWidth: 0 }}>
-                <div className="ellipsis" title={l.subject}>
-                  <span className="tag done">{l.action === 'approved' ? 'allowed' : 'cleared'}</span>
-                  {' '}<span className="mono">{l.subject}</span>
-                  {l.project_slug && <span className="tag">{l.project_slug}</span>}
-                </div>
-                <div className="small dim ellipsis" title={l.reason}>
-                  {ts(l.created_at)} · {l.reason}</div>
-              </div>
-              <Button variant="ghost" title="undo this auto-action" disabled={busy}
-                      onClick={() => act(`/api/reviewer/log/${l.id}/undo`)}>Undo</Button>
-            </div>
-          ))}
+          {logOpen && (
+            <ul className="sq-auto-list">
+              {recent.map((l) => (
+                <li key={`l${l.id}`}>
+                  <div>
+                    <span className="mono" title={l.subject}>{l.subject}</span>
+                    <span className="sq-why">
+                      {l.action === 'approved' ? 'Allowed' : 'Cleared'}
+                      {l.project_slug ? ` for ${l.project_slug}` : ''}, {ts(l.created_at)}: {l.reason}
+                    </span>
+                  </div>
+                  <Button variant="ghost" title="undo this auto-action" disabled={busy}
+                          onClick={() => act(`/api/reviewer/log/${l.id}/undo`)}>Undo</Button>
+                </li>
+              ))}
+            </ul>
+          )}
         </>
       )}
     </section>

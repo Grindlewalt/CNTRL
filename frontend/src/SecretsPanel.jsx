@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { api } from './api.js'
 import { notifyError } from './notify.js'
 import { useAsk } from './ask.jsx'
-import { Button, Card, EmptyState, Input } from './components/index.js'
+import { Button, Input } from './components/index.js'
+import { Group } from './securityParts.jsx'
 
 // The operator's API keys (/api/secrets). The agent can reference one as
 // {{secret:NAME}} and the host swaps the value in on the wire — web_read only
@@ -71,81 +72,82 @@ export default function SecretsPanel() {
   }
 
   return (
-    // No title: the Review tab strip already says "Secrets" (a tab paints no
+    // No title: the Security tab strip already says "Secrets" (a tab paints no
     // heading of its own). The lede and the add button share the head row.
-    <Card className="secrets-card">
-      <div className="toolbar secrets-head">
-        <p className="dim small secrets-lede">
-          Keys the agent uses as {'{{secret:NAME}}'} without ever reading them.
-          A key with no web hosts bound is unusable — web_read refuses it.
+    <div className="sk-view">
+      <div className="sk-head">
+        <p>
+          Keys the agent can use as <span className="mono">{'{{secret:NAME}}'}</span> without
+          ever reading them. A key works only on the web hosts bound to it; with none bound,
+          <span className="mono"> web_read</span> refuses it.
         </p>
-        {!adding && (
-          <Button variant="ghost" onClick={() => setAdding(true)}>Add secret</Button>)}
+        {!adding && <Button onClick={() => setAdding(true)}>Add secret</Button>}
       </div>
 
       {adding && (
-        <form className="secrets-form" onSubmit={add}>
-          <Input label="Name" placeholder="e.g. TBA_KEY" autoFocus required
-                 value={form.name}
-                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                 hint="letters, digits and underscores; stored upper-case" />
-          <Input label="Value" type="password" autoComplete="off" required
-                 value={form.value}
-                 onChange={(e) => setForm({ ...form, value: e.target.value })}
-                 hint="stored host-side; the agent only ever sees the name" />
-          <Input label="Web hosts" placeholder="e.g. newsapi.org"
-                 value={form.hosts}
-                 onChange={(e) => setForm({ ...form, hosts: e.target.value })}
-                 hint="comma-separated; leave empty to keep it unusable" />
-          <div className="secrets-form-actions">
-            <Button type="submit" disabled={busy || !form.name.trim() || !form.value}>
-              Save secret</Button>
-            <Button variant="ghost" disabled={busy}
-                    onClick={() => { setAdding(false); setForm(EMPTY) }}>Cancel</Button>
-          </div>
-        </form>
+        <Group>
+          <form className="sk-form" onSubmit={add}>
+            <Input label="Name" placeholder="TBA_KEY" autoFocus required
+                   value={form.name}
+                   onChange={(e) => setForm({ ...form, name: e.target.value })}
+                   hint="Letters, digits and underscores; stored in upper case" />
+            <Input label="Value" type="password" autoComplete="off" required
+                   value={form.value}
+                   onChange={(e) => setForm({ ...form, value: e.target.value })}
+                   hint="Stored on the host. The agent only ever sees the name." />
+            <Input label="Web hosts" placeholder="newsapi.org"
+                   value={form.hosts}
+                   onChange={(e) => setForm({ ...form, hosts: e.target.value })}
+                   hint="Comma-separated. Leave empty to keep the key unusable for now." />
+            <div className="sk-form-actions">
+              <Button type="submit" disabled={busy || !form.name.trim() || !form.value}>
+                Save secret</Button>
+              <Button variant="ghost" disabled={busy}
+                      onClick={() => { setAdding(false); setForm(EMPTY) }}>Cancel</Button>
+            </div>
+          </form>
+        </Group>
       )}
 
-      {secrets === null ? null : secrets.length === 0 ? (
-        !adding && <EmptyState pad hint="add one above to reference it from a prompt or project">
-          no secrets saved</EmptyState>
-      ) : (
-        <ul className="secrets-list">
+      {secrets !== null && secrets.length === 0 && !adding && (
+        <p className="sq-lede">No secrets saved. Add one to reference it from a prompt or a project.</p>
+      )}
+      {secrets !== null && secrets.length > 0 && (
+        <Group>
           {secrets.map((s) => (
-            <li key={s.name} className="sbx-row secrets-row">
-              <div className="grow secrets-main">
-                <div className="secrets-name">
-                  <span className="mono ellipsis">{s.name}</span>
-                  <span className="dim small mono">…{s.last4}</span>
+            <div key={s.name} className="sk-row">
+              <div className="sk-main">
+                <div className="sk-name">
+                  <span className="mono">{s.name}</span>
+                  <span className="sk-last4 mono" title="the last four characters">…{s.last4}</span>
                 </div>
                 {editing === s.name ? (
-                  <form className="secrets-hosts-edit" onSubmit={saveHosts}>
+                  <form className="sk-hosts-edit" onSubmit={saveHosts}>
                     <Input aria-label={`web hosts for ${s.name}`} autoFocus
-                           value={hostsDraft} placeholder="comma-separated; empty = unusable"
+                           value={hostsDraft} placeholder="Comma-separated; empty makes it unusable"
                            onChange={(e) => setHostsDraft(e.target.value)} />
                     <Button type="submit" disabled={busy}>Save</Button>
                     <Button variant="ghost" disabled={busy}
                             onClick={() => setEditing(null)}>Cancel</Button>
                   </form>
                 ) : (
-                  <div className="small dim ellipsis"
-                       title={s.hosts?.length ? s.hosts.join(', ') : undefined}>
+                  <div className="sk-sub" title={s.hosts?.length ? s.hosts.join(', ') : undefined}>
                     {s.hosts?.length
-                      ? <>web: <span className="mono">{s.hosts.join(', ')}</span></>
-                      : 'no web hosts bound — unusable'}
+                      ? <>Works on <span className="mono">{s.hosts.join(', ')}</span></>
+                      : <span className="sq-warn-text">No web hosts bound, so it cannot be used</span>}
                   </div>
                 )}
               </div>
               {editing !== s.name && (
-                <div className="sbx-actions">
+                <div className="sq-row-actions">
                   <Button variant="ghost" onClick={() => openHosts(s)}>Edit hosts</Button>
                   <Button variant="ghost" danger onClick={() => del(s.name)}>Delete</Button>
                 </div>
               )}
-            </li>
+            </div>
           ))}
-        </ul>
+        </Group>
       )}
-    </Card>
+    </div>
   )
 }

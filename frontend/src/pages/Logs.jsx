@@ -3,7 +3,8 @@ import { api } from '../api.js'
 import Md from '../Md.jsx'
 import { ago, human, ts } from '../format.js'
 import { notify, notifyError } from '../notify.js'
-import { Button, EmptyState, Select, Tabs, Toggle } from '../components/index.js'
+import { Button, Select, Tabs, Toggle } from '../components/index.js'
+import { Group, Section } from '../securityParts.jsx'
 import { mergeConvos } from '../logsList.js'
 import { proseLabel, timelineHeader } from '../logsTimeline.js'
 
@@ -35,11 +36,19 @@ function cleanTitle(summary, id) {
   return { title: t || `conversation ${id}`, tag }
 }
 
-// The one dim line under a title: tag · project · when
+// The one line under a title, as a sentence: "agent-x in website, 3h ago"
 function Caption({ tag, project, when }) {
-  const parts = [tag, project, ago(when)].filter(Boolean)
-  return <div className="log-caption" title={ts(when)}>{parts.join(' · ')}</div>
+  const where = [tag, project && `in ${project}`].filter(Boolean).join(' ')
+  const text = [where, ago(when)].filter(Boolean).join(', ')
+  return text ? <div className="lg-caption" title={ts(when)}>{text[0].toUpperCase() + text.slice(1)}</div> : null
 }
+
+// the expand mark of a row that opens
+const Chev = () => (
+  <svg className="lg-chev" viewBox="0 0 10 10" aria-hidden="true">
+    <path d="M3 1.5 6.5 5 3 8.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+  </svg>
+)
 
 // token counts -> K / M
 function tok(n) {
@@ -58,11 +67,12 @@ function prettyArgs(args) {
   try { return JSON.stringify(JSON.parse(s), null, 2) } catch { return s }
 }
 
-function Tile({ label, value, sub, bad }) {
+// one figure of a stat strip: the label, the number, an optional note
+function Stat({ label, value, sub, bad }) {
   return (
-    <div className={`sbx-tile${bad ? ' bad' : ''}`}>
-      <div className="n">{value}</div>
-      <div className="dim small">{label}{sub ? ` · ${sub}` : ''}</div>
+    <div className={bad ? 'bad' : undefined}>
+      <dt>{label}</dt>
+      <dd>{value}{sub && <small>{sub}</small>}</dd>
     </div>
   )
 }
@@ -97,34 +107,31 @@ function CallItem({ call, index, prevInput }) {
     }
   }
   return (
-    <div className={`log-tool${open ? ' open' : ''}`}>
-      <div className="log-tool-head" onClick={toggle}>
-        <span className="dim">{open ? '▾' : '▸'}</span>
-        <span className="mono log-tool-name">turn {index + 1}</span>
-        <span className="dim small">
-          in {tok(call.input_tokens)}
-          {delta != null && delta !== 0 && ` (${delta > 0 ? '+' : ''}${tok(delta)})`}
-          {' · '}hit {tok(call.cache_hit)} / miss {tok(call.cache_miss)}
-          {' · '}out {tok(call.output_tokens)}
+    <div className={`lg-tool${open ? ' open' : ''}`}>
+      <button type="button" className="lg-tool-head" onClick={toggle} aria-expanded={open}>
+        <Chev />
+        <span className="lg-tool-name">Call {index + 1}</span>
+        <span className="lg-tool-meta">
+          {tok(call.input_tokens)} in
+          {delta != null && delta !== 0 && ` (${delta > 0 ? '+' : ''}${tok(delta)})`}, {tok(call.output_tokens)} out,
+          cache {tok(call.cache_hit)} hit and {tok(call.cache_miss)} miss
         </span>
-        <span className="grow" />
-        <span className="mono small">{usd(call.cost_usd)}</span>
-        <span className="dim small">{ts(call.created_at)}</span>
-      </div>
+        <span className="lg-when"><span className="mono">{usd(call.cost_usd)}</span> {ts(call.created_at)}</span>
+      </button>
       {open && (
-        <div className="log-tool-body">
+        <div className="lg-tool-body">
           {!call.has_context && (
-            <div className="dim small">No raw context is stored for this call:
+            <p className="sq-change">No raw context is stored for this call:
               capture was switched off when it ran, or it is past the retention
-              window. Both are set on the Cost tab.</div>
+              window. Both are set on the Cost tab.</p>
           )}
-          {err && <div className="dim small">{err}</div>}
+          {err && <p className="sq-change">{err}</p>}
           {ctx && (
             <>
-              <div className="dim small log-tool-label">
-                {ctx.messages.length} messages · {ctx.n_tools} tool schemas
-                attached (schemas count toward input tokens but are not shown)
-              </div>
+              <p className="sq-change">
+                {ctx.messages.length} messages and {ctx.n_tools} tool schemas were sent. The schemas
+                count toward input tokens but are not shown.
+              </p>
               {ctx.messages.map((m, i) => {
                 const text = typeof m.content === 'string'
                   ? m.content : JSON.stringify(m.content)
@@ -133,11 +140,10 @@ function CallItem({ call, index, prevInput }) {
                   : text || ''
                 return (
                   <div key={i}>
-                    <div className="dim small log-tool-label">
-                      {i + 1}. {m.role}{m.name ? ` (${m.name})` : ''}
-                      {' · '}{human(body.length)}
+                    <div className="lg-label">
+                      {i + 1}. {m.role}{m.name ? ` (${m.name})` : ''}, {human(body.length)}
                     </div>
-                    <pre className="log-pre log-result">
+                    <pre className="lg-pre">
                       {body.length > 20000
                         ? `${body.slice(0, 20000)}\n…(truncated for display)` : body}
                     </pre>
@@ -188,23 +194,23 @@ function CapturePanel({ data, onToggle }) {
 
   return (
     <>
-      <div className="logs-capture">
+      <div className="lg-capture-row">
         <Toggle checked={on} label="Capture raw context"
                 onText="Capture raw context" offText="Capture raw context"
                 onChange={async (v) => { await onToggle(v); loadSt() }} />
-        <span className="dim small">
+        <span>
           {on ? 'Capturing every call' : 'Not capturing new calls'}
           {st && (st.captured_calls > 0
-            ? ` · ${sizeOf(st.captured_bytes)} kept for ${dayLabel(st.keep_days)}`
-            : ' · nothing kept yet')}
+            ? `; ${sizeOf(st.captured_bytes)} kept for ${dayLabel(st.keep_days)}.`
+            : '; nothing kept yet.')}
         </span>
       </div>
       {st?.over?.length > 0 && (
-        <div className="logs-storage-warn" role="status">{st.message}</div>
+        <div className="lg-warn" role="status">{st.message}</div>
       )}
       {st && (confirming ? (
-        <div className="logs-retain">
-          <span className="grow small">
+        <div className="lg-capture-row">
+          <span className="sq-spacer">
             Delete captured context older than {dayLabel(ageDays)}? Token counts
             and costs stay; only the stored message arrays go.</span>
           <Button danger onClick={del} disabled={busy}>
@@ -213,13 +219,13 @@ function CapturePanel({ data, onToggle }) {
             Cancel</Button>
         </div>
       ) : (
-        <div className="logs-retain">
-          <span className="dim small">Keep for</span>
+        <div className="lg-capture-row">
+          <span>Keep for</span>
           <Select aria-label="Keep captured context for" value={st.keep_days}
                   options={dayOptions}
                   onChange={(e) => setKeep(Number(e.target.value))} />
-          <span className="grow" />
-          <span className="dim small">Delete captured context older than</span>
+          <span className="sq-spacer" />
+          <span>Delete captured context older than</span>
           <Select aria-label="Delete captured context older than" value={ageDays}
                   options={dayOptions}
                   onChange={(e) => setAgeDays(Number(e.target.value))} />
@@ -235,61 +241,49 @@ function CostView() {
   const [data, setData] = useState(null)
   const load = () => api('/api/logs/costs').then(setData).catch(() => {})
   useEffect(() => { load() }, [])
-  if (!data) return <EmptyState pad>loading…</EmptyState>
+  if (!data) return <p className="lg-empty">Loading…</p>
   const p = data.prices_per_m
   const order = ['24h', '7d', '30d', 'all']
+  const name = (w) => (w === 'all' ? 'All time' : `Last ${w.replace('h', ' h').replace('d', ' days')}`)
   return (
-    <div className="log-detail">
-      <div className="sbx-card">
+    <div className="lg-detail">
+      <Group>
         {/* the tab strip already says "cost"; this is the one setting */}
-        <CapturePanel data={data} onToggle={async (on) => {
-          setData((d) => ({ ...d, capture_context: on }))
-          try {
-            await api('/api/logs/capture-context', {
-              method: 'POST', body: JSON.stringify({ enabled: on }) })
-          } catch { /* load() below restores the real state */ }
-          load()
-        }} />
-        <div className="sbx-tiles">
-          {order.map((w) => (
-            <Tile key={w} label={w === 'all' ? 'all time' : `last ${w}`}
-                  value={usd(data.windows[w]?.cost_usd)}
-                  sub={`${data.windows[w]?.calls || 0} calls`} />
-          ))}
+        <div className="lg-capture">
+          <CapturePanel data={data} onToggle={async (on) => {
+            setData((d) => ({ ...d, capture_context: on }))
+            try {
+              await api('/api/logs/capture-context', {
+                method: 'POST', body: JSON.stringify({ enabled: on }) })
+            } catch { /* load() below restores the real state */ }
+            load()
+          }} />
         </div>
-      </div>
+      </Group>
+      <dl className="lg-stats">
+        {order.map((w) => (
+          <Stat key={w} label={name(w)} value={usd(data.windows[w]?.cost_usd)}
+                sub={`${data.windows[w]?.calls || 0} calls`} />
+        ))}
+      </dl>
       {order.map((w) => {
         const d = data.windows[w]
         if (!d) return null
         return (
-          <section key={w} className="sbx-sec">
-            <div className="sbx-sec-head">
-              <h3>{w === 'all' ? 'All time' : `Last ${w}`}</h3>
-              <span className="dim small">{d.calls} model calls</span>
-            </div>
-            <div className="log-hist">
-              <div className="log-hist-row">
-                <span className="mono log-hist-name">cache hit</span>
-                <span className="dim small grow">{tok(d.cache_hit)} tok × ${p.cache_hit}/M</span>
-                <span className="mono small">{usd(d.cache_hit * p.cache_hit / 1e6)}</span>
+          <Section key={w} title={name(w)} count={`${d.calls} model calls`}>
+            <Group>
+              <div className="lg-bill">
+                <span className="lg-k">Cache hit <span>{tok(d.cache_hit)} tokens at ${p.cache_hit} per million</span></span>
+                <span className="mono">{usd(d.cache_hit * p.cache_hit / 1e6)}</span>
+                <span className="lg-k">Cache miss <span>{tok(d.cache_miss)} tokens at ${p.cache_miss} per million</span></span>
+                <span className="mono">{usd(d.cache_miss * p.cache_miss / 1e6)}</span>
+                <span className="lg-k">Output <span>{tok(d.output)} tokens at ${p.output} per million</span></span>
+                <span className="mono">{usd(d.output * p.output / 1e6)}</span>
+                <span className="lg-k lg-total">Total</span>
+                <span className="mono lg-total">{usd(d.cost_usd)}</span>
               </div>
-              <div className="log-hist-row">
-                <span className="mono log-hist-name">cache miss</span>
-                <span className="dim small grow">{tok(d.cache_miss)} tok × ${p.cache_miss}/M</span>
-                <span className="mono small">{usd(d.cache_miss * p.cache_miss / 1e6)}</span>
-              </div>
-              <div className="log-hist-row">
-                <span className="mono log-hist-name">output</span>
-                <span className="dim small grow">{tok(d.output)} tok × ${p.output}/M</span>
-                <span className="mono small">{usd(d.output * p.output / 1e6)}</span>
-              </div>
-              <div className="log-hist-row">
-                <span className="mono log-hist-name">total</span>
-                <span className="dim small grow" />
-                <span className="mono small">{usd(d.cost_usd)}</span>
-              </div>
-            </div>
-          </section>
+            </Group>
+          </Section>
         )
       })}
     </div>
@@ -300,14 +294,13 @@ function CostView() {
 // reply, not a result. Marked as such so it is never read as either.
 function NarrationItem({ item }) {
   return (
-    <div className="log-msg narration">
-      <div className="log-msg-head">
-        <span className="log-role">{proseLabel(item)}</span>
-        <span className="dim small">between tool calls</span>
-        <span className="grow" />
-        {item.ts && <span className="dim small">{ts(item.ts)}</span>}
+    <div className="lg-msg narration">
+      <div className="lg-msg-head">
+        <b>{proseLabel(item)}</b>
+        <span>between tool calls</span>
+        {item.ts && <span className="lg-when">{ts(item.ts)}</span>}
       </div>
-      <div className="log-msg-body"><Md text={item.text} /></div>
+      <div className="lg-msg-body"><Md text={item.text} /></div>
     </div>
   )
 }
@@ -319,20 +312,22 @@ function ToolItem({ item }) {
   const truncated = result.length > 10000
   const shown = truncated ? `${result.slice(0, 10000)}\n…(truncated)` : result
   return (
-    <div className={`log-tool${open ? ' open' : ''}`}>
-      <div className="log-tool-head" onClick={() => setOpen((o) => !o)}>
-        <span className="dim">{open ? '▾' : '▸'}</span>
-        <span className="mono log-tool-name">{item.tool}</span>
-        <span className={`log-size${hot ? ' hot' : ''}`}>{human(item.result_bytes)}</span>
-        <span className="grow" />
-        <span className="dim small">{ts(item.ts)}</span>
-      </div>
+    <div className={`lg-tool${open ? ' open' : ''}`}>
+      <button type="button" className="lg-tool-head" onClick={() => setOpen((o) => !o)}
+              aria-expanded={open}>
+        <Chev />
+        <span className="mono lg-tool-name">{item.tool}</span>
+        <span className={`lg-tool-meta${hot ? ' hot' : ''}`}
+              title={hot ? 'a result this big is sent again with every later model call' : undefined}>
+          {human(item.result_bytes)} result{hot ? ', large' : ''}</span>
+        <span className="lg-when">{ts(item.ts)}</span>
+      </button>
       {open && (
-        <div className="log-tool-body">
-          <div className="dim small log-tool-label">args</div>
-          <pre className="log-pre">{prettyArgs(item.args)}</pre>
-          <div className="dim small log-tool-label">result</div>
-          <pre className="log-pre log-result">{shown}</pre>
+        <div className="lg-tool-body">
+          <div className="lg-label">Arguments</div>
+          <pre className="lg-pre">{prettyArgs(item.args)}</pre>
+          <div className="lg-label">Result</div>
+          <pre className="lg-pre">{shown}</pre>
         </div>
       )}
     </div>
@@ -406,25 +401,27 @@ export default function Logs() {
   const row = (convos || []).find((c) => c.id === detail?.id)
   const head = detail ? cleanTitle(detail.summary, detail.id) : null
 
-  // No heading of its own: this renders as the Logs tab of the Review layout.
+  // No heading of its own: this renders as the Logs tab of the Security layout.
   // The transcripts|cost switch sits above both views, and the conversation
-  // list only exists in the transcripts view — it has nothing to say about
-  // cost. The list is its own card, so it reads as a panel on the page rather
-  // than an edge-to-edge sidebar strip, and its rows wrap instead of clipping.
+  // list only exists in the transcripts view; it has nothing to say about cost.
   return (
-    <div className="logs-view">
+    <div className="lg-view">
       <Tabs label="Logs view" value={view} onChange={setView}
             items={[{ id: 'logs', label: 'Transcripts', panel: 'logs-panel' },
                     { id: 'cost', label: 'Cost', panel: 'logs-panel' }]} />
       {view === 'cost' ? (
-        <div className="logs-cost" id="logs-panel" role="tabpanel"><CostView /></div>
+        <div className="lg-cost" id="logs-panel" role="tabpanel"><CostView /></div>
       ) : (
-        <div className="split-layout logs-split" id="logs-panel" role="tabpanel">
-          <aside className="logs-aside">
+        <div className="lg-split" id="logs-panel" role="tabpanel">
+          <aside className="lg-aside" aria-label="Conversations">
             {fresh > 0 && (
-              <button type="button" className="ghost small logs-new" onClick={showFresh}>
-                {fresh} new conversation{fresh === 1 ? '' : 's'}: show</button>)}
-            <ul className="file-list">
+              <Button variant="ghost" className="lg-new" onClick={showFresh}>
+                Show {fresh} new conversation{fresh === 1 ? '' : 's'}</Button>)}
+            {convos === null && <p className="lg-empty">Loading…</p>}
+            {convos?.length === 0 && (
+              <p className="lg-empty">No conversations yet. Every chat and agent run is listed here
+                once it starts.</p>)}
+            <ul className="lg-list">
               {(convos || []).map((c) => {
                 const { title, tag } = cleanTitle(c.summary, c.id)
                 // a runaway conversation keeps a mark in the list; the
@@ -432,113 +429,97 @@ export default function Logs() {
                 const heavy = (c.input_tokens || 0) > HEAVY_TOKENS
                   || (c.tool_calls || 0) > HEAVY_CALLS
                 return (
-                  <li key={c.id} className={`log-row${selected === c.id ? ' active' : ''}`}
-                      onClick={() => open(c.id)}>
-                    <div className="log-row-top">
-                      <span className="log-title" title={title}>{title}</span>
-                      {heavy && <span className="log-heat-dot"
-                                      title={`${c.tool_calls || 0} tool calls · ${tok(c.input_tokens)} input tokens`}
-                                      aria-label="heavy conversation" />}
-                    </div>
-                    <Caption tag={tag} project={c.project} when={c.started_at} />
+                  <li key={c.id}>
+                    <button type="button" className={`lg-row${selected === c.id ? ' active' : ''}`}
+                            aria-current={selected === c.id ? 'true' : undefined}
+                            onClick={() => open(c.id)}>
+                      <span className="lg-row-top">
+                        <span className="lg-title" title={title}>{title}</span>
+                        {heavy && <span className="lg-heavy"
+                                        title={`${c.tool_calls || 0} tool calls, ${tok(c.input_tokens)} input tokens`}>
+                          Heavy</span>}
+                      </span>
+                      <Caption tag={tag} project={c.project} when={c.started_at} />
+                    </button>
                   </li>
                 )
               })}
-              {convos === null && <EmptyState as="li">loading…</EmptyState>}
-              {convos?.length === 0 && (
-                <EmptyState as="li">no conversations yet</EmptyState>
-              )}
             </ul>
           </aside>
 
-          <main className="editor-pane">
+          <main className="lg-pane">
             {!detail ? (
-              <EmptyState pad>pick a conversation to read its full transcript</EmptyState>
+              <p className="lg-empty">{selected ? 'Loading…'
+                : 'Choose a conversation to read its whole transcript: every message, every tool call with its arguments and result, and what each model call cost.'}</p>
             ) : (
-              <div className="log-detail">
-                <div className="sbx-card">
-                  <h2 className="log-head-title" title={detail.summary || head.title}>
-                    {head.title}</h2>
+              <div className="lg-detail">
+                <header className="lg-head">
+                  <h2 title={detail.summary || head.title}>{head.title}</h2>
                   <Caption tag={head.tag} project={row?.project} when={row?.started_at} />
-                  <div className="sbx-tiles">
-                    <Tile label="input tokens" value={tok(stats.input_tokens)}
+                  <dl className="lg-stats">
+                    <Stat label="Input tokens" value={tok(stats.input_tokens)}
                           bad={(stats.input_tokens || 0) > HEAVY_TOKENS} />
-                    <Tile label="output tokens" value={tok(stats.output_tokens)} />
-                    <Tile label="tool calls" value={stats.tool_calls || 0}
+                    <Stat label="Output tokens" value={tok(stats.output_tokens)} />
+                    <Stat label="Tool calls" value={stats.tool_calls || 0}
                           bad={(stats.tool_calls || 0) > HEAVY_CALLS} />
-                    <Tile label="result bytes" value={human(stats.result_bytes)} />
-                    <Tile label="model calls" value={stats.turns || 0} />
-                    <Tile label="cache hit" value={cachePct == null ? '—' : `${cachePct}%`}
-                          sub={cacheTotal ? `${stats.cache_hit}/${cacheTotal}` : null} />
-                    {calls.length > 0 && <Tile label="cost" value={usd(totalCost)}
-                          sub={`${calls.length} calls`} />}
-                  </div>
-                </div>
+                    <Stat label="Result bytes" value={human(stats.result_bytes)} />
+                    <Stat label="Model calls" value={stats.turns || 0} />
+                    <Stat label="Cache hit" value={cachePct == null ? 'none' : `${cachePct}%`} />
+                    {calls.length > 0 && <Stat label="Cost" value={usd(totalCost)} />}
+                  </dl>
+                </header>
 
                 {calls.length > 0 && (
-                  <section className="sbx-sec">
-                    <div className="sbx-sec-head">
-                      <h3>Model calls</h3>
-                      <span className="dim small">
-                        the exact context sent per API call — capture is set on the Cost tab</span>
-                    </div>
-                    <div className="log-timeline">
+                  <Section title="Model calls" count={calls.length}
+                           lede="The exact context sent with each call, when capture is on (set on the Cost tab).">
+                    <div className="lg-timeline">
                       {calls.map((c, i) => (
                         <CallItem key={c.id} call={c} index={i}
                                   prevInput={i > 0 ? calls[i - 1].input_tokens : null} />
                       ))}
                     </div>
-                  </section>
+                  </Section>
                 )}
 
                 {hist.length > 0 && (
-                  <section className="sbx-sec">
-                    <div className="sbx-sec-head">
-                      <h3>Tool histogram</h3>
-                      <span className="dim small">by total result bytes</span>
-                    </div>
-                    <div className="log-hist">
+                  <Section title="Tools by result size" lede="Large results are sent again with every later call, so they drive the input tokens.">
+                    <div className="lg-hist">
                       {hist.map((h) => (
-                        <div key={h.tool} className="log-hist-row">
-                          <span className="mono log-hist-name ellipsis" title={h.tool}>{h.tool}</span>
-                          <span className="dim small log-hist-count">×{h.count}</span>
-                          <div className="log-hist-track">
-                            <div className="log-hist-bar"
-                                 style={{ width: `${((h.bytes || 0) / maxBytes) * 100}%` }} />
+                        <div key={h.tool} className="lg-hist-row">
+                          <span className="mono" title={h.tool}>{h.tool}</span>
+                          <span className="lg-n">{h.count} {h.count === 1 ? 'call' : 'calls'}</span>
+                          <div className="lg-track">
+                            <div className="lg-bar" style={{ width: `${((h.bytes || 0) / maxBytes) * 100}%` }} />
                           </div>
-                          <span className="dim small log-hist-bytes">{human(h.bytes)}</span>
+                          <span className="lg-b">{human(h.bytes)}</span>
                         </div>
                       ))}
                     </div>
-                  </section>
+                  </Section>
                 )}
-
-                <section className="sbx-sec">
-                  <div className="sbx-sec-head">
-                    <h3>Transcript</h3>
-                    <span className="dim small">{timelineHeader(detail.timeline || [])}</span>
-                  </div>
-                  <div className="log-timeline">
+                <Section title="Transcript" lede={timelineHeader(detail.timeline || [])}>
+                  <div className="lg-timeline">
                     {(detail.timeline || []).map((item, i) => (
                       item.kind === 'tool' ? (
                         <ToolItem key={i} item={item} />
                       ) : item.kind === 'narration' ? (
                         <NarrationItem key={i} item={item} />
                       ) : (
-                        <div key={i} className={`log-msg ${item.role}`}>
-                          <div className="log-msg-head">
-                            <span className="log-role">{item.role}</span>
-                            {item.ts && <span className="dim small">{ts(item.ts)}</span>}
+                        <div key={i} className={`lg-msg ${item.role}`}>
+                          <div className="lg-msg-head">
+                            <b>{proseLabel(item)}</b>
+                            {item.ts && <span className="lg-when">{ts(item.ts)}</span>}
                           </div>
-                          <div className="log-msg-body"><Md text={item.content} /></div>
+                          <div className="lg-msg-body"><Md text={item.content} /></div>
                         </div>
                       )
                     ))}
                     {(detail.timeline || []).length === 0 && (
-                      <EmptyState pad>no transcript</EmptyState>
+                      <p className="lg-empty">This conversation has no messages yet.</p>
                     )}
                   </div>
-                </section>
+                </Section>
+
               </div>
             )}
           </main>

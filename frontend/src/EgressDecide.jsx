@@ -4,7 +4,10 @@ import { notify, notifyError } from './notify.js'
 import { Button, Modal, Select } from './components/index.js'
 import { approvePending, rejectPending } from './boxes/api/policy.js'
 import { needsProject, projectLabel } from './boxes/logic.js'
-import { PICK_BODY, PICK_TITLE, decidedText } from './securityCopy.js'
+import {
+  ALLOW_ALWAYS_TIP, ALLOW_ONCE_TIP, DENY_TIP, PICK_BODY, PICK_TITLE, decidedText,
+} from './securityCopy.js'
+import { Item, State } from './securityParts.jsx'
 
 // One way to answer a host a box asked for, shared by the Network tab's
 // "Waiting for you" and the Queue's "Egress hosts" so the two speak the same
@@ -65,6 +68,44 @@ export function useEgressDecide(onDone, { project = null, names = NO_NAMES } = {
   // a project for a host that is not a queue row (an auto-deny to allow anyway)
   const choose = useCallback((host, verb = 'allow') => pick({ id: host, host }, verb), [pick])
   return { decide, picker, choose }
+}
+
+// One host a box asked for, as a row of the Queue's "Sites a box asked for" and
+// Network's "Waiting for you": who asked and how often, the host, anything Auto
+// review or auto-allow said about it, and the three answers (the allowing ones
+// last, Allow always the strong one). `tried` is the last request seen for it
+// ("GET /v1/charges"), when the page has the feed. A refused host (the CNTRL
+// host, a private or metadata address) can only be denied.
+export function HostRequest({ p, onDecide, scoped = false, projectName = '', tried = '' }) {
+  const noProject = needsProject(p)
+  const n = Number(p.hit_count) || 1
+  return (
+    <Item className="sq-host" mono title={p.host} titleAttr={p.host}
+          meta={<>
+            {noProject ? <b>No project</b> : !scoped ? <b>{projectName}</b> : <b>This project</b>}
+            {' '}asked {n === 1 ? 'once' : `${n} times`}
+            {p.box_id && <>, from box <span className="mono">{p.box_id}</span></>}
+            {tried && <>, last <span className="mono">{tried}</span></>}
+          </>}
+          state={(p.refused || p.triage_verdict === 'flag' || p.auto_verdict === 'unsure') && <>
+            {p.refused && <State tone="bad" why={p.refused}>Cannot be allowed</State>}
+            {p.triage_verdict === 'flag' && (
+              <State tone="warn" why={p.triage_reason}>Flagged by Auto review</State>)}
+            {p.auto_verdict === 'unsure' && (
+              <State tone="warn" why={p.auto_reason}>Auto-allow was not sure</State>)}
+          </>}
+          change={noProject && !p.refused
+            ? 'It came from the shared box with no project: you pick one when you allow it.' : null}
+          actions={<>
+            <Button variant="ghost" title={DENY_TIP} onClick={() => onDecide(p, 'deny')}>Deny</Button>
+            {!p.refused && <>
+              <Button variant="ghost" title={ALLOW_ONCE_TIP} onClick={() => onDecide(p, 'once')}>
+                Allow 1 h</Button>
+              <Button title={ALLOW_ALWAYS_TIP(noProject ? '' : projectName)}
+                      onClick={() => onDecide(p, 'allow')}>
+                {noProject && !scoped ? 'Allow always…' : 'Allow always'}</Button></>}
+          </>} />
+  )
 }
 
 function ProjectPicker({ host, verb, onPick }) {
