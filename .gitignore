@@ -12,6 +12,9 @@ projects/*
 !projects/.gitkeep
 agents/*
 !agents/.gitkeep
+# an install that still keeps its state in the checkout keeps Gitea's binary,
+# config and repositories here too: never something to commit or `git clean`
+/gitea/
 
 # Working notes (backlogs, audits, plans, ops notes) accumulate as ad-hoc *.md at
 # the repo root. Ignore root-level markdown by default and opt in what ships.
