@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""jav3-desk — lets a CNTRL server see and drive this computer, when allowed.
+"""cntrl-desk — lets a CNTRL server see and drive this computer, when allowed.
 
-    jav3-desk login          paste the line from Settings → Add computer
-    jav3-desk run            connect and serve (what the service runs)
-    jav3-desk install        write a systemd --user unit / launchd agent
-    jav3-desk uninstall      remove it
-    jav3-desk allow-shell    let the server run shell commands here (asks first
-    jav3-desk deny-shell       in Settings unless allowlisted); off by default
-    jav3-desk panic          stop everything now; needs `resume` to come back
-    jav3-desk resume
-    jav3-desk status
+    cntrl-desk login          paste the line from Settings → Add computer
+    cntrl-desk run            connect and serve (what the service runs)
+    cntrl-desk install        write a systemd --user unit / launchd agent
+    cntrl-desk uninstall      remove it
+    cntrl-desk allow-shell    let the server run shell commands here (asks first
+    cntrl-desk deny-shell       in Settings unless allowlisted); off by default
+    cntrl-desk panic          stop everything now; needs `resume` to come back
+    cntrl-desk resume
+    cntrl-desk status
 
 It dials OUT (one WebSocket to <server>/api/desk/ws) and waits for requests.
 Nothing listens on this machine. What the server may do is decided twice:
 Settings → Computer use on the server (screen / input / shell), and the local
 ceiling here, which the server cannot lift — shell stays off until someone at
-this keyboard runs `jav3-desk allow-shell`.
+this keyboard runs `cntrl-desk allow-shell`.
 
 Every request is a verb from a closed list with typed, bounded parameters,
 re-validated here (ACTIONS / validate). Every program is run with an argv list
@@ -27,7 +27,7 @@ Backends (auto-detected, or --backend):
   sway      grim · wtype · wlroots virtual pointer
   x11       import/maim/scrot · xdotool (also the headless test backend, Xvfb)
   macos     screencapture + sips · Quartz (ctypes) · needs the Accessibility
-            and Screen Recording grants (see `jav3-desk status`)
+            and Screen Recording grants (see `cntrl-desk status`)
   uinput    TODO(M2): stub — /dev/uinput for GNOME/KDE Wayland
 
 Every screenshot carries a numbered element list from the accessibility tree
@@ -43,7 +43,7 @@ STATE_POLL_S) carry it, and screenshot / wait / input verbs are refused with
 one sentence asking the operator to unlock or wake it (macOS: CGSession +
 CGDisplayIsAsleep; Linux: logind LockedHint, then the ScreenSaver D-Bus; unknown = null).
 
-Files, in $XDG_CONFIG_HOME/jav3 (default ~/.config/jav3), dir 0700:
+Files, in $XDG_CONFIG_HOME/cntrl (default ~/.config/cntrl; ~/.config/jav3 before the rename), dir 0700:
   desk.json          {"address", "token"} 0600
   desk-shell         present = shell allowed at this computer
   desk.paused        present = panic; `resume` removes it
@@ -80,7 +80,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-USER_AGENT = "jav3-desk/1"
+USER_AGENT = "cntrl-desk/1"
 PROTOCOL_V = 1
 PROMPT = "Paste the line from Settings → Add computer: "
 LONG_EDGE = 1280          # screenshots are downscaled to this long edge
@@ -107,11 +107,12 @@ PING_S = 20
 STATE_POLL_S = 5          # how often the locked / asleep state is re-read
 LOCKED_ERR = "the screen is locked — ask the operator to unlock it"
 ASLEEP_ERR = "the display is asleep — ask the operator to wake it"
-UNIT_NAME = "jav3-desk.service"
-LABEL = "local.jav3.desk"
+UNIT_NAME = "jav3-desk.service"   # kept from before the rename: a new name would leave
+#                                  an installed service running beside the new one
+LABEL = "local.jav3.desk"          # the same, for launchd
 
 
-log = logging.getLogger("jav3-desk")
+log = logging.getLogger("cntrl-desk")
 
 
 class DeskError(Exception):
@@ -300,7 +301,7 @@ def cmd_login(args, read=None) -> int:
         raise DeskError(f"could not save credentials: {e}. The new token was revoked.")
     print(f"logged in to {base} as computer '{body.get('name')}' — {p}")
     print("next: turn on Screen / Input for it in Settings → Computer use, then "
-          "`jav3-desk run` (or `jav3-desk install`).")
+          "`cntrl-desk run` (or `cntrl-desk install`).")
     return 0
 
 
@@ -1382,8 +1383,11 @@ _KEY_ALIASES = {"esc": "Escape", "backspace": "BackSpace", "del": "Delete",
 DENY_KEYS = {"ctrl+alt+Delete", "ctrl+alt+BackSpace", "super+shift+e", "super+m",
              "super+shift+q", "super+ctrl+q", "super+alt+Escape"} | {
              f"ctrl+alt+F{i}" for i in range(1, 13)}
-# typed text that would reach this client's own controls
-_SELF_WORDS = ("jav3-desk", ".config/jav3", "desk-shell", "desk.paused")
+# typed text that would reach this client's own controls, under either name and in any
+# case (macOS file names are case-insensitive). Checked per typed string: a best-effort
+# filter, not a boundary (see SECURITY-RESIDUAL-RISK.md, "Input is shell by other means")
+_SELF_WORDS = ("cntrl-desk", "jav3-desk", ".config/cntrl", ".config/jav3", "desk-shell",
+               "desk.paused")
 _URL_RE = re.compile(r"^https?://[^\s]{1,2000}$")
 
 
@@ -1500,8 +1504,8 @@ def validate(verb: str, p: dict, frame: Frame | None, apps: dict,
         t = p.get("text")
         if not isinstance(t, str) or not t or len(t) > TEXT_CAP or "\x00" in t:
             raise DeskError("bad text")
-        if any(w in t for w in _SELF_WORDS):
-            raise DeskError("refused: that text would reach jav3-desk's own controls")
+        if any(w in t.lower() for w in _SELF_WORDS):
+            raise DeskError("refused: that text would reach cntrl-desk's own controls")
         out["text"] = t
         return out
     if verb == "key":
@@ -1647,7 +1651,7 @@ class Backend:
     def notify(self, text: str) -> None:
         n = find_bin("notify-send")
         if n:
-            subprocess.Popen([n, "-a", "jav3-desk", "jav3-desk", text], shell=False,
+            subprocess.Popen([n, "-a", "cntrl-desk", "cntrl-desk", text], shell=False,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -2618,7 +2622,7 @@ class MacBackend(Backend):
     def notify(self, text):
         n = find_bin("terminal-notifier")      # never osascript: AppleScript can shell
         if n:
-            subprocess.Popen([n, "-title", "jav3-desk", "-message", text], shell=False,
+            subprocess.Popen([n, "-title", "cntrl-desk", "-message", text], shell=False,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -2850,7 +2854,7 @@ class Session:
         g = self.grants.get(cap)
         if cap == "shell":
             if not c["shell"]:
-                return "shell is off at this computer (jav3-desk allow-shell)"
+                return "shell is off at this computer (cntrl-desk allow-shell)"
             if g not in ("ask", "trusted"):
                 return "shell is not granted"
         elif not g:
@@ -3211,7 +3215,7 @@ class Session:
         rid, verb = m.get("id"), m.get("verb")
         try:
             if paused():
-                raise DeskError("paused at the computer (jav3-desk resume)")
+                raise DeskError("paused at the computer (cntrl-desk resume)")
             why = self.allowed(verb)
             if why:
                 raise DeskError(why)
@@ -3318,17 +3322,17 @@ class Session:
 def cmd_run(args) -> int:
     import importlib.util
     if importlib.util.find_spec("websockets") is None:
-        raise DeskError("jav3-desk needs websockets: install python-websockets "
+        raise DeskError("cntrl-desk needs websockets: install python-websockets "
                         "(Arch) / python3-websockets (Debian) or pip install websockets")
     creds = load_credentials()
     if not creds:
-        raise DeskError("not logged in — run: jav3-desk login")
+        raise DeskError("not logged in — run: cntrl-desk login")
     # JAV3_DESK_DEBUG=1: per-request phase timings (capture, settle, elements)
     logging.basicConfig(level=logging.DEBUG if os.environ.get("JAV3_DESK_DEBUG")
-                        else logging.WARNING, format="jav3-desk: %(message)s")
+                        else logging.WARNING, format="cntrl-desk: %(message)s")
     b = BACKENDS[args.backend or detect_backend()]()
     _write_private("desk.pid", str(os.getpid()).encode())
-    print(f"jav3-desk: {b.name} backend, server {base_url(args.server or creds['address'])}",
+    print(f"cntrl-desk: {b.name} backend, server {base_url(args.server or creds['address'])}",
           flush=True)
 
     async def loop():
@@ -3346,9 +3350,9 @@ def cmd_run(args) -> int:
                 if "HTTP 403" in why:
                     # refused before the upgrade: revoked, expired, or not a
                     # desk token. Keep trying, slowly — a new login fixes it.
-                    why += " — the token was refused; run jav3-desk login"
+                    why += " — the token was refused; run cntrl-desk login"
                     delay = 300
-            print(f"jav3-desk: connection ended ({why}); retrying in {delay} s", flush=True)
+            print(f"cntrl-desk: connection ended ({why}); retrying in {delay} s", flush=True)
             await asyncio.sleep(delay)
             delay = min(delay * 2, 60)
     try:
@@ -3377,7 +3381,7 @@ def cmd_deny_shell(args) -> int:
 
 def cmd_panic(args) -> int:
     """Stop now: flag paused (a restarted service stays idle), stop the
-    service, kill a foreground `run`. Needs `jav3-desk resume` to undo."""
+    service, kill a foreground `run`. Needs `cntrl-desk resume` to undo."""
     _write_private("desk.paused", b"panic\n")
     if sys.platform == "darwin":
         subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}/{LABEL}"],
@@ -3391,7 +3395,7 @@ def cmd_panic(args) -> int:
             os.kill(pid, signal.SIGTERM)
     except (OSError, ValueError):
         pass
-    print("jav3-desk stopped and paused. `jav3-desk resume` to allow it again.")
+    print("cntrl-desk stopped and paused. `cntrl-desk resume` to allow it again.")
     return 0
 
 
@@ -3400,7 +3404,7 @@ def cmd_resume(args) -> int:
         _path("desk.paused").unlink()
     except FileNotFoundError:
         pass
-    print("resumed. Start it again with `jav3-desk run` or your service manager.")
+    print("resumed. Start it again with `cntrl-desk run` or your service manager.")
     return 0
 
 
@@ -3434,7 +3438,7 @@ def cmd_status(args) -> int:
 def systemd_unit(script: Path) -> str:
     return f"""\
 [Unit]
-Description=jav3-desk (CNTRL computer use)
+Description=cntrl-desk (CNTRL computer use)
 After=graphical-session.target network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=0
@@ -3442,7 +3446,7 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 # no secrets here: a unit file is world-readable; the token is in
-# ~/.config/jav3/desk.json (0600)
+# ~/.config/cntrl/desk.json (0600)
 ExecStart={sys.executable} {script} run
 Restart=always
 RestartSec=5
@@ -3458,8 +3462,8 @@ def launchd_plist(script: Path) -> bytes:
         "Label": LABEL, "ProgramArguments": [sys.executable, str(script), "run"],
         "RunAtLoad": True, "KeepAlive": True, "ThrottleInterval": 5,
         "ProcessType": "Interactive",
-        "StandardOutPath": str(logs / "jav3-desk.log"),
-        "StandardErrorPath": str(logs / "jav3-desk.err.log")})
+        "StandardOutPath": str(logs / "cntrl-desk.log"),
+        "StandardErrorPath": str(logs / "cntrl-desk.err.log")})
 
 
 def service_path(plat=sys.platform) -> Path:
@@ -3506,7 +3510,7 @@ def cmd_uninstall(args) -> int:
 # --- main ------------------------------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="jav3-desk",
+    p = argparse.ArgumentParser(prog="cntrl-desk",
                                 description="Let a CNTRL server use this computer.")
     p.add_argument("--server", help="server address, overriding the saved one")
     p.add_argument("--backend", choices=sorted(BACKENDS))
@@ -3533,7 +3537,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return cmds[args.cmd](args)
     except DeskError as e:
-        print(f"jav3-desk: {e}", file=sys.stderr)
+        print(f"cntrl-desk: {e}", file=sys.stderr)
         return 1
 
 

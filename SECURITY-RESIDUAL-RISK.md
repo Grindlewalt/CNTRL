@@ -362,7 +362,7 @@ a watched, policy-gated, cuttable pipe to the internet.
     and a desk cannot start turns. Grants (screen / input / shell) are per
     computer, server-side, and set only from cookie routes; the client's own
     ceiling can narrow them and never be widened — shell stays off until
-    `jav3-desk allow-shell` is run at that computer. Input is refused without
+    `cntrl-desk allow-shell` (`jav3-desk` before the rename) is run at that computer. Input is refused without
     a screenshot of that computer from this turn under 60 s old, with
     coordinates bounded by it; 10 input/s, 2 screenshots/s, one shell at a
     time; every action is audited (typed text as length + digest); typing a
@@ -377,9 +377,11 @@ a watched, policy-gated, cuttable pipe to the internet.
       model's judgement against whatever it reads on that screen.
     - **Input is shell by other means.** With Input granted the agent can open
       a terminal and type into it, which is a shell with none of the shell
-      gates. The client refuses typed text naming its own controls (so input
-      cannot type its way to `allow-shell`) and offers no terminal in its
-      default app list, but a terminal reached by clicking is reachable. Grant
+      gates. The client refuses typed text naming its own controls (either name,
+      any case) and offers no terminal in its default app list, but the check is
+      per typed string: text split across several type actions, or spelled
+      another way (a glob, a variable), gets past it, so with Input granted
+      `allow-shell` is reachable too. A terminal reached by clicking is reachable. Grant
       Input only while watching, or for a machine whose shell you would grant.
     - **The allowlist runs argv, not a sandbox.** An allowlisted `git *` can
       still run `git -c core.pager=… log`; patterns are per argument and the
@@ -387,7 +389,8 @@ a watched, policy-gated, cuttable pipe to the internet.
     - **Trust in the server for approvals.** The client enforces its ceiling
       but cannot tell an operator-approved shell command from one a
       compromised server claims was approved; `allow-shell` is the line a
-      compromised server cannot cross, `deny-shell` / `panic` the way back.
+      compromised server cannot cross while Input is off (with Input on, see
+      the previous point), `deny-shell` / `panic` the way back.
     - **Wayland trust model.** The rootless backends (grim, wtype, the
       wlroots virtual pointer) work because the compositor trusts every local
       Wayland client; anything else running as the operator can do the same.

@@ -14,7 +14,7 @@ under memguard.confine so a runaway app costs the desktop and not the
 run-turn server, and a crash in a capture tool ends one desk connection.
 
 The client is shipped in the guest package as `backend/jav3_desk.py` (a copy of
-clients/jav3-desk/jav3-desk, see backend/vm/guest_pkg.py): the same file that
+clients/cntrl-desk/cntrl-desk, see backend/vm/guest_pkg.py): the same file that
 runs on the operator's Mac, so a box desk and a computer behave alike.
 
 `run(jd, backend, reader, writer)` is the testable core (a fake backend, no

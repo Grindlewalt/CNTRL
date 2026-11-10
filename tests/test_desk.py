@@ -283,7 +283,7 @@ async def test_ceiling_narrows_what_settings_grants(env):
         out = await _tool("desk_click")(x=10, y=10)
         assert "switched off on the computer" in out
         out = await _tool("desk_shell")(cmd="ls")
-        assert "jav3-desk allow-shell" in out
+        assert "cntrl-desk allow-shell" in out
         assert [r["verb"] for r in fd.reqs] == ["screenshot"]
         # the client flipping its own flag is reported live
         await fd.ws.send({"type": "ceiling", "ceiling": {"screen": True,

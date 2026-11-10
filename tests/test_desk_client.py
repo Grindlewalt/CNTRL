@@ -1455,3 +1455,15 @@ def test_config_dir_follows_the_terminal_clients_rename(tmp_path, monkeypatch):
     assert jd.config_dir() == tmp_path / "cntrl"
     assert (tmp_path / "cntrl" / "desk.json").read_text() == '{"token": "old"}'
     assert (tmp_path / "jav3" / "credentials.json").exists()   # left for its own client
+
+
+@pytest.mark.parametrize("text", ["cntrl-desk allow-shell\n", "jav3-desk allow-shell\n",
+                                  "CNTRL-DESK allow-shell", "cat ~/.config/cntrl/desk.json",
+                                  "cat ~/.config/jav3/desk.json"])
+def test_typed_text_naming_its_own_controls_is_refused_under_either_name(text):
+    with pytest.raises(jd.DeskError, match="own controls"):
+        jd.validate("type", {"text": text}, FRAME, {})
+
+
+def test_the_service_keeps_its_pre_rename_name_so_an_installed_one_is_replaced():
+    assert jd.UNIT_NAME == "jav3-desk.service" and jd.LABEL == "local.jav3.desk"

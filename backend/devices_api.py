@@ -47,7 +47,7 @@ def _first(*paths: Path) -> Path:
 
 # The terminal client: clients/cntrl/cntrl (clients/jav3cli/jav3 before the rename)
 CLI_DIR = _first(_CLIENTS / "cntrl", _CLIENTS / "jav3cli")
-DESK_CLIENT = _CLIENTS / "jav3-desk" / "jav3-desk"
+DESK_CLIENT = _first(_CLIENTS / "cntrl-desk" / "cntrl-desk", _CLIENTS / "jav3-desk" / "jav3-desk")
 BROWSER_EXT = _CLIENTS / "jav3-browser"
 _NO_STORE = {"Cache-Control": "no-store", "Pragma": "no-cache"}
 _BAD_CODE = ("invalid or expired login code — generate a new one in "
@@ -223,7 +223,7 @@ class RedeemBody(BaseModel):
     name: str = Field("", max_length=256)
     hostname: str = Field("", max_length=256)
     platform: str = Field("", max_length=256)
-    # what the token will be for: `cntrl` asks for cli (the default), `jav3-desk`
+    # what the token will be for: `cntrl` asks for cli (the default), `cntrl-desk`
     # for desk, the browser extension for browser. Letting the client choose is safe because neither widens the
     # other: a desk/browser token reaches nothing but its own socket, and
     # does nothing until the operator grants it in Settings.
@@ -369,9 +369,10 @@ async def cli_version():
     return JSONResponse(_cli_version(), headers=_NO_STORE)
 
 
-@cli_router.get("/jav3-desk")
+@cli_router.get("/cntrl-desk")
+@cli_router.get("/jav3-desk")           # the old name, kept for old links and set-up lines
 async def desk_client_file():
-    """The computer-use client, one file (clients/jav3-desk)."""
+    """The computer-use client, one file (clients/cntrl-desk)."""
     return PlainTextResponse(DESK_CLIENT.read_text(), media_type="text/x-python")
 
 

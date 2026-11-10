@@ -19,7 +19,7 @@ Docker image of it, and a Docker box says so.
 
     agent  desk(action=..., computer="sandbox")  -> backend/desk.py act()
       -- backend/vm/boxdesk.py   a shim `ws`: JSON lines over vsock :5559 {"mode":"desk"}
-      -- guest/backend/display.py  -> child: guest/backend/deskbox.py  (jav3-desk's Session)
+      -- guest/backend/display.py  -> child: guest/backend/deskbox.py  (cntrl-desk's Session)
       -- xdotool / maim on DISPLAY :100
 
 - **Start is explicit.** `GET /api/vm/boxes/{id}/display` only reads (supported?,
@@ -101,7 +101,7 @@ events, and the taint (a screen is untrusted text).
 - **Guest.** `display._handle` mode `desk` needs the screen up (it never starts it),
   spawns `python3 -m backend.deskbox` as a child under `memguard.confine` with
   `DISPLAY=:100`, and pipes the host's connection to its stdin/stdout. The child is
-  the operator's `clients/jav3-desk/jav3-desk` (shipped as `backend/jav3_desk.py`) running
+  the operator's `clients/cntrl-desk/cntrl-desk` (shipped as `backend/jav3_desk.py`) running
   its own `Session.pump` over those pipes on an X11 backend (xdotool for input, maim
   for screenshots, Pillow for the settle check). Its apps are the ones in
   `/run/jav3-desk-apps.json` (`terminal`, `browser`); `open url=` goes to the box's

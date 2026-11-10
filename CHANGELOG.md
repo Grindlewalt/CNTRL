@@ -263,6 +263,10 @@ move below, installs the new units and restarts.
   `~/.config/cntrl` on first start; into the server's own `~/.config/cntrl`
   on the same machine its files move one by one, a name already there winning,
   so you stay logged in. The computer-use desktop client's `desk*` files follow.
+- The computer-use client is `cntrl-desk` (`/cli/cntrl-desk`). A saved
+  `jav3-desk` file and `/cli/jav3-desk` keep working, and its service keeps the
+  name `jav3-desk.service` (`local.jav3.desk` on macOS) so an installed one is
+  replaced, not doubled.
 - The session cookie, the device token prefix, the database file
   (`jarvis.db`) and the Gitea bot account keep their names, so logins and
   paired devices stay valid.

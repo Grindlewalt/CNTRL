@@ -225,10 +225,11 @@ version.
 
 ## Computer and browser use
 
-Nothing is on by default. To let an agent use a computer, install `jav3-desk`
-on it (from `http://<host>:<port>/cli/jav3-desk`), pair it with the Add
+Nothing is on by default. To let an agent use a computer, install `cntrl-desk`
+on it (from `http://<host>:<port>/cli/cntrl-desk`), pair it with the Add
 computer line, and grant screen, input or shell in Settings; shell also needs
-`jav3-desk allow-shell` at that computer's keyboard. The Chromium extension
+`cntrl-desk allow-shell` at that computer's keyboard. Input amounts to a shell:
+with it granted the agent can open a terminal and type into it. The Chromium extension
 (`http://<host>:<port>/cli/cntrl-browser.zip`, or `clients/jav3-browser/`)
 pairs the same way and is granted per project. See
 [docs/navigation.md](docs/navigation.md) and

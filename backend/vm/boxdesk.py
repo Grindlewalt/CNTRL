@@ -8,7 +8,7 @@ connected to /api/desk/ws.
 
     desk tool -> desk.act() -> grants, fresh-frame rule, rate limits, audit, taint
               -> Desk.ws (BoxWS, below) -> a JSON line on the guest's display
-                 socket (:5559, {"mode":"desk"}) -> deskbox.py -> jav3-desk's
+                 socket (:5559, {"mode":"desk"}) -> deskbox.py -> cntrl-desk's
                  Session -> xdotool / maim on :100
     and back: the reader task feeds every frame to desk.on_frame().
 
