@@ -5,6 +5,7 @@ import asyncio
 
 import pytest
 
+from backend import providers
 from backend.auth import hash_password
 from backend.db import get_db, init_db
 from backend.memory import ensure_memory_seeds
@@ -95,7 +96,9 @@ async def test_smart_word_skips_local(seeded, monkeypatch):
     await session._on_transcript("use the smart model to plan my week")
     await settle(session)
 
-    assert calls[0]["model_name"] is None       # straight to DeepSeek
+    # straight to DeepSeek: the default model, resolved at turn start (chat.py
+    # turn_model_id), never the local tier's
+    assert calls[0]["model_name"] == providers.turn_model_id(None)
     assert calls[0]["base_url"] is None
     assert LOCAL_PROMPT not in calls[0]["system_prompt"]
 
@@ -128,7 +131,7 @@ async def test_escalation_ask_and_accept(seeded, monkeypatch):
 
     await session._on_transcript("yes, send it")
     await settle(session)
-    assert calls[1]["model_name"] is None       # rerun went to DeepSeek
+    assert calls[1]["model_name"] == providers.turn_model_id(None)   # rerun: DeepSeek
     rows = await rows_of(session.cid)
     assert rows[-1][0] == "assistant" and "full picture" in rows[-1][1]
     # exactly one user row — the rerun didn't re-insert
@@ -191,7 +194,8 @@ async def test_flash_switch_sends_every_turn_to_deepseek(seeded, monkeypatch):
     await session._on_transcript("plan my week")
     await settle(session)
 
-    assert calls[0]["model_name"] is None and calls[0]["base_url"] is None
+    assert calls[0]["model_name"] == providers.turn_model_id(None)
+    assert calls[0]["base_url"] is None
     assert LOCAL_PROMPT not in calls[0]["system_prompt"]
     # and the browser was told which way the switch now sits
     assert [m for m in out if isinstance(m, dict)
