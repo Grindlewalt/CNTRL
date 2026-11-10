@@ -1,6 +1,6 @@
-"""Computer use: the host side of `cntrl-desk`.
+"""Computer use: the host side of `jav3-desk`.
 
-A computer running `clients/cntrl-desk` holds ONE outbound WebSocket to
+A computer running `clients/jav3-desk` holds ONE outbound WebSocket to
 /api/desk/ws (desk_api.py), authenticated by a `desk`-scoped device token. The
 server never dials in. This module is the registry of those sockets and the
 single chokepoint every desk action crosses:
@@ -45,7 +45,7 @@ Trust model (SECURITY-RESIDUAL-RISK.md has the long form):
 
 - Grants live HERE, per desk token, and are set only from Settings (cookie
   routes). The client's own `ceiling` can only narrow them: a compromised
-  server can never make a client run shell until `cntrl-desk allow-shell` was
+  server can never make a client run shell until `jav3-desk allow-shell` was
   typed at that computer.
 - Everything a desk returns is untrusted input — a screen shows web pages and
   other people's words. Every desk tool taints the turn (broker
@@ -121,7 +121,7 @@ STUCK_N = 3                 # identical unchanged input actions before the note
 # "note:" as failed, drops its screenshot and raises the error streak
 STUCK_NOTE = ("stuck: the screen has not changed after 3 identical actions; use "
               "an element id, zoom with region, or the keyboard")
-# the same sentences the client refuses with (clients/cntrl-desk LOCKED_ERR)
+# the same sentences the client refuses with (clients/jav3-desk LOCKED_ERR)
 LOCKED_ERR = "the screen is locked — ask the operator to unlock it"
 ASLEEP_ERR = "the display is asleep — ask the operator to wake it"
 NO_GROUNDING = ('no grounding model; click by element id or coordinates, or run '
@@ -137,7 +137,7 @@ BUTTONS = ("left", "right", "middle")
 # key combos: modifiers and keysym names joined by '+'. The client re-checks
 # against its own keysym table and denylist (session-killers).
 _KEY_RE = re.compile(r"^[A-Za-z0-9_]{1,32}(\+[A-Za-z0-9_]{1,32}){0,4}$")
-# The same grammar as the client's normalize_combo (clients/cntrl-desk): a copy,
+# The same grammar as the client's normalize_combo (clients/jav3-desk): a copy,
 # because the client is one file that ships alone. tests/test_desk_client.py
 # runs both over the same table. The server refuses a bad key here so the
 # model finds out in this round, not after a trip to the computer.
@@ -606,7 +606,7 @@ def resolve(want: str | None) -> Desk:
                             "minutes after nobody watches it). Tell the operator to "
                             "start it from the Desktop window.")
         raise DeskError("no computer is connected for computer use. Tell the "
-                        "operator to run `cntrl-desk run` on it (Settings → "
+                        "operator to run `jav3-desk run` on it (Settings → "
                         "Computer use shows what is connected).")
     if want:
         w = str(want).strip().lower()
@@ -1517,7 +1517,7 @@ async def _act(d: Desk, verb: str, params: dict) -> str:
         return await _refuse(d, verb, {}, f"{cap} is off for '{d.shown}' in Settings "
                              "→ Computer use. Ask the operator to turn it on.")
     if not d.ceiling.get(cap):
-        extra = (" (run `cntrl-desk allow-shell` at that computer)" if cap == "shell"
+        extra = (" (run `jav3-desk allow-shell` at that computer)" if cap == "shell"
                  else "")
         return await _refuse(d, verb, {}, f"{cap} is switched off on the computer "
                              f"itself{extra}; the server cannot turn it on.")

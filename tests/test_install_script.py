@@ -219,6 +219,8 @@ def test_check_json_is_one_object_on_stdout(tmp_path, args):
               "conflict", "missing_packages", "root_command", "problems", "warnings"):
         assert k in d, k
     assert d["port"] == (8780 if "8780" in args else 8000)
+    from backend.version import __version__
+    assert d["version"] == __version__ and d["unit"] == "cntrl"
     assert all(set(p) == {"message", "fix"} for p in d["problems"])
     assert "MISS" in r.stderr or d["ready"]     # the human report moved to stderr
 

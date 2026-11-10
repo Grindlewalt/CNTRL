@@ -471,11 +471,12 @@ async def test_pause_cancel_and_stop(env):
 
 
 async def test_extension_zip_is_served(env):
-    r = await env["op"].get("/cli/jav3-browser.zip")
+    r = await env["op"].get("/cli/cntrl-browser.zip")
     assert r.status_code == 200 and r.headers["content-type"] == "application/zip"
+    assert 'filename="cntrl-browser.zip"' in r.headers["content-disposition"]
     names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
-    assert "jav3-browser/manifest.json" in names and "jav3-browser/lib/verbs.js" in names
-    assert "jav3-browser/lib/dom.js" in names         # injected into every frame
+    assert "cntrl-browser/manifest.json" in names and "cntrl-browser/lib/verbs.js" in names
+    assert "cntrl-browser/lib/dom.js" in names         # injected into every frame
     assert not any("/test/" in n for n in names)
 
 

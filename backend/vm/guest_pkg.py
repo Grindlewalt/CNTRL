@@ -40,11 +40,8 @@ _COPY_MODULES = {
     "backend/headless.py": "backend/headless.py",
     # the operator's computer-use client, as it is: the box desktop's agent seat
     # (guest/backend/deskbox.py) runs its Session on display :100
-    "backend/jav3_desk.py": "clients/cntrl-desk/cntrl-desk",
+    "backend/jav3_desk.py": "clients/jav3-desk/jav3-desk",
 }
-# a checkout from before the client moved to its CNTRL name
-if not (settings.base_dir / _COPY_MODULES["backend/jav3_desk.py"]).exists():
-    _COPY_MODULES["backend/jav3_desk.py"] = "clients/jav3-desk/jav3-desk"
 
 # IN_GUEST_TOOLS and BOX_ONLY_TOOLS live in backend/agent/tools/inguest.py (imported
 # above, so guest_pkg.IN_GUEST_TOOLS still works), shared verbatim with the guest registry.

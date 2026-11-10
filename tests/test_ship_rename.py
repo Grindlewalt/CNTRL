@@ -97,10 +97,8 @@ async def test_cli_cntrl_and_cli_jav3_serve_the_same_bytes_and_health_has_the_ve
         assert new.content == old.content and b"textual" in new.content
         h = (await anon.get("/api/health")).json()
         assert h == {"ok": True, "version": __version__}
-        for a, b in (("/cli/cntrl-desk", "/cli/jav3-desk"),
-                     ("/cli/cntrl-browser.zip", "/cli/jav3-browser.zip")):
-            ra, rb = await anon.get(a), await anon.get(b)
-            assert ra.status_code == rb.status_code == 200 and ra.content == rb.content
+        a, b = await anon.get("/cli/cntrl-browser.zip"), await anon.get("/cli/jav3-browser.zip")
+        assert a.status_code == b.status_code == 200 and a.content == b.content
 
 
 def test_the_doctor_names_the_version(monkeypatch):

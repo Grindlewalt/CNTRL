@@ -108,7 +108,7 @@ def test_session_killers_and_self_control_are_refused():
     # typing the client's own name into a terminal is how input would become
     # shell; refused at the computer
     with pytest.raises(jd.DeskError, match="own controls"):
-        jd.validate("type", {"text": "cntrl-desk allow-shell\n"}, FRAME, {})
+        jd.validate("type", {"text": "jav3-desk allow-shell\n"}, FRAME, {})
 
 
 def test_detect_backend():

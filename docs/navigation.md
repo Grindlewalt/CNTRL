@@ -1,6 +1,6 @@
 # Computer and browser navigation: operator guide
 
-How the agent sees and clicks on your computer (`cntrl-desk`) and in your
+How the agent sees and clicks on your computer (`jav3-desk`) and in your
 browser (the CNTRL browser extension). Nothing is on by default. The security trade-offs are
 in `SECURITY-RESIDUAL-RISK.md` (#15, #18-#21); the wire-level contract is
 `docs/navigation-contract.md`.
@@ -8,16 +8,16 @@ in `SECURITY-RESIDUAL-RISK.md` (#15, #18-#21); the wire-level contract is
 ## Pairing a computer
 
 1. In CNTRL: **Settings → Add computer**, copy the line it shows.
-2. On that computer: `cntrl-desk login`, paste it, then `cntrl-desk run` (or
-   `cntrl-desk install` to keep it running as a user service).
+2. On that computer: `jav3-desk login`, paste it, then `jav3-desk run` (or
+   `jav3-desk install` to keep it running as a user service).
 3. In **Settings → Computer use**, switch on what this computer may do:
    **screen** (screenshots), **input** (clicks, keys, typing, opening apps) and
    **shell** (off, ask, or trusted).
 
 Two locks apply. The grants are yours, on the server. The computer also has its
 own ceiling, which the server cannot raise: shell stays off until someone at
-that keyboard runs `cntrl-desk allow-shell`. `cntrl-desk panic` stops everything
-at once; `cntrl-desk resume` brings it back.
+that keyboard runs `jav3-desk allow-shell`. `jav3-desk panic` stops everything
+at once; `jav3-desk resume` brings it back.
 
 ## What the agent sees
 

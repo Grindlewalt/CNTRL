@@ -40,15 +40,15 @@ _CLIENTS = Path(__file__).resolve().parent.parent / "clients"
 
 
 def _first(*paths: Path) -> Path:
-    """The first of `paths` that exists, else the first: the clients moved to
-    their CNTRL names, and a checkout from before the move has the old ones."""
+    """The first of `paths` that exists, else the first: the terminal client
+    moved to its CNTRL name, and a checkout from before the move has the old one."""
     return next((p for p in paths if p.exists()), paths[0])
 
 
 # The terminal client: clients/cntrl/cntrl (clients/jav3cli/jav3 before the rename)
 CLI_DIR = _first(_CLIENTS / "cntrl", _CLIENTS / "jav3cli")
-DESK_CLIENT = _first(_CLIENTS / "cntrl-desk" / "cntrl-desk", _CLIENTS / "jav3-desk" / "jav3-desk")
-BROWSER_EXT = _first(_CLIENTS / "cntrl-browser", _CLIENTS / "jav3-browser")
+DESK_CLIENT = _CLIENTS / "jav3-desk" / "jav3-desk"
+BROWSER_EXT = _CLIENTS / "jav3-browser"
 _NO_STORE = {"Cache-Control": "no-store", "Pragma": "no-cache"}
 _BAD_CODE = ("invalid or expired login code — generate a new one in "
              "Settings → Add computer")
@@ -223,7 +223,7 @@ class RedeemBody(BaseModel):
     name: str = Field("", max_length=256)
     hostname: str = Field("", max_length=256)
     platform: str = Field("", max_length=256)
-    # what the token will be for: `cntrl` asks for cli (the default), `cntrl-desk`
+    # what the token will be for: `cntrl` asks for cli (the default), `jav3-desk`
     # for desk, the browser extension for browser. Letting the client choose is safe because neither widens the
     # other: a desk/browser token reaches nothing but its own socket, and
     # does nothing until the operator grants it in Settings.
@@ -369,10 +369,9 @@ async def cli_version():
     return JSONResponse(_cli_version(), headers=_NO_STORE)
 
 
-@cli_router.get("/cntrl-desk")
-@cli_router.get("/jav3-desk")    # the old name, kept for paired computers
+@cli_router.get("/jav3-desk")
 async def desk_client_file():
-    """The computer-use client, one file (clients/cntrl-desk)."""
+    """The computer-use client, one file (clients/jav3-desk)."""
     return PlainTextResponse(DESK_CLIENT.read_text(), media_type="text/x-python")
 
 

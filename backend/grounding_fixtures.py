@@ -5,7 +5,7 @@ About two dozen synthetic desktop screenshots, rendered with Pillow from code
 Pillow version), each with 3-6 targets: a description a model is asked to
 find and the box a click must land in. They cover what makes grounding hard
 on a real desk: light and dark themes, a 2560x1600 "Retina" capture shrunk to
-1280x800 the way cntrl-desk does, a dense toolbar of 16-px glyph icons, forms,
+1280x800 the way jav3-desk does, a dense toolbar of 16-px glyph icons, forms,
 menus, a dialog over a page where BOTH say "Save" (the description says
 which), tiny close buttons, and lists of near-identical rows.
 

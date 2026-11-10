@@ -175,6 +175,11 @@ elif command -v dnf     >/dev/null 2>&1; then PKG=dnf
 else PKG=unknown
 fi
 
+# The version this checkout installs (backend/version.py); empty without one.
+VERSION=""
+[ -z "$REPO_DIR" ] || VERSION="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' \
+  "$REPO_DIR/backend/version.py" 2>/dev/null)"
+
 # No os-release (macOS, where --target is run from) must not trip set -e.
 DISTRO="$( . /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}" || uname -s )"
 
@@ -547,7 +552,7 @@ check_user_side() {
 }
 
 preflight() {
-  step "preflight — $DISTRO, $ARCH, package manager: $PKG, user: $TARGET_USER"
+  step "preflight${VERSION:+ for CNTRL $VERSION} — $DISTRO, $ARCH, package manager: $PKG, user: $TARGET_USER"
   check_cpu_virt
   check_kvm
   check_kvm_group
@@ -1256,6 +1261,7 @@ emit_json() {
   {
     printf '{"ready":%s,"arch":%s,"distro":%s,"pkg":%s,"user":%s,' "$ready" \
       "$(jstr "$ARCH")" "$(jstr "$DISTRO")" "$(jstr "$PKG")" "$(jstr "$TARGET_USER")"
+    printf '"version":%s,' "$(jstr "$VERSION")"
     printf '"repo_dir":%s,"unit":%s,"port":%s,"config_dir":%s,"state_dir":%s,' \
       "$(jstr "$REPO_DIR")" "$(jstr "$UNIT")" "$PORT" "$(jstr "$CFG_DIR")" "$(jstr "$STATE_DIR")"
     printf '"kvm":%s,"vsock":%s,"docker":%s,' \
@@ -1393,7 +1399,7 @@ fi
 
 user_phase
 
-printf '\n%sinstalled.%s\n' "$BOLD" "$OFF"
+printf '\n%sCNTRL %s installed.%s\n' "$BOLD" "$VERSION" "$OFF"
 printf '  state dir:            %s\n' "$(cd "$REPO_DIR" && .venv/bin/python -m backend.cli paths state_dir 2>/dev/null || echo "$STATE_DIR")"
 printf '  first-run setup:      %s/.venv/bin/python -m backend.cli setup   (or open the GUI; add logins with --add-user)\n' "$REPO_DIR"
 printf '  config:               %s/env\n' "$CFG_DIR"

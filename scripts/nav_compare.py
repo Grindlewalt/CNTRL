@@ -5,7 +5,7 @@ baseline (DeepSeek V4.1 Flash) at desktop navigation on a paired Mac?
         --agents navigator,navigator-qwen --runs 3 --tasks scripts/nav_tasks.yaml \\
         [--only id,...] [--out DIR] [--desk-pid-file FILE] [--dry-run]
 
-Runs ON the paired Mac (the one running clients/cntrl-desk), against a CNTRL
+Runs ON the paired Mac (the one running clients/jav3-desk), against a CNTRL
 server reached over the operator's ssh tunnel. For every (agent, task, run):
 
   setup (local shell, inside ~/jav3-nav-scratch)  ->  one agent chat turn

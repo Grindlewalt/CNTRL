@@ -576,7 +576,7 @@ def parse_element_id(v) -> str:
     raise BrowserError('element must be an id from browser_read_page, e.g. "f0:12"')
 
 
-# Key combos: the desk's grammar (clients/cntrl-desk normalize_combo), plus the
+# Key combos: the desk's grammar (clients/jav3-desk normalize_combo), plus the
 # browser spellings a model reaches for (Esc, Backspace, ArrowUp, PageDown)
 # folded onto the desk's names. lib/dom.js normalizeCombo mirrors this.
 _MODIFIERS = {"ctrl": "ctrl", "control": "ctrl", "shift": "shift", "alt": "alt",

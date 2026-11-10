@@ -4,7 +4,7 @@ What the architecture is, what it actually buys, and — the point of this
 document — what it does **not** cover. Written to be read by someone deciding
 whether to trust the agent with a new capability. Last updated 2026-07-19,
 covering the monitored-egress build (Layers 1–6; deploy separation / Layer 7 is
-out of scope), amended 2026-07-20 for the **staging-quarantine removal** (operator decision: writes land live; git is the review/undo surface), and 2026-09-23 for the **removal of Computer Use and Cloudflare Access** (operator decision: LAN-first; see #12). Amended 2026-09-24 for **computer use rebuilt as `cntrl-desk`** (see #15) and 2026-09-29 for **navigation** (element ids, description-based clicking, grounding; see #15, #18-#21). **This supersedes the netless posture** — the guest now has a
+out of scope), amended 2026-07-20 for the **staging-quarantine removal** (operator decision: writes land live; git is the review/undo surface), and 2026-09-23 for the **removal of Computer Use and Cloudflare Access** (operator decision: LAN-first; see #12). Amended 2026-09-24 for **computer use rebuilt as `jav3-desk`** (see #15) and 2026-09-29 for **navigation** (element ids, description-based clicking, grounding; see #15, #18-#21). **This supersedes the netless posture** — the guest now has a
 real, monitored internet path, a deliberate trade of maximal containment for
 watchability and genuine developer autonomy.
 
@@ -352,7 +352,7 @@ a watched, policy-gated, cuttable pipe to the internet.
       turn makes `/persist` read-only for every concurrent turn of that
       project until the last one ends (fail-safe direction).
 
-15. **Computer use, rebuilt as `cntrl-desk` (2026-09-24).** A client on the
+15. **Computer use, rebuilt as `jav3-desk` (2026-09-24).** A client on the
     operator's computer (`clients/jav3-desk`) holds one outbound WebSocket to
     `/api/desk/ws` with a `desk`-scoped device token; the agent drives it with
     host-side `desk_*` tools, so every gate is host-side in `backend/desk.py`
@@ -362,7 +362,7 @@ a watched, policy-gated, cuttable pipe to the internet.
     and a desk cannot start turns. Grants (screen / input / shell) are per
     computer, server-side, and set only from cookie routes; the client's own
     ceiling can narrow them and never be widened — shell stays off until
-    `cntrl-desk allow-shell` is run at that computer. Input is refused without
+    `jav3-desk allow-shell` is run at that computer. Input is refused without
     a screenshot of that computer from this turn under 60 s old, with
     coordinates bounded by it; 10 input/s, 2 screenshots/s, one shell at a
     time; every action is audited (typed text as length + digest); typing a
@@ -814,7 +814,7 @@ a watched, policy-gated, cuttable pipe to the internet.
 | Web origin (CSRF / agent HTML) | Critical | Low | One global scheme+host+port same-origin gate for every cookie state change and WebSocket; agent files served sandboxed/inert. Residual = a missing-Origin non-browser client holding the cookie. |
 | Host-side project runner | Critical | Medium | Executes on the host by design; same-origin gated and audited per run. Existence is the operator's decision. |
 | Backup contents and destination | High | Medium | DB snapshot (incl. bcrypt hashes) uploaded unencrypted; secrets only through rclone crypt; destination changes raise a security event; rclone binary constrained; git hooks never restored. |
-| Computer use (`cntrl-desk`) | Critical | **Medium** | `desk_open` refuses CNTRL's own hosts (Input can still reach an already-open CNTRL tab: keep it out of a granted computer's view). Desk-scoped token, server-side per-computer grants under a client ceiling (shell off until allowed at the keyboard), screenshot-before-input, rate limits, audit, taint with shell falling back to asking; since 2026-09-29 also element ids resolved only against this turn's frame, clicks by description or coordinates through the same gates (#20), locked or asleep screens refused. Residual = on-screen prompt injection steering granted Input, and Input reaching a terminal., a wider `desk_open` app list whose terminal exclusion is by name (#21), and the live screen having moved since the frame a point was resolved on. |
+| Computer use (`jav3-desk`) | Critical | **Medium** | `desk_open` refuses CNTRL's own hosts (Input can still reach an already-open CNTRL tab: keep it out of a granted computer's view). Desk-scoped token, server-side per-computer grants under a client ceiling (shell off until allowed at the keyboard), screenshot-before-input, rate limits, audit, taint with shell falling back to asking; since 2026-09-29 also element ids resolved only against this turn's frame, clicks by description or coordinates through the same gates (#20), locked or asleep screens refused. Residual = on-screen prompt injection steering granted Input, and Input reaching a terminal., a wider `desk_open` app list whose terminal exclusion is by name (#21), and the live screen having moved since the frame a point was resolved on. |
 | Browser use (browser extension) | Critical | **Medium** | Browser-scoped token (first-frame, socket only), per-browser per-project Read/Act grants (none by default), own unfocused window and own tabs only, per-site consent in the extension, action notification with Cancel, Pause, closed verb list checked both sides, read-before-act, secret-value and CNTRL-host refusals (also for clicks by x, y and typing into the focused element, under the same per-site and cross-origin-frame consent), taint like web_read, audit. Residual = acting with the operator's sessions on allowed sites outside the egress proxy, page prompt injection steering granted Act, host-level (not page-level) consent., a page moving its layout after the screenshot a coordinate click uses, and page text that imitates element-list lines in `read_page`. |
 | Screenshots sent to a grounding model provider | High | **Medium** | Only when `desk_click(target=…)` is not settled by an element label, only to a model the operator enabled and pinned or ranked in Settings → Grounding, only after grant / ceiling / fresh-frame / unlocked checks; via the model gateway (host-side key, budgeted, metered); the model finder uses synthetic screens; the agent cannot choose the model, provider or request fields; the desk audit row keeps target, model and confidence. Residual = the whole screenshot, unredacted, reaches a third-party provider (automatic mode picks by hit rate, price and latency, not by trust), no per-image audit row, no re-check that the ranked model is still one the operator wants. |
 | Description-based clicking (`desk_click target=`) | High | **Medium** | Same gates as any coordinate click; label match first, unique only; "could not find" instead of a guess; the result says how the point was chosen and returns the after-screenshot; taint. Residual = on-screen text can steer the grounding model to a look-alike element; confidence is shown, never a threshold; label matching is by unique substring; the grounded point is not cross-checked against the accessibility tree; the screen may change between frame and click. |

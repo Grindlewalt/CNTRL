@@ -15,7 +15,7 @@ line:
     {"mode":"desk"}    the agent's seat (P2): needs the display UP (it never
                        starts it), replies {"ok":true}, then speaks the desk
                        wire protocol as JSON lines (backend/desk.py) with
-                       cntrl-desk's Session running as a child (deskbox.py)
+                       jav3-desk's Session running as a child (deskbox.py)
 
 Errors reply {"ok":false,"error":"<what and what to do>"} and close. A desk
 connection holds the display (`Session.hold()`) while requests arrive and for
@@ -60,7 +60,7 @@ TMUX_SESSION = "desk"
 PY_VENV_BIN = "/opt/jav3/py/bin"          # the image's pip venv (httpx, textual)
 HOLD_GRACE_S = 60                         # a desk request keeps the screen up this long
 PKG_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # holds `backend/`
-# the agent's seat: cntrl-desk's Session as a child on DISPLAY=:100 (deskbox.py).
+# the agent's seat: jav3-desk's Session as a child on DISPLAY=:100 (deskbox.py).
 # A list so the tests can stand a fake one in.
 DESK_ARGV = [sys.executable, "-m", "backend.deskbox"]
 

@@ -179,7 +179,7 @@ async def test_code_is_single_use_and_token_works_on_chat_only(clients):
 
 
 async def test_scope_is_chosen_at_login_and_fixed(clients):
-    """`cntrl-desk login` asks for a desk token; it reaches whoami/self-revoke
+    """`jav3-desk login` asks for a desk token; it reaches whoami/self-revoke
     but not chat, and the scope is visible in Settings. A CLI token is still
     the default. An unknown scope is the same fixed 422 as any bad body."""
     op, dev = clients

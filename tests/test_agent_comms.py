@@ -1189,7 +1189,7 @@ async def test_deleting_a_chat_keeps_the_messages_it_sent(tmp_env):
         await db.close()
     assert [r["body"] for r in rows] == ["outstanding work"]
     assert rows[0]["from_conversation_id"] is None    # FK cleared, not the row
-    assert rows[0]["from_label"] == "jav3"          # still says who sent it
+    assert rows[0]["from_label"] == "cntrl"         # still says who sent it
     assert [r["body"] for r in left] == ["outstanding work"]
 
 
