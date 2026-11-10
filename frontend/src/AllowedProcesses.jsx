@@ -40,7 +40,7 @@ export default function AllowedProcesses() {
           return (
             <div key={`${e.exe}|${e.unit}`} className="sk-rule">
               <span className="mono" title={line.what}>{line.what}</span>
-              <span className="sk-sub">{line.when.replace(' · ', ', ')}</span>
+              <span className="sk-sub">{line.when.replace(', ', ', ')}</span>
               <Button variant="ghost" onClick={() => remove(e)}>Take off</Button>
             </div>
           )

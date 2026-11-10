@@ -49,7 +49,7 @@ assert.equal(unitAsk.title, 'Allow everything weekly-job.service runs?')
 assert.match(unitAsk.body, /system service you recognise/)
 assert.equal(baselineAsk({ exe: '/x' }, 'program').title, 'Allow /x?')
 assert.deepEqual(allowedLine({ exe: '*', unit: 'a.service', by: 'grant', at: '2026-09-29 21:03:03' }),
-  { what: 'everything in a.service', when: 'grant · 2026-09-29' })
+  { what: 'everything in a.service', when: 'grant, 2026-09-29' })
 assert.equal(allowedLine({ exe: '/x', unit: '' }).what, '/x')
 
 // WEB-06: every tag the Persistent tab paints has a plain meaning, and plurals agree

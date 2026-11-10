@@ -118,8 +118,6 @@
 .memory-page .pane-head h3.mem-title { font-family: var(--sans); font-size: var(--fs-xl);
   font-weight: 600; letter-spacing: var(--track-head); }
 .memory-page .pane-head { margin-bottom: var(--sp-5); }
-/* the field's control must not take the old flex-basis meant for a row */
-.projects-page .create-project .field > input { flex: none; height: var(--ctl-h, 38px); }
 
 /* ---- Settings: cards ---- */
 .settings-page .tabs a { color: var(--slate); }

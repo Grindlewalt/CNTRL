@@ -189,11 +189,11 @@ function StatusRow({ st, running }) {
           <>
             Last run {ts(last.finished_at || last.started_at)} UTC{' '}
             <Tag tone={last.ok ? 'done' : 'error'}>{last.ok ? 'ok' : 'error'}</Tag>
-            {last.ok && <span className="dim"> · {human(last.bytes)}</span>}
+            {last.ok && <span className="dim">, {human(last.bytes)}</span>}
           </>
         ) : <span className="dim">Never run.</span>}
         <span className="dim">
-          {' · '}{st.next_scheduled ? `next ${ts(st.next_scheduled)} UTC`
+          {', '}{st.next_scheduled ? `next ${ts(st.next_scheduled)} UTC`
             : 'no timer scheduled'}</span>
       </p>
       {last && !last.ok && last.error && (

@@ -9,7 +9,7 @@ export const UNTRUSTED = "the agent's words: untrusted"
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
-// "2 need you · 47 filtered as normal work · 1 agent report": only what is there
+// "2 need you, 47 filtered as normal work, 1 agent report": only what is there
 export function countsParts(counts = {}) {
   const out = []
   if (counts.need > 0) out.push({ key: 'need', text: `${counts.need} need you` })
@@ -22,7 +22,7 @@ export function countsParts(counts = {}) {
   return out
 }
 
-export const countsLine = (counts) => countsParts(counts).map((p) => p.text).join(' · ')
+export const countsLine = (counts) => countsParts(counts).map((p) => p.text).join(', ')
 
 // the run's state, as one word for the header (a box or project group has none)
 export function runState(run) {

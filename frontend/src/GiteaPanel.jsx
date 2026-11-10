@@ -155,9 +155,9 @@ export default function GiteaPanel() {
         <>
           <p className="small settings-note">
             {st.running ? <Tag>running</Tag> : <Tag>not answering</Tag>}
-            {' '}{st.version ? `v${st.version} · ` : ''}
+            {' '}{st.version ? `v${st.version}, ` : ''}
             <a href={st.url} target="_blank" rel="noreferrer">{st.url}</a>
-            {' '}· owner <strong>{st.owner}</strong> · agents push as <code>{st.bot}</code>
+            {' '}Owner <strong>{st.owner}</strong>. Agents push as <code>{st.bot}</code>
             {' '}to <code>agent/*</code> branches only
           </p>
           {!st.running && (

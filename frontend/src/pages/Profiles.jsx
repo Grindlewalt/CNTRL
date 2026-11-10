@@ -267,7 +267,7 @@ function ProfileForm({ initial, secrets, variants, runtimes, budget, names, onCa
           </div>
           <span className="field-hint">{RUNS_IN.find((o) => o.value === where)?.hint}
             {RUNS_IN.filter((o) => unavailable(o.value)).map((o) => (
-              <span key={o.value} className="dim"> · {o.label} unavailable: {unavailable(o.value)}</span>))}
+              <span key={o.value} className="dim">, {o.label} unavailable: {unavailable(o.value)}</span>))}
           </span>
           {where === 'container' && runtimes && <RuntimeStatus runtimes={runtimes} compact />}
           {show('box_runtime') && <span className="error small">{errs.box_runtime}</span>}

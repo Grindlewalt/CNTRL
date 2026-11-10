@@ -321,7 +321,7 @@ export function AgentDefinitions() {
             {lastHere && (
               <div className="agent-last">
                 Last run: {ago(lastHere.last_at || lastHere.started_at)}
-                {' · '}{lastHere.running ? 'running' : 'done'}
+                {', '}{lastHere.running ? 'running' : 'done'}
               </div>
             )}
             <div className="agent-prompt-head">

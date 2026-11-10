@@ -74,7 +74,7 @@ function readFolded() {
 // the markdown heading mark and the bracket are noise in a list, and they
 // are stripped here only — the toolbar and the tooltip keep the real title.
 export function listTitle(c) {
-  if (!c.summary) return `#${c.id} · ${c.started_at?.slice(5, 16) || ''}`
+  if (!c.summary) return `#${c.id}, ${c.started_at?.slice(5, 16) || ''}`
   return c.summary.replace(/^[#[\s]+/, '') || c.summary
 }
 

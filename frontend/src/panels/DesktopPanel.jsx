@@ -207,8 +207,8 @@ export default function DesktopPanel({ slug, state, setState }) {
               : mode === 'ended' ? 'disconnected'
                 : mode === 'idle' ? 'desktop off'
                   : boxId ? 'desktop' : 'no box'}
-          {boxId && <span className="dim"> · {boxId}</span>}
-          {st && viewersText(st.viewers) && <span className="dim"> · {viewersText(st.viewers)}</span>}
+          {boxId && <span className="dim">, {boxId}</span>}
+          {st && viewersText(st.viewers) && <span className="dim">, {viewersText(st.viewers)}</span>}
         </span>
         {options.length > 1 && (
           <select value={boxId || ''} onChange={(e) => choose(e.target.value)}

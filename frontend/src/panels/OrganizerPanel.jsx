@@ -95,7 +95,7 @@ export default function OrganizerPanel({ slug }) {
   return (
     <div className="pane-col">
       <div className="row">
-        <span className="dim grow">drag files between directories · marks tell CNTRL
+        <span className="dim grow">drag files between directories, marks tell CNTRL
           what belongs where</span>
         <button className="ghost" onClick={newDir}>+ dir</button>
       </div>

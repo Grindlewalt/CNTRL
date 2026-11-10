@@ -89,7 +89,7 @@ export default function GroundingPanel() {
                 <>
                   <span className="small">
                     Testing… {job?.done ?? 0} / {job?.total || '?'}
-                    {job?.current ? <span className="dim"> · {job.current}</span> : null}
+                    {job?.current ? <span className="dim">, {job.current}</span> : null}
                   </span>
                   <progress max={job?.total || 1} value={job?.done || 0}
                             aria-label="Model finder progress" />

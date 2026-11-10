@@ -89,7 +89,7 @@ export default function TerminalPanel({ slug }) {
   return (
     <div className="pane-col">
       <div className="row">
-        <span className={`dim small grow term-status ${status}`}>guest shell · {status}</span>
+        <span className={`dim small grow term-status ${status}`}>guest shell, {status}</span>
         {(status === 'disconnected' || status === 'closed') &&
           <button className="ghost" onClick={() => setGen((g) => g + 1)}>reconnect</button>}
       </div>

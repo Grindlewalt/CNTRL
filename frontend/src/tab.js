@@ -59,7 +59,7 @@ function guess() {
     : /Firefox\//.test(ua) ? 'Firefox'
     : /Chrome\//.test(ua) ? 'Chrome'
     : /Safari\//.test(ua) ? 'Safari' : ''
-  return browser ? `${os} · ${browser}` : os
+  return browser ? `${os}, ${browser}` : os
 }
 
 export function tabName() {

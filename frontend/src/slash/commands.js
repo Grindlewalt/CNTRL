@@ -127,8 +127,8 @@ export const COMMANDS = [
     help: 'commands and keys',
     run: (_, env) => {
       env.host.setInput('/')
-      return '↑↓ move · Tab completes · Enter runs · Esc closes · //text sends a message '
-        + 'that starts with a slash · Enter while a turn runs messages the agent'
+      return '↑↓ move, Tab completes, Enter runs, Esc closes, //text sends a message '
+        + 'that starts with a slash, Enter while a turn runs messages the agent'
     },
   },
   {
@@ -171,7 +171,7 @@ export const COMMANDS = [
       value: String(c.id),
       label: c.summary || `Chat #${c.id}`,
       meta: [c.starred ? '★' : '', c.project_slug || '', `#${c.id}`]
-        .filter(Boolean).join(' · '),
+        .filter(Boolean).join(', '),
     })),
     run: (arg, env) => {
       if (!arg) { env.host.openList(); return }
@@ -190,7 +190,7 @@ export const COMMANDS = [
       const m = await loadModel()
       return (m?.models || []).map((x) => ({
         value: x.id, label: x.label || x.id,
-        meta: [x.id === m.active ? 'current' : '', modelCaption(x)].filter(Boolean).join(' · '),
+        meta: [x.id === m.active ? 'current' : '', modelCaption(x)].filter(Boolean).join(', '),
       }))
     },
     run: async (arg) => {

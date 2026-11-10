@@ -453,7 +453,7 @@ export default function Memory() {
                   ? `project loaded: ${assembled.active_project}`
                   : 'no project loaded'}
                 {assembled?.tokens != null &&
-                  ` · ≈${assembled.tokens.toLocaleString()} input tokens ride every turn`}
+                  `, ≈${assembled.tokens.toLocaleString()} input tokens ride every turn`}
               </span>
             </div>
             <pre className="context-view">{assembled?.system_prompt || '…'}</pre>
@@ -509,7 +509,7 @@ export default function Memory() {
                     {t.taint === 'untrusted' && <Tag tone="untrusted">outside content</Tag>}
                     {t.has_proposal && <Tag tone="pending">had a proposed change</Tag>}
                     <span className="dim mem-when">
-                      deleted {when(t.deleted_at)} · {t.size.toLocaleString()} B</span>
+                      deleted {when(t.deleted_at)}, {t.size.toLocaleString()} B</span>
                     <button className="ghost" disabled={busy === `t:${t.id}`}
                             onClick={() => restore(t)}>Restore</button>
                   </div>

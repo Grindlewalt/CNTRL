@@ -282,7 +282,7 @@ export default function ChatBox({ projectSlug, initialId, onOpened }) {
             <li key={c.id} className={c.id === cid ? 'active' : ''}
                 onClick={() => pick(c.id)}>
               <span className="grow ellipsis">
-                {c.summary || `#${c.id} · ${c.started_at?.slice(5, 16) || ''}`}</span>
+                {c.summary || `#${c.id}, ${c.started_at?.slice(5, 16) || ''}`}</span>
               {c.agent_slug && <Tag>{nameOf(c.agent_slug)}</Tag>}
               <button className="win-btn" title="delete" onClick={(e) => del(c.id, e)}>×</button>
             </li>

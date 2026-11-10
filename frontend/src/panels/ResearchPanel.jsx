@@ -80,7 +80,7 @@ export default function ResearchPanel({ slug, state, setState }) {
         })}
       </div>
       {doc && <div className="dim small">document written to <code>{doc.path}</code>
-        {doc.usage && <> · {doc.usage}</>}</div>}
+        {doc.usage && <>, {doc.usage}</>}</div>}
     </div>
   )
 }
