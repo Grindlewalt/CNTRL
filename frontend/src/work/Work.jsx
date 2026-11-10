@@ -18,6 +18,7 @@ import {
   switchCard, toSaved,
 } from './layout.js'
 import { ALIASES, WINDOW_TYPES, isWindowType } from './types.js'
+import { UiGlyph } from '../shell/glyphs.jsx'
 
 // the cards (xterm, the editors, …) and the Projects page load on first use,
 // so the chat does not wait for them
@@ -517,27 +518,27 @@ const WindowFrame = memo(function WindowFrame({
                 title="switch this window to another card"
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => onPicker(e, 'switch', id)}>
-          <span>{def?.title || leaf.type}{sub && <span className="work-wh-sub"> · {sub}</span>}</span>
-          <span className="work-caret" aria-hidden="true">▾</span>
+          <span>{def?.title || leaf.type}{sub && <span className="work-wh-sub"> {sub}</span>}</span>
+          <UiGlyph name="down" size={12} className="work-caret" />
         </button>
         <span className="grow" />
         {!phone && <>
           <button type="button" className="work-wh-btn opt1" title="split right (ctrl+\)"
                   aria-label="split right" onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => onPicker(e, 'split', id, 'row')}>⫶</button>
+                  onClick={(e) => onPicker(e, 'split', id, 'row')}><UiGlyph name="splitRight" size={14} /></button>
           <button type="button" className="work-wh-btn opt1" title="split down"
                   aria-label="split down" onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => onPicker(e, 'split', id, 'col')}>⊟</button>
+                  onClick={(e) => onPicker(e, 'split', id, 'col')}><UiGlyph name="splitDown" size={14} /></button>
           <button type="button" className="work-wh-btn opt1" title="minimize"
                   aria-label="minimize" onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => onMinimize(id)}>–</button>
+                  onClick={() => onMinimize(id)}><UiGlyph name="minimize" size={14} /></button>
           <button type="button" className="work-wh-btn opt2"
                   aria-label={maximized ? 'restore' : 'maximize'}
                   title={maximized ? 'restore (double-click the header)' : 'maximize (double-click the header)'}
-                  onClick={() => onToggleMax(id)}>{maximized ? '▣' : '□'}</button>
+                  onClick={() => onToggleMax(id)}><UiGlyph name={maximized ? 'restore' : 'maximize'} size={14} /></button>
         </>}
         <button type="button" className="work-wh-btn" title="close" aria-label="close window"
-                onClick={() => onClose(id)}>×</button>
+                onClick={() => onClose(id)}><UiGlyph name="close" size={14} /></button>
       </header>
       <div className="window-body work-wb">
         <ErrorBoundary resetKey={`${leaf.type}:${foreign ? other : slug}`}>
@@ -637,16 +638,18 @@ function WindowPicker({
   const mine = [...projects].sort((a, b) => (b.slug === project) - (a.slug === project))
   const winRows = (slug, skip) => Object.entries(WINDOW_TYPES)
     .filter(([k]) => !skip.includes(k))
-    .map(([k, v]) => ({ key: k, text: v.label, run: () => onPick(k, slug ? { project: slug } : {}) }))
+    .map(([k, v]) => ({ key: k, text: v.title, sub: v.desc || undefined,
+                        run: () => onPick(k, slug ? { project: slug } : {}) }))
   let all
   if (full) all = []
   else if (!project) {
     all = projects.map((p) => ({ key: p.slug, text: p.name || p.slug, run: () => onPickProject(p.slug) }))
   } else if (!step) {
     all = [
-      { key: '__chat', text: 'Chat… — any conversation, any project', stay: true,
+      { key: '__chat', text: 'Chat', sub: 'any conversation, any project', stay: true,
         run: () => go({ kind: 'chat' }) },
-      { key: 'review', text: WINDOW_TYPES.review.label, run: () => onPick('review') },
+      { key: 'review', text: WINDOW_TYPES.review.title, sub: WINDOW_TYPES.review.desc,
+        run: () => onPick('review') },
       ...winRows(null, ['chat', 'review']),
       { key: '__other', text: 'Another project’s windows…', stay: true, run: () => go({ kind: 'proj' }) },
     ]
@@ -777,7 +780,7 @@ function StopMenu({ project }) {
             trigger={(
               <button type="button" className="work-plus work-stop" aria-haspopup="menu"
                       aria-expanded={open} title="stop running turns"
-                      onClick={() => setOpen((o) => !o)}>■ ▾</button>
+                      onClick={() => setOpen((o) => !o)}><UiGlyph name="stop" size={12} /><UiGlyph name="down" size={12} /></button>
             )}>
         <MenuItem danger disabled={!project}
                   sub={project ? undefined : 'no project on this chat'}

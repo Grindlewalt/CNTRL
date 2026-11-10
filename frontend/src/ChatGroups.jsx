@@ -6,6 +6,7 @@ import { notifyError } from './notify.js'
 import Menu, { MenuItem, MenuSep } from './components/Menu.jsx'
 import Input from './components/Input.jsx'
 import Button from './components/Button.jsx'
+import { UiGlyph } from './shell/glyphs.jsx'
 import { activeFrom } from './chatActive.js'
 import { projectsChanged } from './projectsChanged.js'
 
@@ -262,7 +263,7 @@ export default function ChatGroups({
                 trigger={
                   <button type="button" className="win-btn" title="chat actions"
                           aria-haspopup="menu" aria-expanded={menu === key}
-                          onClick={() => setMenu(menu === key ? null : key)}>⋯</button>
+                          onClick={() => setMenu(menu === key ? null : key)}><UiGlyph name="more" size={15} /></button>
                 }>
             <MenuItem onClick={() => patchChat(c.id, { starred: !c.starred })}>
               {c.starred ? 'Unstar' : 'Star'}</MenuItem>
@@ -306,7 +307,7 @@ export default function ChatGroups({
         <GroupHead id="projects" label="Projects" count={projects.length}
                    folded={!!folded.projects} onToggle={toggle}>
           <Link to="/projects" className="win-btn convo-group-add" title="new project"
-                aria-label="new project">＋</Link>
+                aria-label="new project"><UiGlyph name="plus" size={15} /></Link>
         </GroupHead>
         {!folded.projects && (projects.length ? (
           <ul id="convo-group-projects" className="convo-rows proj-rows">
@@ -326,7 +327,7 @@ export default function ChatGroups({
                             <button type="button" className="win-btn" title="project actions"
                                     aria-label={`${p.name} actions`}
                                     aria-haspopup="menu" aria-expanded={menu === key}
-                                    onClick={() => setMenu(menu === key ? null : key)}>⋯</button>
+                                    onClick={() => setMenu(menu === key ? null : key)}><UiGlyph name="more" size={15} /></button>
                           }>
                       <MenuItem onClick={() => renameProject(p)}>Rename</MenuItem>
                       <MenuSep />
@@ -339,21 +340,21 @@ export default function ChatGroups({
           </ul>
         ) : (
           <p id="convo-group-projects" className="convo-group-empty">
-            No projects yet — ＋ makes one.</p>
+            No projects yet. The plus above makes one.</p>
         ))}
       </section>
       {starred.length > 0 && group('starred', 'Starred', starred)}
       {folders.map((f) => {
         const key = `f:${f.id}`
         return group(key, f.name, inFolder(f.id), {
-          empty: 'Empty — file a chat here from its ⋯ menu.',
+          empty: 'Empty. File a chat here from its menu.',
           head: (
             <Menu open={menu === key} onClose={closeMenu} floating label="folder actions"
                   width={180} wrapClassName="convo-group-menu"
                   trigger={
                     <button type="button" className="win-btn" title="folder actions"
                             aria-haspopup="menu" aria-expanded={menu === key}
-                            onClick={() => setMenu(menu === key ? null : key)}>⋯</button>
+                            onClick={() => setMenu(menu === key ? null : key)}><UiGlyph name="more" size={15} /></button>
                   }>
               <MenuItem onClick={() => renameFolder(f)}>Rename</MenuItem>
               <MenuItem danger onClick={() => deleteFolder(f)}>Delete folder</MenuItem>
@@ -363,7 +364,7 @@ export default function ChatGroups({
       })}
       {draft === null
         ? <Button variant="ghost" className="convo-new-folder"
-                  onClick={() => setDraft('')}>+ folder</Button>
+                  onClick={() => setDraft('')}>New folder</Button>
         : (
           <form className="convo-new-folder-form"
                 onSubmit={async (e) => {

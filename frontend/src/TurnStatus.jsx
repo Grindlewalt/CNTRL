@@ -56,8 +56,8 @@ export default function TurnStatus({ busy, messages, cid, waiting = false, compa
       <span className="turn-status-dot" aria-hidden="true" />
       <span className="turn-status-main">
         {waiting ? 'waiting for you' : 'working'} {fmtElapsed(now - start)}
-        <span className="turn-status-dim"> · {facts.join(' · ')}</span>
-        {st.failed > 0 && <span className="turn-status-bad"> · {st.failed} failed</span>}
+        <span className="turn-status-dim">, {facts.join(', ')}</span>
+        {st.failed > 0 && <span className="turn-status-bad">, {st.failed} failed</span>}
       </span>
       {cur && !waiting && (
         <span className="turn-status-now ellipsis" title={cur.arg}>

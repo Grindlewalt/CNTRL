@@ -3,6 +3,7 @@ import Menu, { MenuItem, MenuSep } from '../components/Menu.jsx'
 import Toggle from '../components/Toggle.jsx'
 import ModelPicker from '../ModelPicker.jsx'
 import { isPhone } from '../breakpoints.js'
+import { SendGlyph } from './glyphs.jsx'
 
 // The shell's prompt: one box pinned under the transcript.
 //
@@ -91,7 +92,7 @@ export default function Composer({
           <span className="sh-caret" aria-hidden="true">›</span>
           <textarea ref={ta} rows={1} value={value}
                     aria-label={`message ${who}`}
-                    placeholder={temporary ? `Message ${who} (temporary)…` : `Message ${who}…`}
+                    placeholder={temporary ? `Message ${who} (temporary chat)` : `Message ${who}`}
                     onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} />
         </div>
         <div className="sh-bar">
@@ -106,9 +107,9 @@ export default function Composer({
           <span className="grow" />
           {busy
             ? <button type="button" className="send-btn stop" title="stop this turn (Esc)"
-                      aria-label="stop" onClick={onStop}>◼</button>
+                      aria-label="stop" onClick={onStop}><SendGlyph stop /></button>
             : <button type="submit" className="send-btn" title="send (Enter)"
-                      aria-label="send" disabled={!value.trim()}>↑</button>}
+                      aria-label="send" disabled={!value.trim()}><SendGlyph /></button>}
         </div>
       </div>
     </form>
