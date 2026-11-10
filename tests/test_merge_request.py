@@ -260,3 +260,41 @@ async def test_the_detail_shows_everything_approval_commits(proj, removed, hist)
     assert sorted(d["files"]) == ["A c.txt", "A notes.txt"] and "+mine" in d["diff"]
     await gitgate.approve_request(row["id"], "demo")
     assert hist[-1][1]["applied"] == ["c.txt"]
+
+
+async def test_approving_a_pr_answers_first_then_pushes_and_closes_the_mirror(proj, removed,
+                                                                            monkeypatch):
+    # the pushes and the mirror's close (a comment, a close, a branch delete) followed
+    # the merge inside the operator's click; now they follow the answer, in order
+    from backend import gitea
+    seen = []
+    monkeypatch.setattr(gitea, "enabled", lambda: True)
+
+    async def mirror(slug, branch, sha, summary):
+        return 5
+
+    import asyncio
+    gate = asyncio.Event()
+
+    async def push(slug):
+        await gate.wait()
+        seen.append("push")
+
+    async def close(slug, pl, *, merged):
+        seen.append(("close", pl.get("pr_number"), merged))
+
+    async def noop(*a, **k):
+        return None
+    monkeypatch.setattr(gitea, "mirror_merge_request", mirror)
+    monkeypatch.setattr(gitea, "push_main", push)
+    monkeypatch.setattr(gitea, "close_merge_mirror", close)
+    for n in ("reconcile", "sync_main", "ensure_remote_repo"):
+        monkeypatch.setattr(gitea, n, noop)
+    base = _g(proj, "rev-parse", "HEAD")
+    _branch(proj, base, {"c.txt": "c\n"})
+    row = await _file(proj, base)
+    out = await gitgate.approve_request(row["id"], "demo")
+    assert out["status"] == "approved" and seen == []          # answered before the pushes
+    gate.set()
+    await gitgate.mirror_idle()
+    assert seen == ["push", ("close", 5, True)]

@@ -772,19 +772,6 @@ async def _approve_merge(db, rid: int, row: dict) -> dict:
         error = f"{error}; {note}" if error else note
     async with db.execute("SELECT github_remote FROM projects WHERE slug = ?", (slug,)) as cur:
         prow = await cur.fetchone()
-    if prow and prow["github_remote"]:
-        try:
-            await push_to_remote(slug)
-        except (RuntimeError, ValueError) as e:
-            error = f"push failed: {e}"
-    if gitea.enabled():
-        try:
-            await gitea.ensure_remote_repo(slug)
-            gerr = await gitea.push_main(slug)
-        except (RuntimeError, ValueError) as e:
-            gerr = f"committed; main not pushed to Gitea: {gitea.scrub(str(e))}"
-        if gerr:
-            error = f"{error}; {gerr}" if error else gerr
     try:
         from . import edithistory
         await edithistory.after_apply(slug, None, {"applied": applied, "deleted": deleted},
@@ -792,11 +779,13 @@ async def _approve_merge(db, rid: int, row: dict) -> dict:
     except Exception as e:                          # noqa: BLE001
         log.warning("edit history after merge: %s", e)
     await _cleanup_merge(slug, pl)
-    if gitea.enabled():
-        await gitea.close_merge_mirror(slug, pl, merged=True)
     await db.execute("UPDATE git_requests SET status = 'approved', commit_sha = ?, error = ?, "
                      "decided_at = datetime('now') WHERE id = ?", (new, error, rid))
     await db.commit()
+    # the pushes, then the Gitea mirror PR closed (Gitea marks it merged once main
+    # holds its head), after the answer: see _mirror
+    after = (lambda: gitea.close_merge_mirror(slug, pl, merged=True)) if gitea.enabled() else None
+    _mirror_later(slug, rid, github=bool(prow and prow["github_remote"]), after=after)
     return await _fetch_request(db, rid)
 
 
@@ -979,13 +968,15 @@ _mirror_locks: dict[str, asyncio.Lock] = {}
 _mirror_tasks: set[asyncio.Task] = set()
 
 
-def _mirror_later(slug: str, rid: int, *, github: bool) -> None:
-    task = asyncio.create_task(_mirror(slug, rid, github))
+def _mirror_later(slug: str, rid: int, *, github: bool, after=None) -> None:
+    task = asyncio.create_task(_mirror(slug, rid, github, after))
     _mirror_tasks.add(task)
     task.add_done_callback(_mirror_tasks.discard)
 
 
-async def _mirror(slug: str, rid: int, github: bool) -> None:
+async def _mirror(slug: str, rid: int, github: bool, after=None) -> None:
+    """`after`: a coroutine function run once the pushes are done (a merge's mirror
+    PR is closed only after main holds its head); it must not raise."""
     from . import gitea
     async with _mirror_locks.setdefault(slug, asyncio.Lock()):
         error = None
@@ -1006,11 +997,19 @@ async def _mirror(slug: str, rid: int, github: bool) -> None:
                     error = f"{error}; {gerr}" if error else gerr
         except Exception as e:      # noqa: BLE001 - a background push must not vanish silently
             error = f"committed; the push after it failed: {type(e).__name__}: {e}"
+        if after is not None:
+            try:
+                await after()
+            except Exception as e:  # noqa: BLE001
+                log.warning("after the push for request #%s: %s", rid, e)
         if not error:
             return
         db = await get_db()
         try:
-            await db.execute("UPDATE git_requests SET error = ? WHERE id = ?", (error, rid))
+            # added to what the approval wrote (a merge's held or skipped files)
+            await db.execute("UPDATE git_requests SET error = CASE WHEN error IS NULL OR "
+                             "error = '' THEN ? ELSE error || '; ' || ? END WHERE id = ?",
+                             (error, error, rid))
             await db.commit()
             from . import security
             await security.raise_event(
