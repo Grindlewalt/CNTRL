@@ -25,6 +25,17 @@ export const TERMINAL_ONLY = {
   update: 'the terminal client updates itself: /update there, or jav3 update in a shell; '
     + 'this page is always the server’s newest',
   'new-panel': 'panels are the terminal client’s /new-panel — the Work page has its own windows',
+  transcript: 'the terminal client’s /transcript puts the whole chat on the clipboard — here '
+    + '/export downloads it as markdown',
+  pull: 'the clone and pull commands for a project are the terminal client’s /pull — the web '
+    + 'app does not show them yet',
+  helper: 'the terminal client’s /helper loads Jav3’s manual into the next turn — here, just '
+    + 'ask Jav3 about itself: it can read its manual',
+  undo: 'undoing Jav3’s last file change is the terminal client’s /undo — the web app has no '
+    + 'undo yet',
+  restart: 'restarting is the terminal client’s — here the browser’s reload picks up a new '
+    + 'version',
+  pages: 'published pages are on the Review page: each live one with its link and Unpublish',
 }
 
 // the terminal client's aliases for the above
