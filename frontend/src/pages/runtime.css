@@ -100,3 +100,17 @@
 :root .artifact-group .file-list li { display: flex; align-items: baseline; justify-content: space-between; }
 :root .artifact-group .file-list .grow { flex: 1; min-width: 0; }
 :root .artifact-group .row { margin-top: var(--sp-4); }
+
+/* ---- Voice ---- */
+:root .voice-tier-switch { background: none; border-color: var(--line-strong); }
+:root .voice-tier-switch button { font-size: var(--fs-md); }
+:root .voice-tier-switch button.on { background: var(--wash); color: var(--ink); box-shadow: none; }
+:root .voice-orb { border-color: var(--line-strong); }
+:root .voice-feed { background: none; border: 1px solid var(--line); border-radius: var(--radius-xl); }
+:root .voice-line { font-size: var(--fs-base); border-radius: var(--radius-lg); }
+:root .voice-line.user { background: var(--bubble); }
+:root .voice-line.assistant { background: var(--surface); }
+:root .voice-hint { color: var(--slate); }
+:root .voice-tier-tag { color: var(--accent); margin-left: var(--sp-4); }
+:root .voice-working-tag { margin-left: var(--sp-4); }
+:root .voice-line-tier { margin-left: var(--sp-4); color: var(--faint); font-size: var(--fs-sm); }

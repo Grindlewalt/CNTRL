@@ -215,7 +215,7 @@ export default function Player() {
     if (float) return
     try {
       const { win, dispose } = await openDetached({
-        width: 404, height: 178, title: 'CNTRL · music',
+        width: 404, height: 178, title: 'CNTRL music',
       })
       // closing the float only re-docks the controls; the track never stops
       const unwatch = watchClose(win, () => { dispose(); setFloat(null) })
@@ -246,7 +246,7 @@ export default function Player() {
 
   // it is a window in a task switcher: it should say what is playing
   useEffect(() => {
-    if (float && track) float.document.title = `${track.title} · CNTRL`
+    if (float && track) float.document.title = `${track.title} (CNTRL)`
   }, [float, track])
 
   useEffect(() => () => {
@@ -367,7 +367,7 @@ export default function Player() {
         <div className="jp-meta">
           <div className="jp-title ellipsis" title={track.title}>{track.title}</div>
           <div className="jp-sub ellipsis">
-            {[track.artist, track.album].filter(Boolean).join(' — ') || 'library'}
+            {[track.artist, track.album].filter(Boolean).join(', ') || 'Library'}
             {left > 0 && <span className="jp-queued">+{left}</span>}
           </div>
         </div>

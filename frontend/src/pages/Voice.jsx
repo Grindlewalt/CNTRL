@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import './runtime.css'
 import { TAB_ID } from '../tab.js'
 import { VoiceAudio } from '../voiceAudio.js'
 import { micEnv, micErrorText, micProblem } from '../micCheck.js'
@@ -117,7 +118,7 @@ export default function Voice() {
         case 'queued': push('sys', `(queued: “${msg.text}”)`); break
         case 'clap': push('sys', `(👏👏 ${msg.result || msg.title})`); break
         case 'wake': audio.chime(); break
-        case 'shutdown': push('sys', '(shutting down — say “hey CNTRL” after reload)'); break
+        case 'shutdown': push('sys', '(shutting down; say “hey CNTRL” after reload)'); break
         case 'tool_activity':
           if (msg.phase === 'call') push('tool', msg.name)
           break
@@ -161,8 +162,8 @@ export default function Voice() {
   return (
     <div className="voice-page">
       <div className="voice-tier-switch" role="group" aria-label="Model tier">
-        {[['local', 'Local', 'the local model on your GPU — free, fast, escalates when asked'],
-          ['smart', 'Smart', 'the main cloud model for every turn — costs money, no escalation question'],
+        {[['local', 'Local', 'The local model on your GPU: free, fast, escalates when asked'],
+          ['smart', 'Smart', 'The main cloud model for every turn: costs money, never asks to escalate'],
         ].map(([value, label, hint]) => (
           <button key={value} type="button" title={hint}
                   className={forceTier === value ? 'on' : ''}
@@ -179,8 +180,8 @@ export default function Voice() {
           <div className="voice-orb-core" />
         </div>
         <div className="voice-state">{micErr ? STATE_LABEL.mic_denied : (STATE_LABEL[state] || state)}
-          {tier === 'smart' && <span className="voice-tier-tag">smart model</span>}
-          {working && <span className="voice-working-tag">background work running</span>}
+          {tier === 'smart' && <span className="voice-tier-tag">Smart model</span>}
+          {working && <span className="voice-working-tag">Background work running</span>}
         </div>
         {micErr && <div className="voice-err voice-mic-err" role="alert">{micErr}</div>}
         {err && <div className="voice-err">{err}</div>}
@@ -189,7 +190,7 @@ export default function Voice() {
             <button className={muted ? '' : 'ghost'} onClick={toggleMute}>
               {muted ? 'Unmute mic' : 'Mute mic'}
             </button>)}
-          {cid && <a className="ghost-link" href={`/?c=${cid}`}>open transcript</a>}
+          {cid && <a className="ghost-link" href={`/?c=${cid}`}>Open transcript</a>}
         </div>
       </div>
 
@@ -210,12 +211,12 @@ export default function Voice() {
           <div className="voice-hint">
             {micErr
               ? 'Voice listens through the microphone, so it has nothing to hear yet.'
-              : 'Just start talking. Interrupt any time — he’ll stop.'}
+              : 'Start talking. You can interrupt at any time and it stops.'}
           </div>
         )}
         {feed.map((m) => (
           <div key={m.id} className={`voice-line ${m.role}`}>
-            {m.role === 'tool' ? `⚙ ${m.text}` : m.text}
+            {m.role === 'tool' ? <span className="mono">{m.text}</span> : m.text}
             {m.role === 'assistant' && m.tier === 'smart' &&
               <span className="voice-line-tier">smart</span>}
           </div>
