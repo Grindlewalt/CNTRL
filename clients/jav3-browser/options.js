@@ -22,7 +22,7 @@ $('pair').onclick = async () => {
   $('line').value = '';
   $('pairMsg').textContent = r && r.ok
     ? `Paired as “${r.name}”.` + (r.plainHttp ? ' Warning: plain http — the token crosses the network unencrypted.' : '')
-      + ' Now grant it to a project in Jav3 → Settings → Browser use.'
+      + ' Now grant it to a project in CNTRL → Settings → Browser use.'
     : `Failed: ${(r && r.error) || 'unknown error'}`;
 };
 

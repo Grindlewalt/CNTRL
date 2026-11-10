@@ -1,4 +1,4 @@
-"""/restart, and yes to "Restart jav3 now?" after /update: the client keeps what is open
+"""/restart, and yes to "Restart cntrl now?" after /update: the client keeps what is open
 in restart.json (0600), leaves the terminal and starts the file on disk again in the same
 process; the new one puts back the tabs and tiles, each tile's chat (re-attached when its
 turn still runs), draft, settings, attachments and page, the notifications and the /local
@@ -168,7 +168,7 @@ def test_a_kept_state_is_good_once_for_its_own_server_and_a_short_while():
 
 def test_the_restart_runs_the_file_on_disk_again_told_to_pick_up_the_state(tmp_path):
     seen = []
-    p = tmp_path / "jav3"
+    p = tmp_path / "cntrl"
     jav3.restart_client("10.0.0.82:8000", path=p, execv=lambda exe, argv: seen.append((exe, argv)))
     assert seen == [(sys.executable, [sys.executable, str(p), "--restored",
                                       "--server", "10.0.0.82:8000"])]

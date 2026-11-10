@@ -1,4 +1,4 @@
-"""Never silently frozen (clients/jav3cli/jav3): whose fault a failure is, a dead stream
+"""Never silently frozen (clients/cntrl/cntrl): whose fault a failure is, a dead stream
 that times out into the reattach loop, the quiet-turn lines, and the pulse that settles
 a turn the server finished without telling us."""
 import time

@@ -1,5 +1,5 @@
-// Jav3 browser extension: the service worker. One outbound WebSocket to the
-// Jav3 server (/api/browser/ws); every request is a verb from the closed list
+// CNTRL browser extension: the service worker. One outbound WebSocket to the
+// CNTRL server (/api/browser/ws); every request is a verb from the closed list
 // in lib/verbs.js, run only in tabs this extension opened itself, in its own
 // unfocused window. The operator's hand on it: per-site consent, a
 // notification with Cancel on every action, Pause, Disconnect.
@@ -85,7 +85,7 @@ async function connect() {
       await setStatus('unpaired', 'the server refused this extension\'s token — pair it again');
       return;
     }
-    await setStatus('offline', ev.code === 4001 ? 'stopped from Jav3 Settings' : '');
+    await setStatus('offline', ev.code === 4001 ? 'stopped from CNTRL Settings' : '');
     clearTimeout(S.retry);
     S.retry = setTimeout(connect, S.backoff);
     S.backoff = Math.min(S.backoff * 2, 60000);
@@ -106,7 +106,7 @@ async function onFrame(m) {
   } else if (m.type === 'req' && typeof m.id === 'string') {
     handleReq(m);
   } else if (m.type === 'kill') {
-    cancelCurrent('stopped from Jav3', false);
+    cancelCurrent('stopped from CNTRL', false);
   }
 }
 
@@ -116,7 +116,7 @@ function reply(id, ok, rest) { send({ type: 'res', id, ok, ...rest }); }
 
 async function handleReq(m) {
   const c = await cfg();
-  if (c.paused) return reply(m.id, false, { err: 'the operator paused Jav3 in the browser', code: 'paused' });
+  if (c.paused) return reply(m.id, false, { err: 'the operator paused CNTRL in the browser', code: 'paused' });
   if (S.current) return reply(m.id, false, { err: 'another browser action is still running', code: 'busy' });
   let p;
   try { p = validate(m.verb, m.params, { denyHosts: S.denyHosts }); } catch (e) {
@@ -148,17 +148,17 @@ function cancelCurrent(why, byOperator) {
 
 async function ownTab(tabId) {
   const s = await sess();
-  if (!s.tabs.includes(tabId)) throw new VerbError(`tab ${tabId} is not one Jav3 opened; Jav3 never touches the operator's tabs`);
+  if (!s.tabs.includes(tabId)) throw new VerbError(`tab ${tabId} is not one CNTRL opened; CNTRL never touches the operator's tabs`);
   try { return await chrome.tabs.get(tabId); } catch { throw new VerbError(`tab ${tabId} is closed`); }
 }
 
 async function allowed(url, c) {
   const host = hostOf(url);
   if (!host) throw new VerbError('that tab is not showing a web page');
-  if (isDeniedUrl(url, S.denyHosts)) throw new VerbError('that is the Jav3 server itself; Jav3 never uses it');
+  if (isDeniedUrl(url, S.denyHosts)) throw new VerbError('that is the CNTRL server itself; CNTRL never uses it');
   const d = siteDecision(host, c.sites);
   if (d === 'allow') return host;
-  if (d === 'deny') throw new VerbError(`the operator blocked Jav3 on ${host}`);
+  if (d === 'deny') throw new VerbError(`the operator blocked CNTRL on ${host}`);
   return askSite(host);
 }
 
@@ -169,8 +169,8 @@ function askSite(host) {
     a.timer = setTimeout(() => answer(host, null), ASK_TIMEOUT_MS);
     S.asks.set(host, a);
     chrome.notifications.create('ask:' + host, {
-      type: 'basic', iconUrl: ICON, title: 'Allow Jav3 on ' + host + '?',
-      message: 'Jav3 wants to use ' + host + ' in its own window. Allow for this site, or deny.',
+      type: 'basic', iconUrl: ICON, title: 'Allow CNTRL on ' + host + '?',
+      message: 'CNTRL wants to use ' + host + ' in its own window. Allow for this site, or deny.',
       buttons: [{ title: 'Allow' }, { title: 'Deny' }], requireInteraction: true, priority: 2,
     });
     publishAsks();
@@ -194,7 +194,7 @@ async function answer(host, allow) {
     if (allow) w.resolve(host);
     else w.reject(new VerbError(allow === null
       ? `the operator did not allow ${host} (no answer in ${ASK_TIMEOUT_MS / 1000} s)`
-      : `the operator denied Jav3 on ${host}`));
+      : `the operator denied CNTRL on ${host}`));
   }
 }
 
@@ -206,7 +206,7 @@ function publishAsks() {
 function notifyAct(verb, host, c) {
   if (!c.notify) return;
   chrome.notifications.create('jav3-act', {
-    type: 'basic', iconUrl: ICON, title: 'Jav3', message: describe(verb, host),
+    type: 'basic', iconUrl: ICON, title: 'CNTRL', message: describe(verb, host),
     buttons: [{ title: 'Cancel' }], priority: 0, silent: true,
   });
 }
@@ -219,9 +219,9 @@ async function jav3Window() {
   return null;
 }
 
-// Bring a tab into Jav3's session: its own window and tab group. Used both for
-// tabs Jav3 opens itself and for popups a Jav3 tab spawns (window.open,
-// target=_blank, OAuth choosers). If no Jav3 window exists yet the tab's own
+// Bring a tab into CNTRL's session: its own window and tab group. Used both for
+// tabs CNTRL opens itself and for popups a CNTRL tab spawns (window.open,
+// target=_blank, OAuth choosers). If no CNTRL window exists yet the tab's own
 // window becomes it; otherwise the tab is moved in from wherever it opened.
 async function joinSession(tab) {
   const s = await sess();
@@ -237,7 +237,7 @@ async function joinSession(tab) {
     groupId = await chrome.tabs.group(groupId != null
       ? { groupId, tabIds: [tab.id] }
       : { tabIds: [tab.id], createProperties: { windowId: winId } });
-    await chrome.tabGroups.update(groupId, { title: 'Jav3', color: 'purple' });
+    await chrome.tabGroups.update(groupId, { title: 'CNTRL', color: 'purple' });
   } catch { groupId = null; /* no tab groups in this Chromium, or the group is gone */ }
   await chrome.storage.session.set({ tabs, windowId: winId, groupId });
 }
@@ -268,7 +268,7 @@ const info = async tabId => {
 };
 
 // The frames of a tab, main frame first, only http(s) frames the extension may
-// read; the Jav3 server's own frames are dropped so the agent can never read or
+// read; the CNTRL server's own frames are dropped so the agent can never read or
 // drive its control plane through an iframe on a consented page.
 async function tabFrames(tabId) {
   let frames = [];
@@ -362,7 +362,7 @@ async function resolveElement(tabId, elementId) {
 
 // --- trusted clicks (lib/trusted.js) --------------------------------------------------------
 // chrome.debugger is attached only for the click; the one command it may send
-// is a mouse event, and only to a tab Jav3 opened.
+// is a mouse event, and only to a tab CNTRL opened.
 
 const withTimeout = (p, ms, what) => Promise.race([
   p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${what} timed out after ${ms / 1000} s`)), ms)),
@@ -374,7 +374,7 @@ function trustedDeps(tabId, c) {
   return {
     unavailable: () => (!hasApi ? 'no_permission' : c.trusted === false ? 'disabled' : null),
     attach: async id => {
-      if (!(await sess()).tabs.includes(id)) throw new Error(`tab ${id} is not one Jav3 opened`);
+      if (!(await sess()).tabs.includes(id)) throw new Error(`tab ${id} is not one CNTRL opened`);
       try {
         await withTimeout(chrome.debugger.attach({ tabId: id }, '1.3'), CDP_TIMEOUT_MS, 'attaching the debugger');
       } catch (e) {
@@ -428,7 +428,7 @@ async function releaseDebugger() {
 }
 
 // The operator pressed Cancel on Chrome's "started debugging this browser" bar:
-// the same as Cancel on the notification, the action stops and Jav3 pauses.
+// the same as Cancel on the notification, the action stops and CNTRL pauses.
 if (chrome.debugger && chrome.debugger.onDetach) {
   chrome.debugger.onDetach.addListener((source, reason) => {
     if (reason === 'canceled_by_user' && S.debugging === source.tabId) {
@@ -541,7 +541,7 @@ async function run(verb, p, c) {
   }
   if (verb === 'screenshot_tab') {
     const prev = await focusedWindow();
-    await chrome.tabs.update(p.tab, { active: true });   // active in Jav3's window only
+    await chrome.tabs.update(p.tab, { active: true });   // active in CNTRL's window only
     await giveFocusBack(prev, tab.windowId);
     const url = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 70 });
     const blob = await (await fetch(url)).blob();
@@ -571,7 +571,7 @@ async function run(verb, p, c) {
     if (r && r.inFrame) {
       const fid = await loadFocusFrame(p.tab);
       const f = (await loadFrames(p.tab)).find(m => m.frameId === fid);
-      if (fid == null || !f) throw new VerbError('the focus is inside a frame Jav3 has not clicked into; click the field first');
+      if (fid == null || !f) throw new VerbError('the focus is inside a frame CNTRL has not clicked into; click the field first');
       if (frameConsentNeeded(host, f.host)) await allowed(f.url, c);
       r = await inject(p.tab, keyPress, [p.combo], fid);
       index = f.index;
@@ -611,7 +611,7 @@ async function run(verb, p, c) {
       if (r && r.inFrame) {
         const fid = await loadFocusFrame(p.tab);
         const f = (await loadFrames(p.tab)).find(m => m.frameId === fid);
-        if (fid == null || !f) throw new VerbError('the focus is inside a frame Jav3 has not clicked into; click the field first');
+        if (fid == null || !f) throw new VerbError('the focus is inside a frame CNTRL has not clicked into; click the field first');
         if (frameConsentNeeded(host, f.host)) await allowed(f.url, c);
         r = await inject(p.tab, typeActive, [p.text, p.submit], fid);
       }
@@ -664,13 +664,13 @@ async function run(verb, p, c) {
                    ...(text ? { text } : {}), ...(via || {}), sig: await settleSig(p.tab, settle) } };
 }
 
-// Popups a Jav3 tab spawned during an action, so it can report their tab ids.
+// Popups a CNTRL tab spawned during an action, so it can report their tab ids.
 function openedSince(since, excludeTab) {
   const seen = S.adopted.filter(a => a.at >= since && a.id !== excludeTab);
   return seen.map(a => ({ tab: a.id, url: a.url || '' }));
 }
 
-// Jav3 must never pull the operator away from what they're doing. Chrome on
+// CNTRL must never pull the operator away from what they're doing. Chrome on
 // macOS (and Brave) can ignore `focused: false` and raise a window on
 // create/navigate/activate, so every such step remembers the window the
 // operator was in and hands focus straight back to it.
@@ -689,7 +689,7 @@ async function giveFocusBack(prevId, jav3WinId) {
   } catch { /* the operator's window closed meanwhile: nothing to restore */ }
 }
 
-// After a load the page may have redirected. A redirect to the Jav3 server is
+// After a load the page may have redirected. A redirect to the CNTRL server is
 // closed at once; any other new site is asked about by the next action on it
 // (every tab-bound verb checks the tab's CURRENT site first).
 async function afterLoad(tabId, c) {
@@ -697,7 +697,7 @@ async function afterLoad(tabId, c) {
   const host = hostOf(i.url);
   if (host && isDeniedUrl(i.url, S.denyHosts)) {
     await chrome.tabs.remove(tabId);
-    throw new VerbError('the page redirected to the Jav3 server; tab closed');
+    throw new VerbError('the page redirected to the CNTRL server; tab closed');
   }
   return i;
 }
@@ -716,9 +716,9 @@ chrome.notifications.onClosed.addListener((id, byUser) => {
   if (byUser && id.startsWith('ask:')) answer(id.slice(4), false);
 });
 
-// A Jav3 tab opened a new tab/window (window.open, target=_blank, an OAuth
-// account chooser): adopt it into Jav3's window and session so it is reachable
-// and grouped. Tabs the operator opened (no opener, or an opener Jav3 does not
+// A CNTRL tab opened a new tab/window (window.open, target=_blank, an OAuth
+// account chooser): adopt it into CNTRL's window and session so it is reachable
+// and grouped. Tabs the operator opened (no opener, or an opener CNTRL does not
 // own) are never touched.
 chrome.tabs.onCreated.addListener(tab => {
   const job = adoptPopup(tab);

@@ -207,7 +207,7 @@ class VoiceDesk:
         elif kind == "transcript":
             log.info("heard: %s", ev.get("text", ""))
         elif kind == "assistant_text":
-            log.info("jav3[%s]: %s", ev.get("tier", "?"), ev.get("text", ""))
+            log.info("cntrl[%s]: %s", ev.get("tier", "?"), ev.get("text", ""))
         elif kind == "state":
             log.debug("state: %s", ev.get("state"))
         elif kind == "clap":

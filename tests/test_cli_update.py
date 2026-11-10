@@ -30,17 +30,17 @@ def sha(text: str) -> str:
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     monkeypatch.setenv("HOME", str(tmp_path))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 @pytest.fixture
 def installed(tmp_path, monkeypatch):
     """An installed client (not in a checkout) beside a launcher and a venv it must leave alone."""
-    share = tmp_path / "share" / "jav3"
+    share = tmp_path / "share" / "cntrl"
     (share / "venv" / "bin").mkdir(parents=True)
     (share / "venv" / "bin" / "python").write_text("venv python")
     (share / "launcher").write_text("#!/bin/sh\nexec python jav3\n")
-    path = share / "jav3"
+    path = share / "cntrl"
     path.write_text(OLD)
     monkeypatch.setattr(jav3, "_client_file", lambda: path)
     return path
@@ -48,19 +48,20 @@ def installed(tmp_path, monkeypatch):
 
 def untouched(path, others=("launcher", "venv/bin/python")):
     assert path.read_text() == OLD
-    assert sorted(p.name for p in path.parent.iterdir()) == ["jav3", "launcher", "venv"]
+    assert sorted(p.name for p in path.parent.iterdir()) == ["cntrl", "launcher", "venv"]
     assert [(path.parent / o).read_text() for o in others] == ["#!/bin/sh\nexec python jav3\n",
                                                                "venv python"]
 
 
 class UpdSrv(FakeServer):
-    """A FakeServer that also serves /cli/jav3 and /cli/version."""
+    """A FakeServer that also serves /cli/cntrl and /cli/version."""
 
     def __init__(self, served: str = NEW, requires=(), **kw):
         super().__init__(**kw)
         self.served = served
         self.requires = list(requires)
         self.version_status = 200
+        self.old_name_only = False             # an older server: /cli/cntrl is a 404, /cli/jav3 serves
         self.gate: asyncio.Event | None = None     # hold /cli/version until the test sets it
 
     def handle(self, request):
@@ -74,8 +75,10 @@ class UpdSrv(FakeServer):
             return httpx.Response(200, json={
                 "sha256": sha(self.served), "size": len(self.served.encode()),
                 "mtime": 1, "requires": self.requires})
-        if path == "/cli/jav3":
+        if path == "/cli/jav3" or path == "/cli/cntrl":
             self.calls.append((request.method, path))
+            if path == "/cli/cntrl" and self.old_name_only:
+                return httpx.Response(404, json={"detail": "Not Found"})
             return httpx.Response(200, text=self.served)
         return super().handle(request)
 
@@ -102,7 +105,7 @@ async def test_version_endpoint_matches_the_file_it_serves_and_needs_no_login(tm
     await init_db()
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
                                  base_url="http://jav3.lan:8000") as anon:
-        file = await anon.get("/cli/jav3")
+        file = await anon.get("/cli/cntrl")
         v = await anon.get("/cli/version")
         # the same access as the file: no cookie, no token
         assert file.status_code == 200 and v.status_code == 200
@@ -117,38 +120,38 @@ async def test_version_endpoint_matches_the_file_it_serves_and_needs_no_login(tm
 
 def test_version_is_cached_until_the_file_changes(tmp_path, monkeypatch):
     from backend import devices_api as d
-    (tmp_path / "jav3").write_text(OLD)
+    (tmp_path / "cntrl").write_text(OLD)
     (tmp_path / "install.sh").write_text("HTTPX_SPEC='httpx>=0.27,<1'\nTUI_SPECS='textual>=8,<9'\n")
     monkeypatch.setattr(d, "CLI_DIR", tmp_path)
     monkeypatch.setattr(d, "_cli_version_cache", {"key": None, "body": None})
     a = d._cli_version()
     assert a["sha256"] == sha(OLD) and a["requires"] == ["httpx>=0.27,<1", "textual>=8,<9"]
     assert d._cli_version() is a                       # unchanged file: the same answer, no re-hash
-    (tmp_path / "jav3").write_text(NEW)
-    st = (tmp_path / "jav3").stat()
-    os.utime(tmp_path / "jav3", ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
+    (tmp_path / "cntrl").write_text(NEW)
+    st = (tmp_path / "cntrl").stat()
+    os.utime(tmp_path / "cntrl", ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
     b = d._cli_version()
     assert b is not a and b["sha256"] == sha(NEW) and b["size"] == len(NEW)
     assert b["mtime"] >= a["mtime"]
     # same mtime, different size (a quick edit within the timestamp's granularity)
-    (tmp_path / "jav3").write_text(NEW + "x = 1\n")
-    os.utime(tmp_path / "jav3", ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
+    (tmp_path / "cntrl").write_text(NEW + "x = 1\n")
+    os.utime(tmp_path / "cntrl", ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
     assert d._cli_version()["sha256"] == sha(NEW + "x = 1\n")
 
 
 # --- helpers ------------------------------------------------------------------------------
 
 def test_a_checkout_is_the_repo_layout_under_a_git_dir_not_any_git_ancestor(tmp_path):
-    repo = tmp_path / "work" / "Jav3"
+    repo = tmp_path / "work" / "CNTRL"
     (repo / ".git").mkdir(parents=True)
-    (repo / "clients" / "jav3cli").mkdir(parents=True)
-    assert jav3._in_checkout(repo / "clients" / "jav3cli" / "jav3")
-    (tmp_path / "work" / "wt" / "clients" / "jav3cli").mkdir(parents=True)
+    (repo / "clients" / "cntrl").mkdir(parents=True)
+    assert jav3._in_checkout(repo / "clients" / "cntrl" / "cntrl")
+    (tmp_path / "work" / "wt" / "clients" / "cntrl").mkdir(parents=True)
     (tmp_path / "work" / "wt" / ".git").write_text("gitdir: elsewhere")     # a worktree
-    assert jav3._in_checkout(tmp_path / "work" / "wt" / "clients" / "jav3cli" / "jav3")
+    assert jav3._in_checkout(tmp_path / "work" / "wt" / "clients" / "cntrl" / "cntrl")
     # a dotfiles repo around the home directory does not make the installed copy a checkout
     (tmp_path / ".git").mkdir()
-    assert not jav3._in_checkout(tmp_path / ".local" / "share" / "jav3" / "jav3")
+    assert not jav3._in_checkout(tmp_path / ".local" / "share" / "cntrl" / "cntrl")
 
 
 @pytest.mark.parametrize("version, spec, ok", [
@@ -233,7 +236,7 @@ async def test_a_different_client_on_the_server_is_one_quiet_notice(installed):
         assert await wait_for(lambda: any(t == jav3.UPDATE_NOTICE for _, _, t in app.notices))
         assert [n for n in app.notices if n[2] == jav3.UPDATE_NOTICE][0][1] == "info"
         assert app.unread >= 1 and toasts == []             # counted in the status row, no toast
-    assert jav3.UPDATE_NOTICE == "a newer jav3 is on the server: /update"
+    assert jav3.UPDATE_NOTICE == "a newer cntrl is on the server: /update"
     assert installed.read_text() == OLD                     # noticing changes nothing
 
 
@@ -283,8 +286,8 @@ async def test_nothing_to_say_when_the_server_cannot_be_asked_or_is_older(instal
 async def test_a_checkout_is_never_asked_or_nagged(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     (repo / ".git").mkdir(parents=True)
-    (repo / "clients" / "jav3cli").mkdir(parents=True)
-    path = repo / "clients" / "jav3cli" / "jav3"
+    (repo / "clients" / "cntrl").mkdir(parents=True)
+    path = repo / "clients" / "cntrl" / "cntrl"
     path.write_text(OLD)
     monkeypatch.setattr(jav3, "_client_file", lambda: path)
     srv = UpdSrv()
@@ -305,18 +308,18 @@ async def test_update_replaces_the_file_keeps_a_backup_and_leaves_the_rest(insta
         await send(pilot, app, "/update")
         # it asks to restart into the new one; n keeps this one running
         assert await wait_for(lambda: type(app.screen).__name__ == "Confirm")
-        assert "Restart jav3 now?" in str(app.screen.query("Static")[0].render())
+        assert "Restart cntrl now?" in str(app.screen.query("Static")[0].render())
         day = time.strftime("%Y-%m-%d")
-        assert any(f"jav3.bak-{day}" in n for n in notes(app))     # the note names the backup
+        assert any(f"cntrl.bak-{day}" in n for n in notes(app))     # the note names the backup
         await pilot.pause(0.5)                                      # past its grace
         await pilot.press("n")
         assert await wait_for(lambda: any("/restart when you're ready" in n for n in notes(app)))
         assert app.return_value is None
     assert installed.read_text() == NEW
-    assert (installed.parent / f"jav3.bak-{day}").read_text() == OLD
+    assert (installed.parent / f"cntrl.bak-{day}").read_text() == OLD
     # the temp file is gone; the launcher and the venv are as they were
     assert sorted(p.name for p in installed.parent.iterdir()) == [
-        "jav3", f"jav3.bak-{day}", "launcher", "venv"]
+        "cntrl", f"cntrl.bak-{day}", "launcher", "venv"]
     assert (installed.parent / "launcher").read_text() == "#!/bin/sh\nexec python jav3\n"
     assert (installed.parent / "venv" / "bin" / "python").read_text() == "venv python"
 
@@ -362,8 +365,8 @@ async def test_update_refuses_a_download_that_is_not_python(installed):
 async def test_update_in_a_checkout_says_to_git_pull(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     (repo / ".git").mkdir(parents=True)
-    (repo / "clients" / "jav3cli").mkdir(parents=True)
-    path = repo / "clients" / "jav3cli" / "jav3"
+    (repo / "clients" / "cntrl").mkdir(parents=True)
+    path = repo / "clients" / "cntrl" / "cntrl"
     path.write_text(OLD)
     monkeypatch.setattr(jav3, "_client_file", lambda: path)
     srv = UpdSrv()
@@ -373,8 +376,8 @@ async def test_update_in_a_checkout_says_to_git_pull(tmp_path, monkeypatch):
         await send(pilot, app, "/update")
         assert await wait_for(lambda: any("you are running from a checkout" in n for n in notes(app)))
         assert any("git pull instead" in n for n in notes(app))
-    assert path.read_text() == OLD and sorted(os.listdir(path.parent)) == ["jav3"]
-    assert ("GET", "/cli/jav3") not in srv.calls            # refused before downloading anything
+    assert path.read_text() == OLD and sorted(os.listdir(path.parent)) == ["cntrl"]
+    assert ("GET", "/cli/cntrl") not in srv.calls            # refused before downloading anything
 
 
 async def test_update_while_a_turn_runs_is_allowed(installed):
@@ -409,7 +412,7 @@ def test_update_with_libraries_too_old_prints_the_install_line_and_changes_nothi
     untouched(installed)
     # the same file with libraries that fit goes through
     monkeypatch.setattr(metadata, "version", lambda n: "8.0.0")
-    assert "Restart jav3 to use it" in jav3.update_client(BASE, installed, srv.transport())
+    assert "Restart cntrl to use it" in jav3.update_client(BASE, installed, srv.transport())
     assert installed.read_text() == NEW
 
 
@@ -417,15 +420,15 @@ def test_update_when_already_current_changes_nothing(installed):
     installed.write_text(NEW)
     msg = jav3.update_client(BASE, installed, UpdSrv().transport())
     assert "up to date" in msg
-    assert sorted(p.name for p in installed.parent.iterdir()) == ["jav3", "launcher", "venv"]
+    assert sorted(p.name for p in installed.parent.iterdir()) == ["cntrl", "launcher", "venv"]
 
 
 def test_a_second_update_the_same_day_keeps_both_backups(installed):
     jav3.update_client(BASE, installed, UpdSrv().transport(), today="2026-10-01")
     jav3.update_client(BASE, installed, UpdSrv(served=NEW + "# again\n").transport(),
                        today="2026-10-01")
-    assert (installed.parent / "jav3.bak-2026-10-01").read_text() == OLD
-    assert (installed.parent / "jav3.bak-2026-10-01-2").read_text() == NEW
+    assert (installed.parent / "cntrl.bak-2026-10-01").read_text() == OLD
+    assert (installed.parent / "cntrl.bak-2026-10-01-2").read_text() == NEW
     assert installed.read_text() == NEW + "# again\n"
 
 
@@ -464,9 +467,9 @@ def test_jav3_update_uses_the_saved_server_and_prints_the_result(installed):
     srv = UpdSrv()
     out = io.StringIO()
     assert jav3.cmd_update(argparse.Namespace(server=None), out, transport=srv.transport()) == 0
-    assert "Restart jav3 to use it" in out.getvalue()
+    assert "Restart cntrl to use it" in out.getvalue()
     assert installed.read_text() == NEW
-    assert (installed.parent / f"jav3.bak-{time.strftime('%Y-%m-%d')}").read_text() == OLD
+    assert (installed.parent / f"cntrl.bak-{time.strftime('%Y-%m-%d')}").read_text() == OLD
 
 
 def test_jav3_update_without_a_server_or_login_says_so(installed):
@@ -488,4 +491,31 @@ def test_main_routes_update_and_prints_refusals_as_one_line(installed, monkeypat
     monkeypatch.setattr(jav3, "update_client", refuse)
     assert jav3.main(["--server", "h:1", "update"]) == 1
     assert capsys.readouterr().err.strip() == (
-        "jav3: you are running from a checkout; git pull instead")
+        "cntrl: you are running from a checkout; git pull instead")
+
+
+def test_update_falls_back_to_the_old_name_on_an_older_server(installed):
+    srv = UpdSrv()
+    srv.old_name_only = True                      # /cli/cntrl is a 404, /cli/jav3 serves
+    out = jav3.update_client("http://h:1", installed, srv.transport(), today="2026-11-10")
+    assert installed.read_text() == NEW and "updated" in out
+    assert [p for _, p in srv.calls if p.startswith("/cli/") and p != "/cli/version"] == [
+        "/cli/cntrl", "/cli/jav3"]
+
+
+def test_update_says_so_when_neither_name_is_served(installed):
+    class Gone(UpdSrv):
+        def handle(self, request):
+            if request.url.path in ("/cli/cntrl", "/cli/jav3"):
+                return httpx.Response(404)
+            return super().handle(request)
+    with pytest.raises(jav3.CliError, match="404"):
+        jav3.update_client("http://h:1", installed, Gone().transport())
+    assert installed.read_text() == OLD
+
+
+def test_a_checkout_is_recognised_under_clients_cntrl(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    (repo / "clients" / "cntrl").mkdir(parents=True)
+    assert jav3._in_checkout(repo / "clients" / "cntrl" / "cntrl")

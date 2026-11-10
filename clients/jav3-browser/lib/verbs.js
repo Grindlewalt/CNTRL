@@ -85,7 +85,7 @@ export function checkUrl(url, denyHosts = []) {
   if (u.username || u.password) throw new VerbError('URLs with a user:password@ part are refused');
   const host = hostOf(url);
   if (!host) throw new VerbError('that URL has no host');
-  if (isDeniedUrl(url, denyHosts)) throw new VerbError('that is the Jav3 server itself; Jav3 never opens it');
+  if (isDeniedUrl(url, denyHosts)) throw new VerbError('that is the CNTRL server itself; CNTRL never opens it');
   return url;
 }
 
@@ -217,8 +217,8 @@ export function frameConsentNeeded(topHost, frameHost) {
   return !sameSite(topHost, frameHost);
 }
 
-// Popup adoption: a tab is adopted only when a Jav3-owned tab opened it. The
-// operator's own tabs (no opener, or an opener Jav3 does not own) are never
+// Popup adoption: a tab is adopted only when a CNTRL-owned tab opened it. The
+// operator's own tabs (no opener, or an opener CNTRL does not own) are never
 // touched.
 export function shouldAdopt(openerTabId, ownTabIds, newTabId) {
   const own = new Set(ownTabIds || []);
@@ -333,8 +333,8 @@ const DOING = {
 };
 export function describe(verb, host) {
   const d = DOING[verb] || verb;
-  if (verb === 'list_tabs') return `Jav3 is ${d}`;
-  return `Jav3 is ${d} ${host || 'a page'}`;
+  if (verb === 'list_tabs') return `CNTRL is ${d}`;
+  return `CNTRL is ${d} ${host || 'a page'}`;
 }
 
 // Settings → Add computer: "address=<host:port> code=<code>"

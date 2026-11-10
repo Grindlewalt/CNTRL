@@ -67,11 +67,11 @@ test('select / hover / key / back / forward', () => {
     ['key', { tab: 1, combo: 'F25' }], ['back', {}]]) {
     assert.throws(() => validate(v, p), VerbError, `${v} ${JSON.stringify(p)}`);
   }
-  assert.equal(describe('key', 'example.com'), 'Jav3 is pressing a key on example.com');
+  assert.equal(describe('key', 'example.com'), 'CNTRL is pressing a key on example.com');
 });
 
 test('popup adoption decision', () => {
-  assert.equal(shouldAdopt(7, [7, 8], 9), true);      // opened by a Jav3 tab
+  assert.equal(shouldAdopt(7, [7, 8], 9), true);      // opened by a CNTRL tab
   assert.equal(shouldAdopt(5, [7, 8], 9), false);     // operator's tab opened it
   assert.equal(shouldAdopt(null, [7, 8], 9), false);  // no opener: operator's
   assert.equal(shouldAdopt(7, [7, 9], 9), false);     // already ours
@@ -96,10 +96,10 @@ test('refusals', () => {
   }
 });
 
-test('the Jav3 server is never opened', () => {
+test('the CNTRL server is never opened', () => {
   const denyHosts = ['jav3.lan', '10.0.0.5', '::1'];
-  assert.throws(() => validate('open_tab', { url: 'http://jav3.lan:8000/settings' }, { denyHosts }), /Jav3 server/);
-  assert.throws(() => validate('navigate', { tab: 1, url: 'http://[::1]:8000/' }, { denyHosts }), /Jav3 server/);
+  assert.throws(() => validate('open_tab', { url: 'http://jav3.lan:8000/settings' }, { denyHosts }), /CNTRL server/);
+  assert.throws(() => validate('navigate', { tab: 1, url: 'http://[::1]:8000/' }, { denyHosts }), /CNTRL server/);
   assert.ok(validate('open_tab', { url: 'https://example.com/' }, { denyHosts }));
 });
 
@@ -124,7 +124,7 @@ test('login line and URLs', () => {
   assert.equal(wsUrl(baseUrl('https://j.example/')), 'wss://j.example/api/browser/ws');
   assert.throws(() => baseUrl('ftp://x'), VerbError);
   assert.equal(hostOf('https://[::1]:8/'), '::1');
-  assert.equal(describe('click', 'example.com'), 'Jav3 is clicking on example.com');
+  assert.equal(describe('click', 'example.com'), 'CNTRL is clicking on example.com');
 });
 
 test('read_page mode: auto / all / interactive, anything else refused', () => {

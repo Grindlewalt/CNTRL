@@ -1,4 +1,4 @@
-"""The terminal client's themes (clients/jav3cli/jav3): the 256-colour mapping,
+"""The terminal client's themes (clients/cntrl/cntrl): the 256-colour mapping,
 the readability checks every theme is held to, the /theme picker (live preview,
 revert on esc, kept across restarts), the editor at 80x24, and export/import
 round trips."""
@@ -11,7 +11,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-CLI = Path(__file__).resolve().parent.parent / "clients" / "jav3cli" / "jav3"
+CLI = Path(__file__).resolve().parent.parent / "clients" / "cntrl" / "cntrl"
 
 
 def _load():
@@ -33,7 +33,7 @@ def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     (tmp_path / "home").mkdir()
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 def _server():
@@ -223,8 +223,8 @@ async def test_theme_picker_previews_as_you_arrow_and_reverts_on_esc(cfg):
         app.dispatch("/theme")
         assert await _modal(pilot, app, "ThemePicker")
         rows = app.theme_rows()
-        assert rows[0][0] == "jav3" and rows[1][0].startswith("jav3-")       # Jav3's own first
-        assert dict((v, m) for v, _, m in rows)["jav3-light"] == "light"
+        assert rows[0][0] == "jav3" and rows[1][0].startswith("jav3-")       # CNTRL's own first
+        assert dict((v, m) for v, _, m in rows)["cntrl-light"] == "light"
         seen = [app.theme]
         for _ in range(3):
             await pilot.press("down")
@@ -413,7 +413,7 @@ def _screen_colours(theme: str, colorterm: bool, tmp_path):
     import os
     import sys
     import time
-    d = tmp_path / "cfg" / "jav3"
+    d = tmp_path / "cfg" / "cntrl"
     d.mkdir(parents=True)
     (d / "tui.json").write_text(json.dumps({"theme": theme}))
     env = {k: v for k, v in os.environ.items()

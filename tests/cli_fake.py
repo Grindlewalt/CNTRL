@@ -1,4 +1,4 @@
-"""Shared by the terminal-client dialog tests: load clients/jav3cli/jav3 and a fake
+"""Shared by the terminal-client dialog tests: load clients/cntrl/cntrl and a fake
 chat server whose event stream the test feeds by hand (so an ask can be answered
 before the server says ask_done, the way the real one does)."""
 import asyncio
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import httpx
 
-CLI = Path(__file__).resolve().parent.parent / "clients" / "jav3cli" / "jav3"
+CLI = Path(__file__).resolve().parent.parent / "clients" / "cntrl" / "cntrl"
 
 
 def load_client(name: str = "jav3cli_dialogs"):

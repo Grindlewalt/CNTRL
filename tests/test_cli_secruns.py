@@ -17,7 +17,7 @@ FULL = jav3.SESSION_PREFIX + "jwt"
 @pytest.fixture
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 STEP = {"id": 12123, "call_id": "call_9", "tool": "run_code", "match": "call",

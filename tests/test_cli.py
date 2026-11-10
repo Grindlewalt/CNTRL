@@ -1,4 +1,4 @@
-"""The jav3 CLI (clients/jav3cli/jav3): login-line parsing, credential file
+"""The jav3 CLI (clients/cntrl/cntrl): login-line parsing, credential file
 permissions, the SSE renderer, and one login + chat round trip against the real
 app over an in-process transport."""
 import importlib.machinery
@@ -14,7 +14,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-CLI = Path(__file__).resolve().parent.parent / "clients" / "jav3cli" / "jav3"
+CLI = Path(__file__).resolve().parent.parent / "clients" / "cntrl" / "cntrl"
 
 
 def _load():
@@ -31,7 +31,7 @@ jav3 = _load()
 @pytest.fixture
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 # --- parsing -------------------------------------------------------------------
@@ -1658,7 +1658,7 @@ async def test_tui_finished_by_time_is_newest_first_and_footer_without_model(cfg
         await pilot.pause(0.3)
         await app.open_conversation(7)
         await pilot.pause(0.1)
-        assert _text(app.query("Footer").last()).rstrip() == "▣ Jav3"   # no dangling ·
+        assert _text(app.query("Footer").last()).rstrip() == "▣ CNTRL"   # no dangling ·
         app.dispatch("/agents")
         assert await _until(pilot, lambda: type(app.top).__name__ == "AgentsPage")
         scr = app.top
@@ -2601,8 +2601,8 @@ def home(tmp_path, monkeypatch):
 
 
 def test_safe_output_dir_rules(home, tmp_path):
-    assert jav3.safe_output_dir("~/Pictures/jav3") == (home / "Pictures" / "jav3").resolve()
-    assert (home / "Pictures" / "jav3").is_dir()
+    assert jav3.safe_output_dir("~/Pictures/cntrl") == (home / "Pictures" / "cntrl").resolve()
+    assert (home / "Pictures" / "cntrl").is_dir()
     out = tmp_path / "outside"
     out.mkdir()
     assert jav3.safe_output_dir(str(out)) == out.resolve()      # absolute + writable
@@ -2654,7 +2654,7 @@ async def test_tui_screenshot_saves_svg_txt_and_sets_defaults(cfg, home, monkeyp
         assert st["screenshot_format"] == "txt"
         assert st["screenshot_dir"] == str((home / "shots").resolve())
         await app.c_screenshot("")
-        assert len(list((home / "shots").glob("jav3-*.txt"))) == 1
+        assert len(list((home / "shots").glob("cntrl-*.txt"))) == 1
         monkeypatch.setitem(sys.modules, "cairosvg", None)
         with pytest.raises(jav3.CliError, match="cairosvg"):
             await app.c_screenshot("p png")
@@ -2766,7 +2766,7 @@ async def test_tui_themes_list_import_export_create(cfg, home, tmp_path):
     async with app.run_test(size=(120, 50)) as pilot:
         await pilot.pause(0.3)
         names = app.theme_names()
-        assert "jav3" in names and "jav3-amber" in names and "jav3-light" in names
+        assert "cntrl" in names and "cntrl-amber" in names and "cntrl-light" in names
         assert "catppuccin-frappe" not in names and "solarized-dark" not in names
         assert len([n for n in names if n in jav3.THEME_KEEP]) <= 12
         src = _write(tmp_path, "t.json", json.dumps(GOOD_THEME))
@@ -2816,16 +2816,16 @@ async def test_tui_export_locations_default_and_no_overwrite(cfg, home, monkeypa
         await pilot.pause(0.3)
         app.cid = 5
         await app.c_export("")                                   # default: the cwd
-        assert "hello" in (home / "jav3-5.md").read_text()
+        assert "hello" in (home / "cntrl-5.md").read_text()
         await app.c_export("")
-        assert (home / "jav3-5-2.md").exists()                   # never overwritten
+        assert (home / "cntrl-5-2.md").exists()                   # never overwritten
         await app.c_export("~/notes/chat.md")
         assert (home / "notes" / "chat.md").exists()
         await app.c_export("default ~/exports")
         assert json.loads((cfg / "tui.json").read_text())["export_dir"] == \
             str((home / "exports").resolve())
         await app.c_export("")
-        assert (home / "exports" / "jav3-5.md").exists()
+        assert (home / "exports" / "cntrl-5.md").exists()
         with pytest.raises(jav3.CliError, match="outside your home"):
             await app.c_export("../../x")
 
@@ -2925,3 +2925,61 @@ def test_login_line_alts_used_only_when_local_name_does_not_resolve(monkeypatch)
     assert jav3.pick_login_address("jav3.lan:8000", alts) == "jav3.lan:8000"
     monkeypatch.setattr(jav3, "_resolves", lambda a: True)
     assert jav3.pick_login_address("jav3.local:8780", alts) == "jav3.local:8780"
+
+
+# --- the CNTRL rename -----------------------------------------------------------
+
+def test_client_version_matches_the_servers():
+    from backend.version import __version__
+    assert jav3.CLIENT_VERSION == __version__
+
+
+def test_version_flag_prints_the_client_version(capsys):
+    with pytest.raises(SystemExit) as e:
+        jav3.build_parser().parse_args(["--version"])
+    assert e.value.code == 0
+    assert capsys.readouterr().out.strip() == f"cntrl {jav3.CLIENT_VERSION}"
+
+
+def _old_config(tmp_path):
+    old = tmp_path / "cfg" / "jav3"
+    old.mkdir(parents=True, mode=0o700)
+    (old / "credentials.json").write_text('{"address": "old:1", "token": "jvd_old"}')
+    (old / "credentials.json").chmod(0o600)
+    (old / "tui.json").write_text("{}")
+    return old
+
+
+def test_old_config_dir_moves_over_when_only_it_exists(cfg, tmp_path):
+    old = _old_config(tmp_path)
+    assert jav3.migrate_old_config() is True
+    assert not old.exists()
+    assert (cfg / "tui.json").exists()
+    assert stat.S_IMODE((cfg / "credentials.json").stat().st_mode) == 0o600
+    assert stat.S_IMODE(cfg.stat().st_mode) == 0o700
+    assert jav3.load_credentials()["token"] == "jvd_old"
+
+
+def test_new_config_dir_wins_and_the_old_is_left_alone(cfg, tmp_path):
+    old = _old_config(tmp_path)
+    jav3.save_credentials("new:1", "jvd_new")
+    assert jav3.migrate_old_config() is False
+    assert jav3.load_credentials()["token"] == "jvd_new"
+    assert (old / "credentials.json").read_text().count("jvd_old") == 1
+
+
+def test_new_config_dir_only_and_none_at_all_are_no_ops(cfg):
+    assert jav3.migrate_old_config() is False          # neither exists
+    jav3.save_credentials("new:1", "jvd_new")
+    assert jav3.migrate_old_config() is False
+    assert jav3.load_credentials()["token"] == "jvd_new"
+
+
+def test_logo_spells_cntrl_and_fits_narrow_terminals():
+    wide = jav3.logo_markup().splitlines()
+    narrow = jav3.logo_markup(narrow=True).splitlines()
+    plain = lambda r: re.sub(r"\[[^\]]*\]", "", r)
+    assert len(wide) == len(narrow) == 5
+    assert max(len(plain(r)) for r in wide) <= 58 and max(len(plain(r)) for r in narrow) <= 29
+    assert set(jav3.LOGO_GLYPHS) == set("CNTRL")
+    assert all(len(row) == 5 for g in jav3.LOGO_GLYPHS.values() for row in g)

@@ -35,7 +35,7 @@ function fake(pages = {}, opts = {}) {
       const a = answers[frameId] && answers[frameId][fn.name];
       return typeof a === 'function' ? a(...args) : a;
     },
-    consent: async url => { log.push('consent ' + url); if (opts.denyConsent) throw new VerbError('the operator denied Jav3 on ' + url); },
+    consent: async url => { log.push('consent ' + url); if (opts.denyConsent) throw new VerbError('the operator denied CNTRL on ' + url); },
     isDenied: url => /jav3\.lan/.test(url),
     sleep: async ms => { t += ms; },
     now: () => t,
@@ -324,11 +324,11 @@ test('a same-site iframe needs no extra question; a denied operator stops the cl
   assert.deepEqual(cmds(denied.log), []);                       // never attached
 });
 
-test('a point inside a frame of the Jav3 server itself is refused', async () => {
+test('a point inside a frame of the CNTRL server itself is refused', async () => {
   const frames = [{ frameId: 0, parentFrameId: -1, url: 'https://x.test/' }];       // tabFrames dropped the server's frame
   const d = fake({ 0: { probeAt: () => ({ ok: true, iframe: { src: 'https://jav3.lan:8000/app', x: 0, y: 0, w: 9, h: 9 } }) } });
   const r = await clickPointTrusted(d, { tabId: 7, x: 5, y: 5, frames, topHost: 'x.test' });
-  assert.deepEqual([r.ok, /Jav3 server itself/.test(r.err)], [false, true]);
+  assert.deepEqual([r.ok, /CNTRL server itself/.test(r.err)], [false, true]);
   assert.deepEqual(cmds(d.log), []);
 });
 

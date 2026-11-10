@@ -484,7 +484,7 @@ async def test_a_text_screenshot_leaves_out_the_completion_popup_TUI14(tmp_path,
         assert app.popup_open()
         await app.c_screenshot("snap txt")
         assert not app.popup_open()
-        shot = (home / "Pictures" / "jav3" / "snap.txt").read_text()
+        shot = (home / "Pictures" / "cntrl" / "snap.txt").read_text()
         assert "plain text" not in shot and "txt  " not in shot
         assert "saved " in " ".join(str(w.render()) for w in app.query("Static"))   # in the log
 
