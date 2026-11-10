@@ -392,7 +392,10 @@ def _provider_step(a, tty: bool, scripted: bool,
         if run_test:
             res = asyncio.run(setup_api.test_provider(pid, key, base))
             if res["ok"]:
-                print(f"   ok · {len(res['models_found'])} models")
+                print(f"   ok, {len(res['models_found'])} models")
+                if model and res["models_found"] and model not in res["models_found"]:
+                    print(f"   note: the server does not list '{model}'; it is used as "
+                          "you typed it")
             else:
                 print(f"   test failed: {res['detail']}")
                 if not tty or scripted or not _yes("   save it anyway?", False):

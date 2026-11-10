@@ -294,7 +294,9 @@ def check_provider(pid: str, api_key: str = "", base_url: str = "",
         raise SetupError(400, f"{entry['label']} needs a base URL")
     model = (model or "").strip()
     mod = _providers_mod()
-    if model and mod is not None and \
+    # a cloud provider's catalogue says what it serves; a keyless local server
+    # (Ollama, LM Studio, llama.cpp…) serves whatever was loaded into it
+    if model and mod is not None and entry["needs_key"] and \
             all(m["id"] != model for m in _catalogue_models(mod, pid)):
         raise SetupError(400, f"unknown model '{model}' for {entry['label']}")
     return pid, api_key, base_url
@@ -325,6 +327,12 @@ def store_provider(pid: str, api_key: str = "", base_url: str = "",
         default = None
         model = (model or "").strip() or _recommended(mod, pid)
         set_model = getattr(mod, "update_model", None)
+        remember = getattr(mod, "record_discovered", None)
+        if model and callable(remember) and not _entry(pid)["needs_key"] and \
+                all(m["id"] != model for m in _catalogue_models(mod, pid)):
+            # a local server's own model, named by the operator: known from now
+            # on (a provider test in Settings lists everything it serves)
+            remember(pid, [model])
         if model and callable(set_model):
             # models are off by default: without enabled=True the default
             # would not even appear in the chat picker

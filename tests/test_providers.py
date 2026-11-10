@@ -514,3 +514,16 @@ async def test_schedule_model_is_validated_and_stored(client):
     rows = (await client.get("/api/schedules")).json()["schedules"]
     assert next(r for r in rows if r["id"] == sid)["model"] == \
         f"deepseek/{settings.model_name}"
+
+
+def test_setup_takes_a_local_servers_own_model_but_not_an_unknown_cloud_one(tmp_env):
+    """A keyless local server (llama.cpp, Ollama, LM Studio) serves whatever was loaded
+    into it, so setup must not refuse a model the public catalogue lacks; a cloud
+    provider's unknown model is still refused. Found by the clean-machine install."""
+    from backend import setup_api
+    from backend.setup_api import SetupError
+    r = setup_api.store_provider("llamacpp", "", "http://127.0.0.1:18999/v1", "my-local-gguf")
+    assert r["default"] == "llamacpp/my-local-gguf"
+    assert providers.default_model(providers._load_state()) == "llamacpp/my-local-gguf"
+    with pytest.raises(SetupError, match="unknown model"):
+        setup_api.check_provider("openai", "sk-test", "", "no-such-model-xyz")
