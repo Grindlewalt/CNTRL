@@ -507,6 +507,7 @@ a { color: var(--accent); }
    the page below does not jump when the chunk lands. */
 .route-pending { flex: 1; min-height: 0; }
 .dim { color: var(--dim); }
+.nowrap { white-space: nowrap; }   /* dates and ids that must not break at a hyphen */
 .warn { color: var(--amber); font-size: 12.5px; }
 .error { color: var(--red); font-size: 13px; }
 /* a count or a quiet word beside a title: the ok tint; the state tags below

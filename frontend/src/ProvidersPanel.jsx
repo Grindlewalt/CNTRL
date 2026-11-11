@@ -170,7 +170,7 @@ export default function ProvidersPanel() {
       <div className="stack">
         <p className="dim small settings-note">
           Keys are stored on this server and never enter the sandbox VM.
-          {data.source && <> Prices: {sourceText(data.source)}.</>}</p>
+          {data.source && <> Prices: <span className="nowrap">{sourceText(data.source)}</span>.</>}</p>
         <Input type="search" aria-label="Search providers" placeholder="Search providers"
                value={q} onChange={(e) => setQ(e.target.value)} />
         {none && <EmptyState>No provider matches “{q.trim()}”.</EmptyState>}
