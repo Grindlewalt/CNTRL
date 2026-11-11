@@ -93,11 +93,13 @@ SECTIONS: dict[str, dict] = {
                     r"mouse|cursor|windows?|launch|apps?)\b",
         "guide": "desk", "lead": ["screenshot"]},
     "git": {
-        "about": "the project's git: status, diff, commit, pull request, GitHub remote",
+        "about": "the project's git: status, diff, commit, pull request, issue, GitHub remote",
         "merged": "The project's git: status and diff, and requests to commit, to open a "
                   "pull request on the host's Gitea, or to connect a GitHub remote. "
-                  "Requests wait for the operator's approval.",
-        "triggers": r"\b(git|commits?|push|pull request|PR|diff|branch|gitea|github|remote|merge)\b",
+                  "Requests wait for the operator's approval; an issue on the host's "
+                  "Gitea is opened at once.",
+        "triggers": r"\b(git|commits?|push|pull request|PR|diff|branch|gitea|github|remote|merge"
+                    r"|(?:open|file|raise) (?:an |the )?issues?)\b",
         "lead": ["status", "diff"]},
     "services": {
         "about": "the project's long-running services: status, logs, request one",

@@ -126,7 +126,7 @@ KNOWN_KINDS = {
     "page_publish_requested": "warn", "page_published": "info", "page_rejected": "info",
     "page_unpublished": "info", "page_refused": "warn",
     "yolo_auto_approved": "info",
-    "git_mirror_failed": "warn",
+    "git_mirror_failed": "warn", "gitea_issue_opened": "info",
     "desk_session": "info", "desk_killed": "warn", "desk_shell": "info",
     "desk_refused": "warn", "desk_shell_refused": "warn", "desk_operator_control": "info",
     "browser_session": "info", "browser_killed": "warn", "browser_refused": "warn",
