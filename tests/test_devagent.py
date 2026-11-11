@@ -13,8 +13,10 @@ from backend import devagent, gitgate
 from backend.agent.tools.registry import load_registry
 from backend.config import settings
 from backend.db import get_db
+from tests import test_gitea as tg
 
 ROOT = Path(__file__).resolve().parent.parent
+fake = tg.fake                 # the fixture: a fake Gitea API over a local bare repo
 
 
 def _git(cwd, *args) -> str:
@@ -231,6 +233,13 @@ async def test_with_boxes_on_it_gets_a_box_of_its_own(tmp_env, checkout, monkeyp
         await db.close()
     await devagent.setup(checkout=checkout)
     assert "the shared box (kept)" in capsys.readouterr().out
+
+
+async def test_with_gitea_the_repo_is_made_and_main_pushed(tmp_env, checkout, fake, capsys):
+    await devagent.setup(checkout=checkout)
+    assert "Gitea repo http://gitbox.lan:3000/operator/dev-agent" in capsys.readouterr().out
+    assert fake.repos["dev-agent"]["private"] is True
+    assert _git(fake.bare, "rev-parse", "main") == _git(_proj(), "rev-parse", "HEAD")
 
 
 def test_the_cli_refuses_unknown_flags(capsys):
