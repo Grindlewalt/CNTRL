@@ -1448,7 +1448,9 @@ fi
 user_phase
 
 printf '\n%sCNTRL %s installed.%s\n' "$BOLD" "$VERSION" "$OFF"
-printf '  state dir:            %s\n' "$(cd "$REPO_DIR" && .venv/bin/python -m backend.cli paths state_dir 2>/dev/null || echo "$STATE_DIR")"
+# where the state really is: data_dir's parent, which is the checkout itself for an
+# install that still keeps its state there (state_dir names the empty new place)
+printf '  state dir:            %s\n' "$(cd "$REPO_DIR" && d="$(.venv/bin/python -m backend.cli paths data_dir 2>/dev/null)" && dirname "$d" || echo "$STATE_DIR")"
 printf '  first-run setup:      %s/.venv/bin/python -m backend.cli setup   (or open the GUI; add logins with --add-user)\n' "$REPO_DIR"
 printf '  config:               %s/env\n' "$CFG_DIR"
 printf '  web UI:               http://localhost:%s/\n' "$PORT"
