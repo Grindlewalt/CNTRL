@@ -203,6 +203,7 @@ wait for an explicit "go". The flags:
 | no Docker boxes | `--no-docker` |
 | no Gitea | `--no-gitea` |
 | no questions (you are an agent: always) | `--yes` |
+| a dev install, only if the person asks for one ([DEV-INSTALL.md](DEV-INSTALL.md)) | `--dev` (bootstrap from the `dev` branch's URL) |
 
 ---
 
