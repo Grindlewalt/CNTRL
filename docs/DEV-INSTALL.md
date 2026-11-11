@@ -141,4 +141,6 @@ says why, when the project has uncommitted changes (approve or reject the
 agent's commit request, or put the files back) or when the merge would
 conflict (nothing is changed then). With Gitea on it first takes in pull
 requests merged there and pushes the result afterwards. `--refresh` also puts
-the shipped `cntrl-try-everything` skill back if you edited your copy.
+the shipped `cntrl-try-everything` skill back if you edited your copy. Run it
+while no dev-agent turn is running: a running turn hands its edits back to the
+same files.
