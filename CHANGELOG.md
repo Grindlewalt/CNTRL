@@ -221,7 +221,9 @@ Jav3 (internally Jarvis) until this version; see
   with a read-only check (`--check`, `--json`, `--target` for another
   machine), one root phase that installs only missing packages and never
   upgrades installed ones, named second instances (`--name`), a chosen port
-  and state directory, and state migration from another host (`--from`).
+  and state directory, and state migration from another host (`--from`). A new
+  named instance gets its own state directory and its own pages and Gitea
+  ports; one that already exists keeps what it had.
 - First-run setup in the terminal or a browser (a one-time link), and
   `backend.cli doctor` (with `--json`) for what is still missing.
 - `docs/AGENT-INSTALL.md`: a guide and a prompt for a coding agent to do the
