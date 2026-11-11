@@ -235,3 +235,27 @@ def test_bootstrap_progress_goes_to_stderr():
     # `curl .../bootstrap.sh | sh -s -- --check --json` must leave stdout pure JSON
     txt = (ROOT / "scripts" / "bootstrap.sh").read_text()
     assert "say() { printf '== %s\\n' \"$*\" >&2; }" in txt
+
+
+def _state_dir_of(tmp_path, *args):
+    import json
+    out = run(tmp_path, "--check", "--json", *args).stdout
+    return json.loads(out[out.index("{"):])["state_dir"]
+
+
+@needs_bash
+def test_a_new_named_instance_gets_its_own_state_dir(tmp_path):
+    """Before, --name x shared the default instance's state dir: one database for two
+    servers. A new named instance gets ~/.local/share/cntrl-x."""
+    assert _state_dir_of(tmp_path, "--name", "x") == str(tmp_path / ".local/share/cntrl-x")
+    assert _state_dir_of(tmp_path) == str(tmp_path / ".local/share/cntrl")
+
+
+@needs_bash
+def test_an_existing_named_instance_keeps_the_state_dir_it_has_been_using(tmp_path):
+    cfg = tmp_path / ".config/cntrl-x"
+    cfg.mkdir(parents=True)
+    (cfg / "env").write_text("CNTRL_LAN_PORT=8780\n")        # no state dir recorded
+    assert _state_dir_of(tmp_path, "--name", "x") == str(tmp_path / ".local/share/cntrl")
+    (cfg / "env").write_text(f"CNTRL_STATE_DIR={tmp_path}/own\n")
+    assert _state_dir_of(tmp_path, "--name", "x") == str(tmp_path / "own")

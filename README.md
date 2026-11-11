@@ -205,7 +205,9 @@ The rest of the install, as your user:
 8. starts the service and checks `/api/health`.
 
 Flags: `--port <n>`, `--name <name>` (a second instance: `cntrl-<name>.service`,
-`~/.config/cntrl-<name>`), `--state-dir <dir>`, `--config-dir <dir>`,
+`~/.config/cntrl-<name>`, its own state in `~/.local/share/cntrl-<name>`, and
+the first free ports from 8091 for published pages and 3001 for Gitea),
+`--state-dir <dir>`, `--config-dir <dir>`,
 `--from <host:path>` (copy state from another install first; `--force`
 overwrites local state), `--no-image`, `--no-build`, `--no-gitea`,
 `--gitea-dry-run`, `--no-docker`, `--yes` (no questions) and `--rename-only`
@@ -404,6 +406,10 @@ capability.
   of their own are attributed exactly.
 - **Image updates.** The monthly image-rebuild timer
   (`scripts/cntrl-image-rebuild.*`) isn't installed by the installer.
+- **Two instances on one host share the sandbox plumbing.** Their VMs use the
+  same vsock port unless you set `CNTRL_VM_VSOCK_PORT` for one of them, so only
+  the instance that starts first can run VM turns, and Docker containers are
+  named after box numbers, which can repeat across instances.
 - **Docker is weaker isolation** than a VM, and computer and browser use act
   with your own accounts and sessions on the sites and apps you grant.
 

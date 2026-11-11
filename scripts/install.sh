@@ -272,6 +272,15 @@ OLD_STATE_DIR="$HOME/.local/share/jarvis"
 STATE_DIR="$STATE_DIR_OPT"
 [ -n "$STATE_DIR" ] || STATE_DIR="${CNTRL_STATE_DIR:-${JARVIS_STATE_DIR:-}}"
 [ -n "$STATE_DIR" ] || STATE_DIR="$(env_value STATE_DIR "$ENV_SRC")"
+# A NEW named instance (--name, no env file yet) gets its own state dir: without
+# this it used the default instance's (one database for two servers). A named
+# instance that already exists keeps what it has been using; once written to its
+# env file (user_phase), the line above finds it.
+NEW_NAMED=0
+[ -n "$NAME_OPT" ] && [ ! -f "$ENV_SRC" ] && NEW_NAMED=1
+if [ -z "$STATE_DIR" ] && [ "$NEW_NAMED" = 1 ]; then
+  STATE_DIR="$HOME/.local/share/cntrl-$NAME_OPT"
+fi
 STATE_DIR="${STATE_DIR:-$DEFAULT_STATE_DIR}"
 STATE_DIR="${STATE_DIR/#\~/$HOME}"
 
@@ -1106,8 +1115,9 @@ install_units() {
   systemctl --user enable "$UNIT.service" >/dev/null
   systemctl --user enable --now "$UNIT-backup.timer" >/dev/null 2>&1 || true
   ok "$UNIT.service installed and enabled"
+  local pages_port; pages_port="$(env_value PAGES_PORT "$CFG_DIR/env")"
   systemctl --user enable "$UNIT-pages.service" >/dev/null 2>&1 \
-    && ok "$UNIT-pages.service installed and enabled (published pages, port 8090)" \
+    && ok "$UNIT-pages.service installed and enabled (published pages, port ${pages_port:-8090})" \
     || warn "could not enable $UNIT-pages.service; published pages stay off"
 }
 
@@ -1167,6 +1177,7 @@ user_phase() {
     echo "CNTRL_LAN_PORT=$PORT" >> "$CFG_DIR/env"
     ok "port $PORT recorded in $CFG_DIR/env"
   fi
+  named_ports
   if grep -q 'CNTRL_DEEPSEEK_API_KEY' "$CFG_DIR/env" 2>/dev/null; then
     ok "API key present in $CFG_DIR/env"
   fi
@@ -1193,6 +1204,27 @@ user_phase() {
   first_run_setup
   gitea_step
   docker_step
+}
+
+# A new named instance (--name <n>) beside the default one: the default keeps
+# published pages on 8090 and Gitea on 3000. On the same ports the second pages
+# server would fail to start, and its Gitea step would overwrite the first one's
+# unit (named after the port). So it takes the first free ports from 8091 and
+# 3001, recorded once in its env file; a re-run keeps them. A named instance that
+# already existed keeps what it had.
+port_taken() { have ss && [ -n "$(ss -Hltn "sport = :$1" 2>/dev/null)" ]; }
+named_ports() {
+  [ "$NEW_NAMED" = 1 ] || return 0
+  local pair key p
+  for pair in PAGES_PORT:8091 GITEA_PORT:3001; do
+    key="${pair%%:*}" p="${pair#*:}"
+    grep -q "^CNTRL_$key=" "$CFG_DIR/env" && continue
+    while port_taken "$p" || { [ "$key" = PAGES_PORT ] && [ "$p" = "$PORT" ]; }; do
+      p=$((p + 1))
+    done
+    echo "CNTRL_$key=$p" >> "$CFG_DIR/env"
+    ok "named instance: CNTRL_$key=$p recorded in $CFG_DIR/env"
+  done
 }
 
 # Docker boxes: the lighter box runtime (docs/docker-runtime.md). Optional and

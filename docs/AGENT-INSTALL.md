@@ -195,7 +195,7 @@ wait for an explicit "go". The flags:
 | Answer | Installer flag |
 |---|---|
 | checkout dir | `CNTRL_DIR=<dir>` for the bootstrap (or `git clone … <dir>`) |
-| second instance | `--name <n>` (unit `cntrl-<n>.service`, config `~/.config/cntrl-<n>`) |
+| second instance | `--name <n>` (unit `cntrl-<n>.service`, config `~/.config/cntrl-<n>`, state `~/.local/share/cntrl-<n>`, free ports from 8091 for pages and 3001 for Gitea; only one instance per host can run VM turns at a time) |
 | migrate | `--from user@host:path` |
 | port | `--port <n>` |
 | state dir | `--state-dir <dir>` |
