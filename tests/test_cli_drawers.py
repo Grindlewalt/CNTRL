@@ -517,7 +517,8 @@ async def test_switching_drawers_and_slash_leave_the_focused_panel_alone():
         app.action_sessions_view()                 # one drawer at a time: this one gives way
         assert await wait_for(lambda: app.drawer is not None and app.drawer.kind == "sessions"
                               and app.drawer.rows and app.focused is app.drawer)
-        assert app.focus_no == 1 and len(app.query("Drawer")) == 1
+        # the one that gave way leaves the DOM after its removal is processed
+        assert app.focus_no == 1 and await wait_for(lambda: len(app.query("Drawer")) == 1)
         await pilot.press("slash")                 # on to a command: the prompt, "/" typed
         assert await wait_for(lambda: app.drawer is None and app.editor.text == "/")
         assert app.focused is app.editor and app.focus_no == 1
