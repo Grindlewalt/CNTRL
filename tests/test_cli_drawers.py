@@ -10,7 +10,7 @@ JAV3_CLIENT=<path> runs this file against another copy of the client."""
 import httpx
 import pytest
 
-from cli_fake import FakeServer, Feed, load_client, send, wait_for
+from cli_fake import FakeServer, Feed, load_client, mounted_name, send, wait_for
 
 jav3 = load_client("jav3cli_drawers")
 FULL = jav3.SESSION_PREFIX + "jwt"
@@ -257,12 +257,12 @@ async def test_a_page_keeps_its_own_arrows_and_the_page_commands_stay():
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.pause(0.3)
         app.dispatch("/agents")
-        assert await wait_for(lambda: type(app.top).__name__ == "AgentsPage")
+        assert await wait_for(lambda: mounted_name(app.top) == "AgentsPage")
         await pilot.press("right", "left")
         await pilot.pause(0.2)
         assert app.drawer is None                      # the page's own ← →
         app.dispatch("/work")
-        assert await wait_for(lambda: type(app.top).__name__ == "ChatPage")
+        assert await wait_for(lambda: mounted_name(app.top) == "ChatPage")
         app.dispatch("/sessions 7")                    # the picker's command form still opens it
         assert await wait_for(lambda: app.cid == 7)
 

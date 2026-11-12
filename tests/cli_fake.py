@@ -6,6 +6,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import time
 from pathlib import Path
 
 import httpx
@@ -20,7 +21,38 @@ def load_client(name: str = "jav3cli_dialogs"):
     spec = importlib.util.spec_from_loader(name, loader)
     mod = importlib.util.module_from_spec(spec)
     loader.exec_module(mod)
+    slow_keys(mod)
     return mod
+
+
+def slow_keys(mod) -> None:
+    """Pilot.press waits for the process to go idle after every key (up to 1 s, twice),
+    so on a busy machine (a Pi deep into the full suite) a test's "ctrl+x", "t" land
+    more than ctrl+x's 2 s apart and the chord lapses. A person's chord does not take
+    seconds; the tests' may."""
+    if hasattr(mod, "LEADER_TIMEOUT"):
+        mod.LEADER_TIMEOUT = 30.0
+
+
+def type_now(app, *keys: str) -> None:
+    """Send keys back to back, the way a typist's arrive, where Pilot.press waits for
+    the process to go idle after each one (seconds apart on a busy machine: a dialog's
+    "you just opened" pause then lapses between two keys). Returns at once; the app
+    handles them in order. The same key events Pilot.press makes (Textual 8)."""
+    import unicodedata
+
+    from textual import events
+    from textual.keys import REPLACED_KEYS, _character_to_key, _get_unicode_name_from_key
+    for key in keys:
+        if len(key) == 1 and not key.isalnum():
+            key = _character_to_key(key)
+        try:
+            char = unicodedata.lookup(_get_unicode_name_from_key(REPLACED_KEYS.get(key, key)))
+        except KeyError:
+            char = key if len(key) == 1 else None
+        ev = events.Key(key, char)
+        ev.set_sender(app)
+        app._driver.send_message(ev)
 
 
 def pin_zone(monkeypatch, name: str = "UTC"):
@@ -202,12 +234,32 @@ def call(name: str, args: dict, result: str = "ok", ok: bool = True) -> dict:
     return {"name": name, "args": args, "result": result, "ok": ok, "done": True}
 
 
+# The least time any wait below gives its condition. A count of ticks (80 x 0.05 s)
+# was about 4 s, which a loaded Raspberry Pi running the whole suite outran: a wait
+# that succeeds returns at once, so only a failing test pays for the margin.
+WAIT_S = 10.0
+
+
+async def until(cond, pause, seconds: float = WAIT_S) -> bool:
+    """True once cond() is, checking after each `await pause()`, for at least
+    `seconds` (never under WAIT_S) of wall time."""
+    end = time.monotonic() + max(seconds, WAIT_S)
+    while not cond():
+        if time.monotonic() >= end:
+            return bool(cond())
+        await pause()
+    return True
+
+
 async def wait_for(pred, tries: int = 80, step: float = 0.05):
-    for _ in range(tries):
-        if pred():
-            return True
-        await asyncio.sleep(step)
-    return bool(pred())
+    return await until(pred, lambda: asyncio.sleep(step), tries * step)
+
+
+def mounted_name(widget) -> str:
+    """The widget's class name once it is mounted (its on_mount has run), else "".
+    A pushed screen or page is on top before it has drawn itself: a test that
+    reads it at once can see its placeholders (an empty hint, no highlight)."""
+    return type(widget).__name__ if widget.is_mounted else ""
 
 
 async def send(pilot, app, text: str) -> None:
@@ -216,7 +268,7 @@ async def send(pilot, app, text: str) -> None:
 
 
 def top(app) -> str:
-    return type(app.screen).__name__
+    return mounted_name(app.screen)
 
 
 def ask(aid, agent_cid, question="Which one?", **extra):

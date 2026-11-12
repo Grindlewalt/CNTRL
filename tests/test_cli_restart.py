@@ -12,7 +12,7 @@ import time
 
 import pytest
 
-from cli_fake import FakeServer, load_client, send, wait_for
+from cli_fake import FakeServer, load_client, mounted_name, send, wait_for
 
 jav3 = load_client("jav3cli_restart")
 BASE = "http://h:1"
@@ -147,7 +147,7 @@ async def test_a_temporary_chat_is_said_to_start_empty_and_n_keeps_the_client():
         await started(pilot, app)
         app.chat.ephemeral, app.chat.last_user = True, "a secret question"
         await send(pilot, app, "/restart")
-        assert await wait_for(lambda: type(app.screen).__name__ == "Confirm")
+        assert await wait_for(lambda: mounted_name(app.screen) == "Confirm")
         assert "temporary chat starts empty again" in str(
             app.screen.query("Static")[1].render())
         await pilot.press("n")

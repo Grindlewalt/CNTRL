@@ -6,7 +6,7 @@ as one line. The client file is loaded from tests/cli_fake.py."""
 import httpx
 import pytest
 
-from cli_fake import load_client, pin_zone
+from cli_fake import load_client, mounted_name, pin_zone, until
 
 jav3 = load_client("jav3cli_pages")
 
@@ -57,15 +57,11 @@ def _srv(seen=None, convs=None):
 
 
 async def _until(pilot, cond, tries=80):
-    for _ in range(tries):
-        if cond():
-            return True
-        await pilot.pause(0.05)
-    return cond()
+    return await until(cond, lambda: pilot.pause(0.05), tries * 0.05)
 
 
 def _name(app) -> str:
-    return type(app.top).__name__
+    return mounted_name(app.top)
 
 
 async def _go(pilot, app, line: str, name: str):
@@ -144,10 +140,11 @@ async def test_a_page_opens_by_command_with_its_args_and_esc_goes_back_to_the_ch
         assert page.args == ["calls"] and page.tab == "calls" and app.paged
         assert page.page_title == "Security · Calls" and page.page_visible
         assert app.focused is page                                  # its keys work at once
-        assert app.focused_chat.prompt_block.has_class("paged")
+        # the prompt's look follows once the host's Changed message is handled
+        assert await _until(pilot, lambda: app.focused_chat.prompt_block.has_class("paged"))
         await pilot.press("escape")
         assert await _until(pilot, lambda: _name(app) == "ChatPage" and app.focused is app.editor)
-        assert not app.focused_chat.prompt_block.has_class("paged")
+        assert await _until(pilot, lambda: not app.focused_chat.prompt_block.has_class("paged"))
         # the same with /vms images and /agents finished
         page = await _go(pilot, app, "/vms images", "VmsPage")
         assert page.tab == "images" and page.args == ["images"]
@@ -408,6 +405,12 @@ async def test_the_old_tab_click_still_works_through_the_page():
     async with app.run_test(size=(120, 36)) as pilot:
         await pilot.pause(0.3)
         sec = await _go(pilot, app, "/security", "SecurityPage")
+        # the tabs are drawn (labelled, laid out) before the click: a click that lands
+        # while they are still empty hits whatever tab sits at that column then
+        tab = sec.query_one("#sec-tab-logs")
+        assert await _until(pilot, lambda: str(tab.render()).strip()
+                            and tab.region.width >= len(str(tab.render()).strip()))
+        await pilot.pause()
         await pilot.click("#sec-tab-logs")
         assert await _until(pilot, lambda: sec.tab == "logs")
 
@@ -452,7 +455,8 @@ async def test_a_page_hides_and_shows_with_its_polling_and_its_hooks():
         assert "shown2" in log and "hidden" in log
         probe.leave()                                                 # a page leaves by asking
         assert await _until(pilot, lambda: _name(app) == "ChatPage")
-        assert not probe.is_attached
+        # it leaves the stack at once and is removed from the DOM after
+        assert await _until(pilot, lambda: not probe.is_attached)
 
 
 async def test_a_page_sizes_itself_from_its_host_and_leaves_through_it_not_the_app():

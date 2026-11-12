@@ -10,7 +10,7 @@ import time
 import httpx
 import pytest
 
-from cli_fake import load_client, pin_zone, wait_for
+from cli_fake import load_client, mounted_name, pin_zone, until, wait_for
 
 jav3 = load_client("jav3cli_tuib")
 
@@ -68,15 +68,11 @@ def _srv(routes=None, seen=None):
 
 
 async def _until(pilot, cond, tries=80):
-    for _ in range(tries):
-        if cond():
-            return True
-        await pilot.pause(0.05)
-    return cond()
+    return await until(cond, lambda: pilot.pause(0.05), tries * 0.05)
 
 
 def _top(app) -> str:
-    return type(app.top).__name__
+    return mounted_name(app.top)
 
 
 def _rows(scr):

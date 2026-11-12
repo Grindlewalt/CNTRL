@@ -11,6 +11,8 @@ from pathlib import Path
 import httpx
 import pytest
 
+from cli_fake import mounted_name, until
+
 CLI = Path(__file__).resolve().parent.parent / "clients" / "cntrl" / "cntrl"
 
 
@@ -60,15 +62,11 @@ def _app(colour: str = "256"):
 
 
 async def _until(pilot, cond, tries=60):
-    for _ in range(tries):
-        if cond():
-            return True
-        await pilot.pause(0.05)
-    return cond()
+    return await until(cond, lambda: pilot.pause(0.05), tries * 0.05)
 
 
 async def _modal(pilot, app, name):
-    return await _until(pilot, lambda: type(app.screen).__name__ == name)
+    return await _until(pilot, lambda: mounted_name(app.screen) == name)
 
 
 def _all_themes() -> dict:

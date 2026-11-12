@@ -11,6 +11,8 @@ from pathlib import Path
 import httpx
 import pytest
 
+from cli_fake import until
+
 CLI = Path(__file__).resolve().parent.parent / "clients" / "cntrl" / "cntrl"
 
 
@@ -183,11 +185,7 @@ class Feed:
 
 
 async def _until(pilot, cond, n=80):
-    for _ in range(n):
-        if cond():
-            return True
-        await pilot.pause(0.05)
-    return cond()
+    return await until(cond, lambda: pilot.pause(0.05), n * 0.05)
 
 
 def _plain(widget) -> str:
