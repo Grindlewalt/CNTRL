@@ -26,6 +26,7 @@ Standalone, to try the client against it by hand (prints the command to run):
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import re
 import socket
@@ -439,8 +440,12 @@ def runs() -> list[dict]:
 class SeededServer(FakeServer):
     """FakeServer, plus what every page of the TUI reads. See the module docstring."""
 
-    def __init__(self) -> None:
+    def __init__(self, client: Path | None = None) -> None:
         super().__init__(projects=PROJECTS, full=True)
+        # the client this server serves (GET /cli/version): the one being driven, so
+        # its update check (it runs when the client is not in a git checkout, as on a
+        # copy of the tree without .git) finds nothing newer and shows no notice
+        self.client = client or Path(__file__).resolve().parents[1] / "clients" / "cntrl" / "cntrl"
         self.misses: list[str] = []
         self.writes: list[str] = []
         self.convs = conversations()
@@ -569,6 +574,10 @@ class SeededServer(FakeServer):
 
         if path in ("/api/devices/whoami", "/api/auth/me"):
             return logged(J({"username": USERNAME, "access": "full"}))
+        if path == "/cli/version" and method == "GET":
+            served = self.client.read_bytes()
+            return logged(J({"sha256": hashlib.sha256(served).hexdigest(),
+                             "size": len(served), "mtime": 0, "requires": []}))
         if path == "/api/chat/options":
             return logged(J({
                 "default": MODEL, "active_project": None,
