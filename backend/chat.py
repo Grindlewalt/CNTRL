@@ -1155,6 +1155,15 @@ async def _run_chat_turn(conversation_id: int, ephemeral: bool,
                 (conversation_id,),
             ) as cur:
                 count = (await cur.fetchone())["c"]
+        # the chat's artifact store is listed before the answer is announced: a
+        # client that reads /api/artifacts on `final` must find what the turn
+        # wrote (on a slow host it read it before the finally below had adopted
+        # the store). The finally still adopts it for a turn that ends otherwise.
+        if atoken is not None:
+            try:
+                await toolctx.adopt_artifact_store(f"chat-{conversation_id}")
+            except Exception:  # noqa: BLE001 — bookkeeping only
+                pass
         # the answer is complete: tell every tail and drop the spinner BEFORE
         # the bookkeeping that follows. The journal line is a model call; it
         # used to run first, so the turn hung on it, and a stop during it
