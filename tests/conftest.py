@@ -39,6 +39,17 @@ def fresh_gitea_checks():
     yield
 
 
+@pytest.fixture(autouse=True)
+def own_client_config(tmp_path_factory, monkeypatch):
+    """The terminal and desk clients keep their files in $XDG_CONFIG_HOME/cntrl
+    (tui.json, history.jsonl, update-check.json, credentials). A test that did not
+    set it read and wrote the developer's real ~/.config/cntrl: a tui.json there
+    with perm_explained hid the first-use permission note, a saved tab layout
+    carried from one test into the next, and test prompts landed in the real
+    history. Every test gets an empty one; a test that sets its own still wins."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("xdg-config")))
+
+
 @pytest.fixture
 def tmp_env(tmp_path, monkeypatch):
     """Point all durable-state paths at a temp dir so tests never touch real data."""

@@ -916,6 +916,7 @@ NEW_PROJECT = "+new"               # the /project picker's "+ New project" row
 DIALOG_GRACE = 0.6                 # seconds a dialog that opens by itself takes no keys,
                                    # and how long the operator must pause typing after
 DIALOG_MAX_INERT = 3.0             # ... but never longer than this in all
+LEADER_TIMEOUT = 2.0               # seconds ctrl+x waits for the key that follows it
 
 
 def tui_available() -> bool:
@@ -4147,6 +4148,10 @@ def build_tui(base: str, token: str, **kw):
         MAX_INERT = DIALOG_MAX_INERT
 
         def _opened(self) -> None:
+            """Start the pause. Called when the dialog is made and again from its
+            on_mount: the pause counts from when it is on screen, not from when it
+            was built, and on a busy terminal those can be further apart than the
+            pause itself."""
             self.opened = self._last_key = time.monotonic()
             self.ate = False
 
@@ -4221,6 +4226,9 @@ def build_tui(base: str, token: str, **kw):
         def __init__(self, kind: str, summary: str, panel: int | None = None) -> None:
             super().__init__()
             self.kind, self.summary, self.panel = kind, summary, panel
+            self._opened()
+
+        def on_mount(self) -> None:
             self._opened()
 
         def compose(self) -> ComposeResult:
@@ -4316,6 +4324,7 @@ def build_tui(base: str, token: str, **kw):
             if not self.qs:
                 self.dismiss(None)
                 return
+            self._opened()
             self._draw()
             self.set_focus(None)
             self.call_after_refresh(self.set_focus, None)
@@ -13240,7 +13249,7 @@ def build_tui(base: str, token: str, **kw):
             self.leader = True
             if self._leader_timer is not None:
                 self._leader_timer.stop()
-            self._leader_timer = self.set_timer(2, self._leader_off)
+            self._leader_timer = self.set_timer(LEADER_TIMEOUT, self._leader_off)
             self._refresh_status()
 
         def _leader_off(self) -> None:

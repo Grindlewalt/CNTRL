@@ -12,10 +12,14 @@
 #     .git or anything git ignores (node_modules, frontend/dist, .venv, data,
 #     projects, notes); the venv is ~/cntrl-test/.venv, pinned by
 #     tests/constraints.txt;
-#   - each run gets a fresh dir ~/cntrl-test-runs/<stamp>. HOME, every XDG dir,
-#     TMPDIR and the config and state dirs (JARVIS_* and CNTRL_*) point into it,
-#     and `env -i` drops the rest of the login environment: no XDG_RUNTIME_DIR
-#     or D-Bus address, so `systemctl --user` cannot reach the live services;
+#   - each run gets a fresh dir ~/cntrl-test-runs/<stamp>. HOME, every XDG dir
+#     and TMPDIR point into it, so the default config and state dirs
+#     (~/.config/cntrl, ~/.local/share/cntrl) are the run's own, and `env -i`
+#     drops the rest of the login environment: no XDG_RUNTIME_DIR or D-Bus
+#     address, so `systemctl --user` cannot reach the live services, and no
+#     CNTRL_* / JARVIS_* variable. Those are not set for the run either: a
+#     CNTRL_CONFIG_DIR that is not the default makes the server a named instance
+#     (its own nft table, tap and CID), and the suite tests the default install;
 #   - its own network namespace (loopback only), so no test reaches a live port
 #     or the internet, and its own PID namespace, so no kill reaches a live
 #     process; a seccomp filter refuses AF_VSOCK sockets, which no namespace
@@ -85,7 +89,7 @@ rm -rf -- "$HOME/$DEST/data"
 
 run="$HOME/cntrl-test-runs/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$run"/home/.config "$run"/home/.local/share "$run"/home/.local/state \
-    "$run"/home/.cache "$run"/tmp "$run"/config "$run"/state "$run"/bin
+    "$run"/home/.cache "$run"/tmp "$run"/bin
 for b in sudo systemctl systemd-run; do
     cat > "$run/bin/$b" <<EOF
 #!/bin/sh
@@ -151,18 +155,18 @@ cmd=(env -i
     TMPDIR="$run/tmp"
     XDG_CONFIG_HOME="$run/home/.config" XDG_DATA_HOME="$run/home/.local/share"
     XDG_STATE_HOME="$run/home/.local/state" XDG_CACHE_HOME="$run/home/.cache"
-    JARVIS_CONFIG_DIR="$run/config" CNTRL_CONFIG_DIR="$run/config"
-    JARVIS_STATE_DIR="$run/state" CNTRL_STATE_DIR="$run/state"
     DOCKER_HOST="unix://$run/no-docker.sock"
     PYTHONDONTWRITEBYTECODE=1
     nice -n 19 ionice -c 3 timeout 4h ${seal[@]+"${seal[@]}"}
     "$here/.venv/bin/python" "$run/novsock.py"
     "$here/.venv/bin/python" -m pytest -q -p no:cacheprovider -rs "$@")
-# what ran, kept beside its log; then what tests left in the config and state
-# dirs (on a developer's machine those are the real ones)
+# what ran, kept beside its log; then what tests left in the default config and
+# state dirs (on a developer's machine those are the real ones)
 { echo '#!/bin/bash'; echo "cd $(printf '%q' "$here")"; printf '%q ' "${cmd[@]}"; echo
   echo 'rc=$?'
-  printf 'find %q %q -type f > %q\n' "$run/config" "$run/state" "$run/state-writes.txt"
+  printf 'find %q %q %q %q -type f 2>/dev/null > %q\n' "$run/home/.config/cntrl" \
+      "$run/home/.config/jarvis" "$run/home/.local/share/cntrl" \
+      "$run/home/.local/share/jarvis" "$run/state-writes.txt"
   echo 'exit $rc'; } > "$run/run.sh"
 
 if [ "$DETACH" = 1 ]; then

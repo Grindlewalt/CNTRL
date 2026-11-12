@@ -13,6 +13,8 @@ from pathlib import Path
 import httpx
 import pytest
 
+from cli_fake import mounted_name, until
+
 CLI = Path(__file__).resolve().parent.parent / "clients" / "cntrl" / "cntrl"
 
 
@@ -40,11 +42,7 @@ def cfg(tmp_path, monkeypatch):
 
 
 async def _until(pilot, cond, tries=80):
-    for _ in range(tries):
-        if cond():
-            return True
-        await pilot.pause(0.05)
-    return cond()
+    return await until(cond, lambda: pilot.pause(0.05), tries * 0.05)
 
 
 def _text(widget) -> str:
@@ -280,7 +278,7 @@ async def test_security_log_rows_show_coalesced_counts(cfg):
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.pause(0.3)
         app.dispatch("/security logs")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "SecurityPage")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "SecurityPage")
         scr = app.top
         assert await _until(pilot, lambda: scr.entries["logs"])
         row = scr.row_markup(scr.entries["logs"][0])

@@ -3,7 +3,7 @@ shift+tab never reaches yolo, /permissions yolo needs a yes and sends yolo-full,
 server's old `yolo` shows as safe-yolo."""
 import pytest
 
-from cli_fake import FakeServer, load_client, open_chat, send, top, wait_for
+from cli_fake import FakeServer, load_client, mounted_name, open_chat, send, top, wait_for
 
 jav3 = load_client("jav3cli_nov4_modes")
 SESSION = jav3.SESSION_PREFIX + "abc"       # the password login: full access
@@ -111,7 +111,7 @@ async def test_enter_on_the_yolo_question_says_no():
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause(0.3)
         await send(pilot, app, "/permissions yolo")
-        assert await wait_for(lambda: type(app.screen).__name__ == "Confirm")
+        assert await wait_for(lambda: mounted_name(app.screen) == "Confirm")
         await pilot.press("enter")
         await pilot.pause(0.3)
         assert app.chat.perm_mode == "safe-yolo"

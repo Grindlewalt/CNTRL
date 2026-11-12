@@ -74,6 +74,8 @@ def test_dirs_derive_from_state_dir(tmp_path):
 
 
 def test_state_dir_from_env(tmp_path, monkeypatch):
+    # the old name still works; a CNTRL_STATE_DIR in the environment would win over it
+    monkeypatch.delenv("CNTRL_STATE_DIR", raising=False)
     monkeypatch.setenv("JARVIS_STATE_DIR", str(tmp_path / "st"))
     s = mk(base_dir=tmp_path / "repo")
     assert s.memory_dir == tmp_path / "st" / "memory"

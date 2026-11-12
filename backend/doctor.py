@@ -35,9 +35,12 @@ def unit_name() -> str:
 
 def _stage(sid: str, title: str, ok: bool | None, detail: str = "", fix: str = "",
            who: str = "agent", optional: bool = False) -> dict:
-    # ok None = not applicable here (skipped), never a failure
+    # ok None = not applicable here (skipped), never a failure: like a passed stage it
+    # carries no fix. (It used to keep one: on a KVM host without Docker the skipped
+    # docker stage told the agent to hand "install Docker" to the person.)
+    todo = ok is False
     return {"id": sid, "title": title, "ok": ok, "optional": optional,
-            "detail": detail, "fix": "" if ok else fix, "who": "" if ok else who}
+            "detail": detail, "fix": fix if todo else "", "who": who if todo else ""}
 
 
 def _systemctl(*args: str) -> str:

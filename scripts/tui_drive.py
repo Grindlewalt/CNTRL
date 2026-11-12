@@ -698,7 +698,7 @@ def driven(*, fake: bool = False, server: str | None = None, size=(120, 40),
         if fake:
             sys.path.insert(0, str(REPO / "tests"))
             import tui_fake_http as tf
-            srv = tf.SeededServer()
+            srv = tf.SeededServer(client=Path(cli))
             http = tf.HttpFake(srv.handle)      # bound; served after the client has forked
             config = str(Path(tmp) / "config")
             cdir = Path(config) / "jav3"

@@ -4,7 +4,7 @@ without the route simply has no such rows."""
 import httpx
 import pytest
 
-from cli_fake import FakeServer, load_client
+from cli_fake import FakeServer, load_client, mounted_name, until
 
 jav3 = load_client("jav3cli_journal")
 FULL = jav3.SESSION_PREFIX + "jwt"
@@ -39,16 +39,12 @@ class JournalServer(FakeServer):
 
 
 async def _until(pilot, cond, tries=80):
-    for _ in range(tries):
-        if cond():
-            return True
-        await pilot.pause(0.05)
-    return cond()
+    return await until(cond, lambda: pilot.pause(0.05), tries * 0.05)
 
 
 async def _open(pilot, app):
     app.dispatch("/security")
-    assert await _until(pilot, lambda: type(app.top).__name__ == "SecurityPage")
+    assert await _until(pilot, lambda: mounted_name(app.top) == "SecurityPage")
     scr = app.top
     assert await _until(pilot, lambda: scr.loaded["queue"])
     await pilot.pause(0.1)
@@ -67,12 +63,12 @@ async def test_y_approves_and_n_drops_after_a_confirm(key, verb):
         assert "JOURNAL" in row and "demo" in row and "\\[b]node 22" in row
         assert "[b]node 22" in scr.detail_markup(scr.entries["queue"][0]).replace("\\[", "[")
         await pilot.press(key)
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         await pilot.press("n")                              # cancelled: nothing sent
         assert await _until(pilot, lambda: type(app.top).__name__ != "Confirm")
         assert srv.writes == []
         await pilot.press(key)
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         await pilot.press("y")
         assert await _until(pilot, lambda: srv.writes)
         assert srv.writes == [("POST", f"/api/memory/held-journal/demo/{HELD['id']}/{verb}")]

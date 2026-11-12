@@ -11,6 +11,8 @@ from pathlib import Path
 import httpx
 import pytest
 
+from cli_fake import until
+
 CLI = Path(__file__).resolve().parent.parent / "clients" / "cntrl" / "cntrl"
 
 
@@ -183,11 +185,7 @@ class Feed:
 
 
 async def _until(pilot, cond, n=80):
-    for _ in range(n):
-        if cond():
-            return True
-        await pilot.pause(0.05)
-    return cond()
+    return await until(cond, lambda: pilot.pause(0.05), n * 0.05)
 
 
 def _plain(widget) -> str:
@@ -243,7 +241,9 @@ async def test_a_failed_turn_stops_its_rows_and_hands_messages_back(cfg):
         await _start(pilot, app, feed)
         feed.send({"type": "tool", "id": "c1", "name": "run_code",
                    "args": {"command": "npm test"}})
-        assert await _until(pilot, lambda: len(app.query("ToolView")) == 1)
+        # in the DOM first, mounted (and so ticking) after
+        assert await _until(pilot, lambda: len(app.query("ToolView")) == 1
+                            and app.query_one("ToolView").is_mounted)
         tv = app.query_one("ToolView")
         assert tv in app.live_tools                # its timer is ticking
         feed.send({"type": "error", "message": "the VM stopped responding",

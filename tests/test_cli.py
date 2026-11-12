@@ -14,6 +14,8 @@ from pathlib import Path
 import httpx
 import pytest
 
+from cli_fake import mounted_name, slow_keys, until
+
 CLI = Path(__file__).resolve().parent.parent / "clients" / "cntrl" / "cntrl"
 
 
@@ -22,6 +24,7 @@ def _load():
     spec = importlib.util.spec_from_loader("jav3cli", loader)
     mod = importlib.util.module_from_spec(spec)
     loader.exec_module(mod)
+    slow_keys(mod)
     return mod
 
 
@@ -416,11 +419,7 @@ async def test_conversation_info_totals_usage_and_files(tmp_env):
 # --- logged-out start, password sessions, pickers, notifications -----------------------
 
 async def _until(pilot, cond, tries=60, n=None):
-    for _ in range(n or tries):
-        if cond():
-            return True
-        await pilot.pause(0.05)
-    return cond()
+    return await until(cond, lambda: pilot.pause(0.05), (n or tries) * 0.05)
 
 
 def _text(widget) -> str:
@@ -600,18 +599,18 @@ async def test_tui_password_login_stores_a_session_and_sends_the_cookie(cfg, mon
         await pilot.pause(0.3)
         assert app.logged_in is False
         app.dispatch("/login")
-        await _until(pilot, lambda: type(app.top).__name__ == "Picker")
+        await _until(pilot, lambda: mounted_name(app.top) == "Picker")
         assert app.top.query_one("#choices").highlighted == 0      # password first
         await pilot.press("enter")
-        await _until(pilot, lambda: type(app.top).__name__ == "Ask")
+        await _until(pilot, lambda: mounted_name(app.top) == "Ask")
         await pilot.press(*"h:1", "enter")                         # address
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         assert "plain http" in app.top.question                 # said before the password
         await pilot.press("y")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Ask"
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Ask"
                             and app.top.question == "Username")
         await pilot.press(*"operator", "enter")                    # username
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Ask"
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Ask"
                             and app.top.question == "Password")
         assert app.top.query_one("#answer").password is True     # hidden
         await pilot.press("p", "w", "enter")
@@ -694,7 +693,7 @@ async def test_picker_opens_on_the_list_and_typing_highlights_the_closest(cfg):
         async def go():
             out.append(await app.pick("T", rows, "d"))
         app.run_worker(go())
-        await _until(pilot, lambda: type(app.top).__name__ == "Picker")
+        await _until(pilot, lambda: mounted_name(app.top) == "Picker")
         scr = app.top
         ol = scr.query_one("#choices")
 
@@ -717,7 +716,7 @@ async def test_picker_opens_on_the_list_and_typing_highlights_the_closest(cfg):
 
         out.clear()
         app.run_worker(go())
-        await _until(pilot, lambda: type(app.top).__name__ == "Picker")
+        await _until(pilot, lambda: mounted_name(app.top) == "Picker")
         scr = app.top
         await pilot.press("o", "t")                            # any letter, t too, is text
         await pilot.pause(0.1)
@@ -740,7 +739,7 @@ async def test_model_picker_lists_keyed_providers_and_toggles(cfg):
         await pilot.pause(0.3)
         assert app.full_access
         app.dispatch("/model")
-        await _until(pilot, lambda: type(app.top).__name__ == "Picker")
+        await _until(pilot, lambda: mounted_name(app.top) == "Picker")
         scr = app.top
         # grouped by provider (heading rows); openai has no key so is not listed
         assert [r[0] for r in scr.rows] == ["default", None, "deepseek/deepseek-flash",
@@ -770,11 +769,11 @@ async def test_provider_flow_sets_the_key_and_tests(cfg):
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.pause(0.3)
         app.dispatch("/provider")
-        await _until(pilot, lambda: type(app.top).__name__ == "Picker")
+        await _until(pilot, lambda: mounted_name(app.top) == "Picker")
         await pilot.press(*"openai")
         await pilot.pause(0.1)
         await pilot.press("enter")
-        await _until(pilot, lambda: type(app.top).__name__ == "Ask")
+        await _until(pilot, lambda: mounted_name(app.top) == "Ask")
         assert app.top.query_one("#answer").password is True
         await pilot.press(*"sk-1", "enter")
         await pilot.pause(0.2)
@@ -800,10 +799,10 @@ async def test_project_picker_makes_a_new_project(cfg):
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.pause(0.3)
         app.dispatch("/project")
-        await _until(pilot, lambda: type(app.top).__name__ == "Picker")
+        await _until(pilot, lambda: mounted_name(app.top) == "Picker")
         assert [r[0] for r in app.top.rows] == [jav3.NEW_PROJECT, "none", "follow", "demo"]
         await pilot.press("enter")                             # "+ New project"
-        await _until(pilot, lambda: type(app.top).__name__ == "Ask")
+        await _until(pilot, lambda: mounted_name(app.top) == "Ask")
         await pilot.press(*"New thing", "enter")
         assert await _until(pilot, lambda: app.project == "new-thing")
         assert ("POST", "/api/projects", {"name": "New thing"}) in seen
@@ -998,9 +997,9 @@ async def test_tui_orchestration_sends_mode_project_and_braindump(cfg):
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.pause(0.3)
         app.dispatch("/orchestration")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Picker")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Picker")
         await pilot.press("s", "i", "enter")          # filter to "site"
-        assert await _until(pilot, lambda: type(app.top).__name__ == "BrainDump")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "BrainDump")
         app.top.query_one("#dump").text = "fix the build\nand ship the docs"
         await pilot.press("ctrl+s")
         assert await _until(pilot, lambda: srv.chats)
@@ -1015,7 +1014,7 @@ async def test_tui_orchestration_sends_mode_project_and_braindump(cfg):
         assert await _until(pilot, lambda: not app.busy)
         # esc cancels the brain-dump
         app.dispatch("/orchestrate demo")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "BrainDump")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "BrainDump")
         await pilot.press("escape")
         await pilot.pause(0.2)
         assert type(app.top).__name__ != "BrainDump" and len(srv.chats) == 1
@@ -1071,7 +1070,7 @@ async def test_tui_agents_screen(cfg):
     async with app.run_test(size=(140, 40)) as pilot:
         assert await _until(pilot, lambda: app.cid == 20)
         app.dispatch("/agents")                          # the full page (← is the drawer)
-        assert await _until(pilot, lambda: type(app.top).__name__ == "AgentsPage")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "AgentsPage")
         scr = app.top
         assert await _until(pilot, lambda: scr.loaded and len(scr.query("AgentRow")) > 1)
 
@@ -1115,7 +1114,7 @@ async def test_tui_agents_screen(cfg):
         assert names == ["run_code", "read_file"]
         # back in: now 11 is the green one, inside its orchestrator; ← twice leaves
         app.dispatch("/agents")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "AgentsPage")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "AgentsPage")
         scr = app.top
         assert await _until(pilot, lambda: scr.loaded and len(scr.query("AgentRow")) > 1)
         assert [r.nid for r in scr.query("AgentRow") if r.has_class("current")] == [11]
@@ -1161,7 +1160,7 @@ async def test_tui_agents_screen_needs_you_and_finished_grouping(cfg):
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.pause(0.3)
         app.dispatch("/agents")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "AgentsPage")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "AgentsPage")
         scr = app.top
         assert await _until(pilot, lambda: scr.loaded and len(scr.query("AgentRow")) > 3)
         text = [str(r.render()) for r in scr.query("AgentRow")]
@@ -1306,7 +1305,7 @@ def _posts(seen):
 
 async def _open_security(pilot, app, arg=""):
     app.dispatch(f"/security {arg}".strip())
-    await _until(pilot, lambda: type(app.top).__name__ == "SecurityPage")
+    await _until(pilot, lambda: mounted_name(app.top) == "SecurityPage")
     return app.top
 
 
@@ -1345,13 +1344,13 @@ async def test_tui_security_tabs_and_queue_verdicts_after_confirm(cfg):
         await _until(pilot, lambda: scr.loaded["queue"] and len(_rows(scr)) == 3)
         n0 = len(_posts(seen))
         await pilot.press("y")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         assert "evil.example" in app.top.question and "own allow list" in app.top.detail
         await pilot.press("n")
         await pilot.pause(0.2)
         assert len(_posts(seen)) == n0
         await pilot.press("y")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         await pilot.press("y")
         assert await _until(pilot, lambda: ("POST", "/api/egress/pending/1/approve", None)
                             in _posts(seen))
@@ -1361,7 +1360,7 @@ async def test_tui_security_tabs_and_queue_verdicts_after_confirm(cfg):
         assert scr.sel["queue"] == "gdemo:5"
         assert "a.py" in _text(scr.query_one("#sec-detail"))
         await pilot.press("n")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         assert not any("/git/requests/5" in p for _, p, _ in _posts(seen))
         await pilot.press("y")
         assert await _until(pilot, lambda: ("POST", "/api/projects/demo/git/requests/5/reject",
@@ -1371,12 +1370,12 @@ async def test_tui_security_tabs_and_queue_verdicts_after_confirm(cfg):
         await pilot.press("down")
         assert "curl evil.example" in _text(scr.query_one("#sec-detail"))
         await pilot.press("a")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         await pilot.press("escape")
         await pilot.pause(0.2)
         assert not any(p.endswith("/ack") for _, p, _ in _posts(seen))
         await pilot.press("a")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         await pilot.press("y")
         assert await _until(pilot, lambda: ("POST", "/api/security/events/7/ack", None)
                             in _posts(seen))
@@ -1403,7 +1402,7 @@ async def test_tui_security_network_and_logs(cfg):
         assert ("GET", "/api/egress/policy/__general__", {}, None) in seen
         # p: the project picker narrows the feed and the policy
         await pilot.press("p")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Picker")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Picker")
         await pilot.press("down", "enter")
         assert await _until(pilot, lambda: scr.project == "demo" and scr.loaded["network"])
         assert await _until(pilot, lambda: ("GET", "/api/egress/events",
@@ -1448,13 +1447,13 @@ async def test_tui_security_secrets_never_reads_values(cfg):
         assert all("last4" not in e["raw"] for e in scr.entries["secrets"])
         # add: name, hidden value, hosts -> one PUT
         await pilot.press("a")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Ask")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Ask")
         await pilot.press(*"new_key", "enter")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Ask"
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Ask"
                             and app.top.secret)
         assert app.top.query_one("#answer").password is True
         await pilot.press(*"s3cr3t", "enter")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Ask"
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Ask"
                             and not app.top.secret)
         await pilot.press(*"a.com, b.com", "enter")
         assert await _until(pilot, lambda: ("PUT", "/api/secrets/NEW_KEY",
@@ -1465,13 +1464,13 @@ async def test_tui_security_secrets_never_reads_values(cfg):
         # delete: only after the Confirm
         await pilot.press("down")                               # NEWS_KEY
         await pilot.press("d")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         assert "NEWS_KEY" in app.top.question
         await pilot.press("n")
         await pilot.pause(0.2)
         assert not any(m == "DELETE" for m, _, _ in _posts(seen))
         await pilot.press("d")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         await pilot.press("y")
         assert await _until(pilot, lambda: ("DELETE", "/api/secrets/NEWS_KEY", None)
                             in _posts(seen))
@@ -1541,7 +1540,7 @@ async def test_tui_brackets_in_titles_and_tool_args_do_not_crash(cfg):
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.pause(0.3)
         app.dispatch("/sessions")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Picker")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Picker")
         await pilot.pause(0.2)
         assert app.is_running
         assert app.top.rows[1][1] == "summarise this"      # one line per chat
@@ -1604,7 +1603,7 @@ async def test_tui_picker_keeps_letters_typed_before_the_filter_has_focus(cfg):
         await pilot.pause(0.3)
         rows = [("demo", "demo", ""), ("e2e-smoke", "e2e-smoke", "")]
         app.run_worker(app.pick("Projects", rows))
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Picker")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Picker")
         scr = app.top
         scr.start_typing("e")
         for ch in "2e":            # as if still in flight to the list
@@ -1627,7 +1626,7 @@ async def test_tui_local_approval_ignores_keys_typed_before_it_opened(cfg):
         async def ask():
             answers.append(await app.local_approve("shell", "$ rm -rf build"))
         app.run_worker(ask())
-        assert await _until(pilot, lambda: type(app.top).__name__ == "LocalApprove")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "LocalApprove")
         dlg = app.top
         # the dialog's clock, faked: its pause is held open, so however slowly
         # a loaded machine delivers the keys below they land inside it...
@@ -1664,7 +1663,7 @@ async def test_tui_finished_by_time_is_newest_first_and_footer_without_model(cfg
         await pilot.pause(0.1)
         assert _text(app.query("Footer").last()).rstrip() == "▣ CNTRL"   # no dangling ·
         app.dispatch("/agents")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "AgentsPage")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "AgentsPage")
         scr = app.top
         from datetime import datetime, timedelta, timezone
         now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -1903,12 +1902,12 @@ def _boxes_server(seen, lan_ip="", token="sess", procs_enabled=True, docker_ok=T
 
 async def _screen(pilot, app, cmd, name):
     app.dispatch(cmd)
-    await _until(pilot, lambda: type(app.top).__name__ == name)
+    await _until(pilot, lambda: mounted_name(app.top) == name)
     return app.top
 
 
 async def _modal(pilot, app, name):
-    return await _until(pilot, lambda: type(app.top).__name__ == name)
+    return await _until(pilot, lambda: mounted_name(app.top) == name)
 
 
 async def test_tui_queue_service_request_needs_placement_and_confirm(cfg):
@@ -2090,7 +2089,7 @@ async def test_tui_network_groups_by_project_with_allow_deny_and_baseline(cfg):
         assert await _modal(pilot, app, "Ask")
         assert app.top.value == "demo.dev"
         await pilot.press("end", *", x.org", "enter")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Ask"
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Ask"
                             and "DENY" in app.top.question)
         await pilot.press("enter")
         assert await _modal(pilot, app, "Confirm")
@@ -2137,7 +2136,7 @@ async def test_tui_network_allow_deny_a_host_and_promote(cfg):
         assert await _modal(pilot, app, "Picker")
         assert [r[1] for r in app.top.rows] == ["demo.dev", "tracker.example"]
         await pilot.press("down", "enter")                    # tracker.example (deny)
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Picker"
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Picker"
                             and app.top.rows[0][0] == "own")
         await pilot.press("enter")                            # its own profile
         assert await _modal(pilot, app, "Confirm")
@@ -2195,7 +2194,7 @@ async def test_tui_persistent_tree_mismatch_stop_and_revoke(cfg):
         await pilot.press("d")
         assert await _modal(pilot, app, "Confirm")
         await pilot.press("y")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm"
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm"
                             and "/srv" in app.top.question)
         await pilot.press("n")                                # keep the data
         assert await _until(pilot, lambda: ("POST", "/api/services/9/revoke",
@@ -2415,7 +2414,7 @@ async def test_tui_vms_boxes_images_catalogue(cfg):
     async with app.run_test(size=(160, 50)) as pilot:
         await pilot.pause(0.3)
         await pilot.press("ctrl+x", "c")                      # the leader letter
-        assert await _until(pilot, lambda: type(app.top).__name__ == "VmsPage")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "VmsPage")
         scr = app.top
         assert await _until(pilot, lambda: scr.loaded["boxes"] and len(_rows(scr)) == 2)
         rows = _rows(scr)
@@ -2454,7 +2453,7 @@ async def test_tui_vms_boxes_images_catalogue(cfg):
         await pilot.press("d")
         assert await _modal(pilot, app, "Confirm")
         await pilot.press("y")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm"
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm"
                             and "data disk" in app.top.question)
         await pilot.press("n")
         assert await _until(pilot, lambda: ("POST", "/api/vm/boxes/p-site/destroy",
@@ -2511,6 +2510,8 @@ async def test_tui_vms_docker_greyed_out_with_its_reason(cfg):
         await pilot.pause(0.3)
         scr = await _screen(pilot, app, "/vms", "VmsPage")
         assert await _until(pilot, lambda: scr.loaded["boxes"] and scr.runtimes)
+        # the line is drawn after the load lands ("…" until then)
+        assert await _until(pilot, lambda: "docker:" in _text(scr.query_one("#sec-sub")))
         sub = _text(scr.query_one("#sec-sub"))
         assert "docker: unavailable — docker_enabled is off" in sub
         assert "WEAK" not in sub
@@ -2899,7 +2900,7 @@ async def test_agents_reload_after_close_does_not_crash():
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.pause(0.3)
         app.dispatch("/agents")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "AgentsPage")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "AgentsPage")
         scr = app.top
         await pilot.press("escape")
         assert await _until(pilot, lambda: type(app.top).__name__ != "AgentsPage")

@@ -7,6 +7,8 @@ from pathlib import Path
 import httpx
 import pytest
 
+from cli_fake import mounted_name, until
+
 CLI = Path(__file__).resolve().parent.parent / "clients" / "cntrl" / "cntrl"
 
 
@@ -184,11 +186,7 @@ def _server(seen, rows=None, capture=True):
 
 
 async def _until(pilot, cond, tries=60):
-    for _ in range(tries):
-        if cond():
-            return True
-        await pilot.pause(0.05)
-    return cond()
+    return await until(cond, lambda: pilot.pause(0.05), tries * 0.05)
 
 
 def _rows(scr):
@@ -199,7 +197,7 @@ async def _open(pilot, app, cid=42):
     await pilot.pause(0.3)
     app.cid = cid
     app.dispatch("/security calls")
-    assert await _until(pilot, lambda: type(app.top).__name__ == "SecurityPage")
+    assert await _until(pilot, lambda: mounted_name(app.top) == "SecurityPage")
     scr = app.top
     assert await _until(pilot, lambda: scr.loaded["calls"] and len(_rows(scr)) >= 1)
     await pilot.pause(0.1)
@@ -238,7 +236,7 @@ async def test_calls_tab_is_reachable_by_8_and_by_tabbing():
     async with app.run_test(size=(150, 45)) as pilot:
         await pilot.pause(0.3)
         app.dispatch("/security")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "SecurityPage")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "SecurityPage")
         scr = app.top
         await pilot.press("8")
         assert scr.tab == "calls" and scr.query_one("#sec-tab-calls").has_class("-on")
@@ -285,7 +283,7 @@ async def test_enter_views_the_captured_context():
     async with app.run_test(size=(150, 45)) as pilot:
         scr = await _open(pilot, app)
         await pilot.press("enter")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "View")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "View")
         assert any(path == "/api/logs/calls/12/context" for m, path, p in seen)
         body = " ".join(str(w.render()) for w in app.top.query("Static"))
         assert "what is the plan" in body and "12,431 in (9,102 cached)" in body
@@ -312,7 +310,7 @@ async def test_empty_and_locked():
     async with app.run_test(size=(150, 45)) as pilot:
         await pilot.pause(0.3)
         app.dispatch("/security calls")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "SecurityPage")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "SecurityPage")
         scr = app.top
         assert await _until(pilot, lambda: scr.loaded["calls"])
         await pilot.pause(0.1)
@@ -322,6 +320,6 @@ async def test_empty_and_locked():
     async with app.run_test(size=(150, 45)) as pilot:
         await pilot.pause(0.3)
         app.dispatch("/security calls")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "SecurityPage")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "SecurityPage")
         await pilot.pause(0.3)
         assert not any(path == "/api/logs/calls" for m, path, p in seen)   # chat-only login

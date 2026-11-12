@@ -13,7 +13,7 @@ import time
 import httpx
 import pytest
 
-from cli_fake import FakeServer, load_client, send, wait_for
+from cli_fake import FakeServer, load_client, mounted_name, send, wait_for
 
 jav3 = load_client("jav3cli_update")
 
@@ -307,7 +307,7 @@ async def test_update_replaces_the_file_keeps_a_backup_and_leaves_the_rest(insta
         await pilot.pause(0.3)
         await send(pilot, app, "/update")
         # it asks to restart into the new one; n keeps this one running
-        assert await wait_for(lambda: type(app.screen).__name__ == "Confirm")
+        assert await wait_for(lambda: mounted_name(app.screen) == "Confirm")
         assert "Restart cntrl now?" in str(app.screen.query("Static")[0].render())
         day = time.strftime("%Y-%m-%d")
         assert any(f"cntrl.bak-{day}" in n for n in notes(app))     # the note names the backup
@@ -332,7 +332,7 @@ async def test_yes_to_restart_after_update_leaves_for_the_new_client_and_clears_
         assert await wait_for(lambda: any(t == jav3.UPDATE_NOTICE for _, _, t in app.notices))
         app.editor.text = ""
         await send(pilot, app, "/update")
-        assert await wait_for(lambda: type(app.screen).__name__ == "Confirm")
+        assert await wait_for(lambda: mounted_name(app.screen) == "Confirm")
         assert not any(t == jav3.UPDATE_NOTICE for _, _, t in app.notices)   # answered
         await pilot.pause(0.5)
         await pilot.press("y")

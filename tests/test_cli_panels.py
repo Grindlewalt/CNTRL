@@ -6,7 +6,7 @@ ctrl+x 0 still closes). The first half is the pure layout (no terminal); the sec
 The client file is loaded from tests/cli_fake.py."""
 import pytest
 
-from cli_fake import FakeServer, ask, load_client, send, wait_for
+from cli_fake import FakeServer, ask, load_client, mounted_name, send, wait_for
 
 jav3 = load_client("jav3cli_panels")
 
@@ -333,7 +333,7 @@ async def test_a_dialog_for_an_unfocused_panels_turn_opens_over_everything_with_
         assert await wait_for(lambda: app.chats[1].cid == 4)
         await split(pilot, app, "/new-panel", want=2)           # focus on 2
         srv.feeds[0].put(ask("a1", 4, "Delete the build dir?", kind="permission"))
-        assert await wait_for(lambda: type(app.screen).__name__ == "AskUser")
+        assert await wait_for(lambda: mounted_name(app.screen) == "AskUser")
         def head() -> str:
             return " ".join(str(w.render()) for w in app.screen.query("Static"))
         assert await wait_for(lambda: "panel 1" in head())      # drawn once it is mounted

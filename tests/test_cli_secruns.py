@@ -8,7 +8,7 @@ import json
 import httpx
 import pytest
 
-from cli_fake import FakeServer, load_client
+from cli_fake import FakeServer, load_client, mounted_name, until
 
 jav3 = load_client("jav3cli_secruns")
 FULL = jav3.SESSION_PREFIX + "jwt"
@@ -111,11 +111,7 @@ def _app(srv):
 
 
 async def _until(pilot, cond, tries=80):
-    for _ in range(tries):
-        if cond():
-            return True
-        await pilot.pause(0.05)
-    return cond()
+    return await until(cond, lambda: pilot.pause(0.05), tries * 0.05)
 
 
 def _text(widget) -> str:
@@ -128,7 +124,7 @@ def _rows(scr):
 
 async def _open(pilot, app):
     app.dispatch("/security")
-    assert await _until(pilot, lambda: type(app.top).__name__ == "SecurityPage")
+    assert await _until(pilot, lambda: mounted_name(app.top) == "SecurityPage")
     scr = app.top
     assert await _until(pilot, lambda: scr.loaded["queue"] and len(scr.entries["queue"]) > 0)
     await pilot.pause(0.1)
@@ -136,7 +132,7 @@ async def _open(pilot, app):
 
 
 async def _confirm(pilot, app, yes=True):
-    assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+    assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
     dlg = app.top
     await pilot.press("y" if yes else "n")
     assert await _until(pilot, lambda: type(app.top).__name__ != "Confirm")
@@ -293,7 +289,7 @@ async def test_m_mutes_the_kind_through_the_pick_and_a_critical_kind_cannot(cfg)
         await pilot.pause(0.3)
         scr = await _open(pilot, app)
         await pilot.press("m")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Picker")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Picker")
         await pilot.press("enter")                                      # "record" is preselected
         assert await _until(pilot, lambda: srv.writes)
         assert srv.writes[0] == ("PUT", "/api/notifications/settings",
