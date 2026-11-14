@@ -4,6 +4,10 @@ import {
   UNTRUSTED, cardTitle, cardTotals, cardsFor, chatHref, eventState, clock, countsLine, countsParts, eventActions,
   kindsToMute, lineTitle, muteAsk, mutable, programOf, runState, stopRunAsk, subjectsText,
 } from '../securityRuns.js'
+import {
+  STEP_KINDS, alertRow, approveLabel, approveOpensInspect, boxName, changeText, denyLabel, detailTitle,
+  glanceBoxes, imageLabel, queueRows, rolesOf, rowFor, summaryOf,
+} from '../securityDash.js'
 
 // the header's counts, as the sketch words them
 assert.equal(countsLine({ need: 2, filtered: 47, reports: 1 }),
@@ -121,5 +125,90 @@ assert.deepEqual([eventState({ severity: 'critical' }).tone, eventState({ severi
   eventState({ severity: 'info' }).tone], ['bad', 'warn', 'quiet'])
 assert.equal(lineTitle({ kind: 'yolo_auto_approved', summary: 'approved unasked (yolo): package pip x' }),
   'package pip x')
+
+// ---- the dashboard (securityDash.js) ------------------------------------------
+{
+
+// the agent's summary first; else the best short reason the row carries
+assert.deepEqual(summaryOf('git', { message: 'Add loader\n\nlong body', agent_summary: '  Adds the loader.\n It reads CSV.' }),
+  { summary: 'Adds the loader. It reads CSV.', byAgent: true })
+assert.deepEqual(summaryOf('git', { message: '\nAdd loader\n\nbody' }), { summary: 'Add loader', byAgent: false })
+assert.equal(summaryOf('git', { kind: 'remote', message: 'https://github.com/a/b' }).summary,
+  "Connect https://github.com/a/b as this project's remote and push its commits.")
+assert.equal(summaryOf('package', { reason: 'for video export' }).summary, 'for video export')
+assert.equal(summaryOf('service', { description: 'tiny api', reason: 'r' }).summary, 'tiny api')
+assert.equal(summaryOf('site', { host: 'x.com' }).summary,
+  'A box tried to reach it and no list covers it, so it was blocked.')
+assert.equal(summaryOf('site', { triage_reason: 'looks like a tracker' }).summary, 'looks like a tracker')
+assert.equal(summaryOf('site', { refused: 'the CNTRL host' }).summary, 'It cannot be allowed: the CNTRL host.')
+assert.equal(summaryOf('page', { name: 'Report' }).summary, 'Publish Report at a link anyone can open.')
+
+// rows: kinds, labels, keys
+const git = rowFor('git', { id: 3, slug: 'web', kind: 'push', message: 'Add x', created_at: '2026-11-13 10:00:00' })
+assert.deepEqual([git.kind, git.sub, git.label, git.project, git.key], ['git', 'push', 'Pull request', 'web', 'git:web:3'])
+assert.equal(rowFor('git', { id: 1, slug: 'w', message: 'm' }).label, 'Commit')
+assert.equal(rowFor('git', { id: 1, slug: 'w', message: 'm', error: 'push failed' }).tone, 'bad')
+assert.equal(rowFor('package', { id: 2, manager: 'pip', package: 'rich', resolved_version: '13.0' }).subject, 'rich 13.0')
+assert.equal(rowFor('environment', { id: 2, kind: 'use', name: 'desktop' }).label, 'Image change')
+assert.equal(rowFor('site', { id: 9, host: 'a.io', refused: 'no' }).tone, 'bad')
+assert.equal(rowFor('ask', { id: 'k1', kind: 'permission', question: 'Run it?', conversation_id: 4 }).label, 'Permission')
+assert.equal(rowFor('nope', {}), null)
+
+// alerts: one row per run; info-only runs and agent reports fold away
+const runs = [
+  { key: 'r1', project: 'web', last_at: '2026-11-13 09:00:00', counts: { need: 2 },
+    kinds: [{ kind: 'write_flag', severity: 'warn' }], events: [{ kind: 'write_flag', summary: 'odd write' }] },
+  { key: 'r2', last_at: '2026-11-13 11:00:00', counts: { need: 1 },
+    kinds: [{ kind: 'x', severity: 'info' }], events: [{ kind: 'x', summary: 'fyi' }] },
+  { key: 'r3', counts: { reports: 1 }, kinds: [], report_kinds: [{ kind: 'harness_fault' }], events: [] },
+]
+assert.deepEqual([alertRow(runs[0]).tone, alertRow(runs[0]).label, alertRow(runs[0]).summary],
+  ['warn', '2 alerts', 'odd write'])
+assert.equal(alertRow({ key: 'c', counts: { need: 1 }, kinds: [{ severity: 'critical' }] }).tone, 'bad')
+assert.equal(alertRow(runs[2]).label, 'Agent report')
+const q = queueRows({
+  git: [{ id: 1, slug: 'web', message: 'old', created_at: '2026-11-13 08:00:00' }],
+  packages: [{ id: 5, manager: 'apt', package: 'ffmpeg', created_at: '2026-11-13 12:00:00' }],
+  asks: [{ id: 'a', question: 'Which branch?', conversation_id: 2 }],
+  runs,
+})
+// questions first, then requests newest first, then the alerts that need you
+assert.deepEqual(q.rows.map((r) => r.key), ['ask:a', 'package:5', 'git:web:1', 'alert:r1'])
+assert.deepEqual(q.quiet.map((r) => r.key), ['alert:r2', 'alert:r3'])
+assert.deepEqual(queueRows({}), { rows: [], quiet: [] })
+
+// buttons: refuse, approve, and which approvals need the full request first
+assert.deepEqual([denyLabel(git), approveLabel(git)], ['Deny', 'Merge'])
+assert.equal(approveLabel(rowFor('git', { id: 1, slug: 'w', message: 'm' })), 'Approve')
+assert.equal(approveLabel(rowFor('git', { id: 1, slug: 'w', kind: 'remote', message: 'u' })), 'Connect')
+assert.equal(approveLabel(rowFor('git', { id: 1, slug: 'w', message: 'm', error: 'x' })), 'Retry')
+assert.equal(denyLabel(rowFor('journal', { id: 1, project: 'w', text: 't' })), 'Drop')
+assert.equal(denyLabel(alertRow(runs[0])), null)
+assert.equal(approveLabel(rowFor('skill', { id: 1, status: 'pending', source: 's' })), 'Fetch and read')
+assert.equal(approveLabel(rowFor('skill', { id: 1, status: 'fetched', source: 's' })), 'Install and grant')
+assert.equal(approveOpensInspect(rowFor('service', { id: 1, name: 'api' })), true)
+assert.equal(approveOpensInspect(rowFor('environment', { id: 1, name: 'e', resolved: false })), true)
+assert.equal(approveOpensInspect(rowFor('environment', { id: 1, name: 'e', resolved: true })), false)
+assert.equal(approveOpensInspect(rowFor('environment', { id: 1, kind: 'use', name: 'e' })), false)
+assert.equal(approveOpensInspect(git), false)
+assert.ok(changeText(git).includes('into main'))
+assert.equal(detailTitle(git), 'Pull request #3')
+assert.equal(detailTitle(rowFor('ask', { id: 'a', question: 'q', conversation_id: 4 })), 'Question in chat 4')
+assert.equal(detailTitle(rowFor('package', { id: 2, manager: 'pip', package: 'rich' })), 'Pip package')
+
+// boxes at a glance: the running ones, their image, what works in them
+const g = glanceBoxes([
+  { id: 'shared', kind: 'shared', state: 'running', image: { variant: 'main', version: 7 },
+    now: [{ op_id: 'o1', conversation_id: 12, project: 'web', title: 'Fix nav' }] },
+  { id: 'p-site', kind: 'project', project: 'site', state: 'running', image: { variant: 'desktop', version: null }, now: [] },
+  { id: 'p-x', kind: 'project', project: 'x', state: 'stopped', image: { variant: 'main' } },
+], rolesOf([{ id: 12, role: '@reviewer' }, { id: 13 }]))
+assert.equal(g.stopped, 1)
+assert.deepEqual(g.running.map((b) => [b.name, b.image]), [['Shared box', 'main v7'], ['site box', 'desktop']])
+assert.deepEqual(g.running[0].work.map((w) => [w.project, w.title, w.role]), [['web', 'Fix nav', '@reviewer']])
+assert.equal(boxName({ kind: 'service', project: 'web' }), 'Service box for web')
+assert.equal(imageLabel({}), 'main')
+assert.ok(STEP_KINDS.includes('git') && !STEP_KINDS.includes('site'))
+}
 
 console.log('securityRuns ok')
