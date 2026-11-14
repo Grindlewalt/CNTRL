@@ -153,6 +153,10 @@ export default function AppRoutes({ onLogin, onSetup, authed }) {
           <Route path="skills" element={<SkillsPanel />} />
           <Route path="outputs" element={<AgentOutputs />} />
           <Route path="outputs/:slug" element={<AgentOutputs />} />
+          {/* an agent's chat: its home (a new chat) or one of its chats. The
+              static skills/outputs above outrank :slug */}
+          <Route path=":slug" element={<AgentDefinitions />} />
+          <Route path=":slug/c/:id" element={<AgentDefinitions />} />
         </Route>
         <Route path="/security" element={<Review />}>
           <Route index element={<ReviewHome />} />
