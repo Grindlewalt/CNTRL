@@ -88,12 +88,38 @@
 
 /* ---- Agents ---- */
 :is(.agents-aside, .skills-aside) .agent-new { align-items: stretch; }
-:is(.agents-aside, .skills-aside) .agent-row { border: 0; border-radius: var(--radius-lg);
-  padding: var(--sp-4) var(--sp-5); font-size: var(--fs-base); color: var(--slate); }
-:is(.agents-aside, .skills-aside) .agent-row.active { background: var(--wash); color: var(--ink); font-weight: 600; }
+:is(.agents-aside, .skills-aside) .agent-list { padding: 0; margin: var(--sp-4) 0 0; }
+:is(.agents-aside, .skills-aside) .agent-row { border: 0; border-radius: 0; width: 100%;
+  padding: var(--sp-4) var(--sp-5); font-size: var(--fs-base); color: var(--slate);
+  background: none; }
+:is(.agents-aside, .skills-aside) :is(.agent-row.active, .agent-li.active .agent-row) {
+  color: var(--ink); font-weight: 600; }
 :is(.agents-aside, .skills-aside) .agent-row:hover:not(.active) { background: var(--wash); }
 :is(.agents-aside, .skills-aside) .agent-row .tag { background: none; border: 0; padding: 0;
   color: var(--faint); font-size: var(--fs-sm); }
+.agents-aside .agent-li { display: flex; align-items: center; }
+.agents-aside .agent-li.active, .agents-aside .agent-li.menu-open { background: var(--wash); }
+.agents-aside .agent-li > .win-btn { opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
+.agents-aside .agent-li:hover > .win-btn, .agents-aside .agent-li:focus-within > .win-btn,
+.agents-aside .agent-li.menu-open > .win-btn { opacity: 1; }
+@media (hover: none) { .agents-aside .agent-li > .win-btn { opacity: 1; } }
+.agent-chat { display: flex; flex-direction: column; gap: var(--sp-6); margin-top: var(--sp-6); }
+.agent-compose { display: flex; flex-direction: column; gap: var(--sp-4); align-items: flex-end; }
+.agent-compose textarea { width: 100%; resize: vertical; }
+.agent-chats-h { font-size: var(--fs-md); font-weight: 600; margin: 0; }
+.agent-chats a { display: flex; gap: var(--sp-5); align-items: baseline;
+  padding: var(--sp-4) 0; color: var(--ink); text-decoration: none; }
+.agent-chats a:hover { color: var(--accent); }
+.skill-add { display: flex; flex-direction: column; gap: var(--sp-4);
+  padding: var(--sp-5); background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-md); margin-bottom: var(--sp-5); }
+.skill-add .tool-drop { border: 1px dashed var(--line-strong); background: var(--paper);
+  padding: var(--sp-5); border-radius: var(--radius-md); display: flex; flex-wrap: wrap;
+  gap: var(--sp-3); align-items: center; }
+.skill-add .tool-drop.over { border-color: var(--accent); background: var(--wash); }
+.skills-aside .skill-add .row { display: flex; flex-direction: column; gap: var(--sp-3); align-items: stretch; }
+.skill-add .row .field { margin: 0; }
+.skill-add .tool-drop .grow { flex-basis: 100%; }
 .split-idle { display: grid; place-items: start center; }
 
 /* ---- Memory ---- */

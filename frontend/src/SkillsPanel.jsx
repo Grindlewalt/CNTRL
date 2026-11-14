@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from './api.js'
+import { notify } from './notify.js'
+import { describeUpload, fromDrop, fromFileList } from './skillDrop.js'
+import HelpTip from './components/HelpTip.jsx'
 import Button, { SaveButton } from './components/Button.jsx'
 import Input, { Checkbox } from './components/Input.jsx'
 import Toggle from './components/Toggle.jsx'
@@ -16,6 +20,82 @@ import './pages/manage.css'
 const BLANK_PARAM = { name: '', type: 'string', description: '', required: false }
 const PARAM_TYPES = ['string', 'number', 'boolean', 'array']
 
+// Bring a skill in by link or by file. A link is a GitHub repo or folder, a raw
+// SKILL.md or a .zip; a file is a SKILL.md, a .zip or a folder. Both go to the
+// same host-side import as the Tools page: the skill arrives switched off and
+// is granted on the Tools page, never here.
+function SkillImport({ onDone }) {
+  const [link, setLink] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [over, setOver] = useState(false)
+  const [err, setErr] = useState('')
+  const [done, setDone] = useState(null)
+  const fileInput = useRef(null)
+  const dirInput = useRef(null)
+
+  async function finish(r) {
+    const flags = r.flags?.length ? `, ${r.flags.length} flagged` : ''
+    notify(`Imported ${r.name}, not granted${flags}`, r.flags?.length ? { sev: 'warn' } : {})
+    setDone(r.name)
+    setLink('')
+    onDone()
+  }
+  async function byLink() {
+    if (!link.trim() || busy) return
+    setBusy(true); setErr(''); setDone(null)
+    try {
+      finish(await api('/api/skills/import', {
+        method: 'POST', body: JSON.stringify({ source: link.trim() }) }))
+    } catch (e) { setErr(e.detail || e.message || 'Import failed') }
+    setBusy(false)
+  }
+  async function byFiles(items) {
+    if (!items.length) { setErr('Nothing to import there.'); return }
+    setBusy(true); setErr(''); setDone(null)
+    try {
+      const form = new FormData()
+      for (const { path, file } of items) form.append('files', file, path)
+      const res = await fetch('/api/skills/import/upload', { method: 'POST', body: form })
+      if (!res.ok) {
+        let detail = res.statusText
+        try { detail = (await res.json()).detail || detail } catch { /* not json */ }
+        throw new Error(detail)
+      }
+      finish(await res.json())
+    } catch (e) { setErr(e.message || 'Import failed') }
+    setBusy(false)
+  }
+  return (
+    <div className="skill-add">
+      <div className="row">
+        <Input aria-label="Skill link" value={link} disabled={busy}
+               placeholder="Paste a GitHub, SKILL.md or .zip link"
+               onChange={(e) => setLink(e.target.value)}
+               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); byLink() } }} />
+        <Button onClick={byLink} disabled={busy || !link.trim()}>{busy ? 'Importing…' : 'Import'}</Button>
+      </div>
+      <div className={`tool-drop${over ? ' over' : ''}`}
+           onDragOver={(e) => { e.preventDefault(); setOver(true) }}
+           onDragLeave={() => setOver(false)}
+           onDrop={async (e) => {
+             e.preventDefault(); setOver(false)
+             try { byFiles(await fromDrop(e.dataTransfer)) } catch (x) { setErr(x.message) }
+           }}>
+        <span className="grow dim small">Or drop a SKILL.md, .zip or folder</span>
+        <Button variant="ghost" onClick={() => fileInput.current?.click()}>Choose a file</Button>
+        <Button variant="ghost" onClick={() => dirInput.current?.click()}>Choose a folder</Button>
+        <input ref={fileInput} type="file" accept=".zip,.md,application/zip,text/markdown" hidden
+               onChange={(e) => { byFiles(fromFileList(e.target.files)); e.target.value = '' }} />
+        <input ref={dirInput} type="file" webkitdirectory="" hidden
+               onChange={(e) => { byFiles(fromFileList(e.target.files)); e.target.value = '' }} />
+      </div>
+      {done && <span className="small">Imported <code>{done}</code>, switched off. Grant
+        it on the <Link to="/tools">Tools page</Link>.</span>}
+      {err && <span className="error" role="alert">{err}</span>}
+    </div>
+  )
+}
+
 export default function SkillsPanel() {
   const [skills, setSkills] = useState([])
   const [selected, setSelected] = useState(null)
@@ -26,6 +106,7 @@ export default function SkillsPanel() {
   const [name, setName] = useState('')
   const [desc, setDesc] = useState('')
   const [error, setError] = useState(null)
+  const [adding, setAdding] = useState(false)
 
   // imported (OpenClaw) skills are pinned — read and granted on the Tools page,
   // never edited here (the server refuses the save anyway)
@@ -89,7 +170,11 @@ export default function SkillsPanel() {
           <Button type="submit">Create skill</Button>
           {error && <span className="error">{error}</span>}
         </form>
-        <ul className="agent-list">
+        <Button variant="ghost" aria-expanded={adding} onClick={() => setAdding((v) => !v)}>
+          {adding ? 'Close import' : 'Import a skill'}
+        </Button>
+        {adding && <SkillImport onDone={refresh} />}
+        <ul className="agent-list list-divided">
           {skills.map((s) => (
             <li key={s.slug}>
               <button type="button" aria-current={selected === s.slug || undefined}
@@ -105,10 +190,12 @@ export default function SkillsPanel() {
           ))}
           {skills.length === 0 && <EmptyState as="li">No skills yet. Name one above to start.</EmptyState>}
         </ul>
-        <p className="dim small">A skill teaches CNTRL a procedure. It sees the
-          name and the "use when" line every turn and reads the full instructions
-          only when it uses the skill. Agents get every granted skill unless their
-          definition takes one away.</p>
+        <p className="dim small">Skills your agents can use.
+          <HelpTip label="About skills">A skill teaches CNTRL a procedure. It sees the
+            name and the "use when" line every turn and reads the full instructions
+            only when it uses the skill. Agents get every granted skill unless their
+            definition takes one away. Imported skills arrive switched off and are
+            granted on the Tools page.</HelpTip></p>
       </aside>
       <main className={selected ? 'editor-pane skill-pane' : 'editor-pane split-idle'}>
         {!selected ? (

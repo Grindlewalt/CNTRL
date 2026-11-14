@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Link, Outlet, useNavigate } from 'react-router-dom'
 import { api, chatStream } from '../api.js'
 import { notifyError } from '../notify.js'
 import { useAsk } from '../ask.jsx'
@@ -14,6 +14,8 @@ import Select from '../components/Select.jsx'
 import Tag from '../components/Tag.jsx'
 import Toggle from '../components/Toggle.jsx'
 import Menu, { MenuItem } from '../components/Menu.jsx'
+import { useRowMenu } from '../components/RowMenu.jsx'
+import HelpTip from '../components/HelpTip.jsx'
 import EmptyState from '../components/EmptyState.jsx'
 import './manage.css'
 
@@ -67,6 +69,29 @@ function AgentModel({ models, value, onChange }) {
   )
 }
 
+// One roster row: the name opens a chat with the agent; right-click or ⋯ opens
+// the same menu (chat, edit, run, rename, delete).
+function AgentRow({ a, active, project, on }) {
+  const { rowProps, menu, open } = useRowMenu([
+    { label: 'Chat', onSelect: () => on.chat(a.slug) },
+    { label: 'Edit', onSelect: () => on.edit(a.slug) },
+    { label: 'Run a task', onSelect: () => on.run(a.slug) },
+    '-',
+    { label: 'Rename', onSelect: () => on.rename(a) },
+    { label: 'Delete', danger: true, onSelect: () => on.del(a) },
+  ], { label: `${a.name} actions` })
+  return (
+    <li {...rowProps} className={`agent-li${active ? ' active' : ''}${open ? ' menu-open' : ''}`}>
+      <button type="button" aria-current={active || undefined} className="agent-row inline"
+              onClick={() => on.chat(a.slug)}>
+        <span className="agent-row-name">{a.name}</span>
+        {project && <Tag>{project}</Tag>}
+      </button>
+      {menu}
+    </li>
+  )
+}
+
 export function AgentDefinitions() {
   const [agents, setAgents] = useState([])
   const [trash, setTrash] = useState([])
@@ -78,7 +103,11 @@ export function AgentDefinitions() {
   const [dirty, setDirty] = useState(false)
   const [last, setLast] = useState(null)
   const [run, setRun] = useState(null)          // {slug, id} while a run streams
-  const [menu, setMenu] = useState(false)
+  const [mode, setMode] = useState('chat')     // the right pane: 'chat' | 'edit'
+  const [chats, setChats] = useState([])
+  const [draftMsg, setDraftMsg] = useState('')
+  const [sending, setSending] = useState(false)
+  const navigate = useNavigate()
   const [drafting, setDrafting] = useState(false)
   const ask = useAsk()
   const modelInfo = useModel()
@@ -104,6 +133,9 @@ export function AgentDefinitions() {
     if (!selected) { setAgent(null); return }
     api(`/api/agents/${selected}`).then((a) => { setAgent(a); setDirty(false) })
     loadLast(selected)
+    api('/api/conversations').then((r) => setChats(
+      (r.conversations || []).filter((c) => c.agent_slug === selected)))
+      .catch(() => setChats([]))
   }, [selected])
 
   // n = new agent, when not typing
@@ -121,12 +153,18 @@ export function AgentDefinitions() {
   }, [])
 
   // switching agents (or going back on a phone) must not drop an unsaved edit
-  async function pick(slug) {
-    if (slug === selected) return
+  async function pick(slug, to = 'chat') {
+    if (slug === selected) { if (to !== mode && await leaveEdit()) setMode(to); return }
     if (dirty && !await ask.confirm('Discard unsaved changes?',
                                     { confirmLabel: 'Discard', danger: true })) return
     setDirty(false)
+    setMode(to)
     setSelected(slug)
+  }
+
+  async function leaveEdit() {
+    if (mode !== 'edit' || !dirty) return true
+    return ask.confirm('Discard unsaved changes?', { confirmLabel: 'Discard', danger: true })
   }
 
   async function create(e) {
@@ -144,6 +182,7 @@ export function AgentDefinitions() {
       setNewName('')
       refresh()
       setDirty(false)
+      setMode('edit')
       setSelected(r.slug)
     } catch (err) { notifyError(err) }
   }
@@ -160,20 +199,26 @@ export function AgentDefinitions() {
     } catch (err) { notifyError(err); return false }   // e.g. 400: missing project
   }
 
-  async function rename() {
-    setMenu(false)
-    const name = (await ask.prompt('Rename agent', agent.name,
+  async function rename(a) {
+    const name = (await ask.prompt('Rename agent', a.name,
                                    { confirmLabel: 'Rename' }) || '').trim()
-    if (name && name !== agent.name) patch({ name })
+    if (!name || name === a.name) return
+    if (a.slug === selected && agent) { patch({ name }); return }
+    try {
+      const def = await api(`/api/agents/${a.slug}`)
+      await api(`/api/agents/${a.slug}`, {
+        method: 'PUT', body: JSON.stringify({ ...def, name }) })
+      refresh()
+    } catch (err) { notifyError(err) }
   }
 
-  async function del() {
-    setMenu(false)
-    if (!await ask.confirm(`Move agent "${agent.slug}" to trash?`,
+  async function del(a) {
+    if (!await ask.confirm(`Move agent "${a.slug}" to trash?`,
                            { confirmLabel: 'Move to trash' })) return
-    await api(`/api/agents/${agent.slug}`, { method: 'DELETE' })
-    setDirty(false)
-    setSelected(null)
+    try {
+      await api(`/api/agents/${a.slug}`, { method: 'DELETE' })
+    } catch (err) { notifyError(err); return }
+    if (a.slug === selected) { setDirty(false); setSelected(null) }
     refresh()
   }
 
@@ -194,13 +239,11 @@ export function AgentDefinitions() {
   // A run is detached server-side: this only starts it and holds its id for
   // Stop. It is deliberately not watchRun()-registered, so the completion
   // notice toasts; the transcript is on the Outputs tab.
-  async function start(task) {
-    const slug = agent.slug
-    if (!task) {
-      task = (await ask.prompt('Task', '', { confirmLabel: 'Run' }) || '').trim()
-      if (!task) return
-      if (dirty && !await save()) return
-    }
+  async function start(slug = agent.slug) {
+    if (run) return
+    const task = (await ask.prompt('Task', '', { confirmLabel: 'Run' }) || '').trim()
+    if (!task) return
+    if (dirty && slug === selected && !await save()) return
     setRun({ slug, id: null })
     try {
       await chatStream({ task }, (ev) => {
@@ -237,6 +280,32 @@ export function AgentDefinitions() {
     setDrafting(false)
   }
 
+  // An agent chat is a conversation bound to the agent when it is created
+  // (POST /api/chat with `agent`). Chat.jsx lives in Work and cannot be primed
+  // from here, so the page starts the thread itself and hands it over at /c/<id>.
+  async function send(e) {
+    e?.preventDefault()
+    const message = draftMsg.trim()
+    if (!message || sending) return
+    setSending(true)
+    try {
+      await chatStream({ message, agent: selected }, (ev) => {
+        if (ev.type === 'start') {
+          setDraftMsg('')
+          navigate(`/c/${ev.conversation_id}`)
+        }
+        if (ev.type === 'error') notifyError(new Error(ev.message))
+      })
+    } catch (err) { notifyError(err) }
+    setSending(false)
+  }
+
+  const on = {
+    chat: (slug) => pick(slug, 'chat'),
+    edit: (slug) => pick(slug, 'edit'),
+    run: async (slug) => { if (slug !== selected && !await leaveEdit()) return; start(slug) },
+    rename, del,
+  }
   const projectName = (slug) => projects.find((p) => p.slug === slug)?.name || slug
   // a binding to a since-deleted project still shows as itself, or Save would
   // quietly unbind it
@@ -261,16 +330,10 @@ export function AgentDefinitions() {
                  value={newName} onChange={(e) => setNewName(e.target.value)} />
           <Button type="submit" aria-label="Create agent">Add</Button>
         </form>
-        <ul className="agent-list">
+        <ul className="agent-list list-divided">
           {agents.map((a) => (
-            <li key={a.slug}>
-              <button type="button" aria-current={selected === a.slug || undefined}
-                      className={selected === a.slug ? 'agent-row inline active' : 'agent-row inline'}
-                      onClick={() => pick(a.slug)}>
-                <span className="agent-row-name">{a.name}</span>
-                {a.project && <Tag>{projectName(a.project)}</Tag>}
-              </button>
-            </li>
+            <AgentRow key={a.slug} a={a} active={selected === a.slug}
+                      project={a.project ? projectName(a.project) : ''} on={on} />
           ))}
           {agents.length === 0 && <EmptyState as="li">No agents yet. Name one above and press Add.</EmptyState>}
         </ul>
@@ -296,7 +359,7 @@ export function AgentDefinitions() {
       </aside>
       <main className={agent ? 'editor-pane agent-detail' : 'editor-pane split-idle'}>
         {!agent ? (
-          <EmptyState pad>Pick an agent on the left to edit it, or press <kbd>n</kbd> to name a new one.</EmptyState>
+          <EmptyState pad>Pick an agent on the left to chat with it, or press <kbd>n</kbd> to name a new one.</EmptyState>
         ) : (
           <>
             <div className="agent-head">
@@ -304,20 +367,46 @@ export function AgentDefinitions() {
                 ‹ Agents
               </Button>
               <h2 className="agent-title">{agent.name}</h2>
-              {dirty && <SaveButton dirty variant="ghost" onSave={save} />}
-              {running
+              {mode === 'edit' && dirty && <SaveButton dirty variant="ghost" onSave={save} />}
+              {mode === 'edit' && (running
                 ? <Button disabled={!run.id} onClick={stop}>Stop ■</Button>
-                : <Button disabled={!!run} onClick={() => start()}>Run ▸</Button>}
-              <Menu open={menu} onClose={() => setMenu(false)} width={160} floating
-                    label="Agent actions"
-                    trigger={(
-                      <Button variant="icon" aria-label="More" aria-haspopup="menu"
-                              aria-expanded={menu} onClick={() => setMenu((v) => !v)}>⋯</Button>
-                    )}>
-                <MenuItem onClick={rename}>Rename</MenuItem>
-                <MenuItem danger onClick={del}>Delete</MenuItem>
-              </Menu>
+                : <Button disabled={!!run} onClick={() => start()}>Run ▸</Button>)}
+              <Button variant={mode === 'edit' ? 'ghost' : undefined}
+                      onClick={async () => { if (await leaveEdit()) setMode(mode === 'edit' ? 'chat' : 'edit') }}>
+                {mode === 'edit' ? 'Chat' : 'Edit'}
+              </Button>
             </div>
+            {mode === 'chat' ? (
+              <div className="agent-chat">
+                <form className="agent-compose" onSubmit={send}>
+                  <textarea aria-label={`Message ${agent.name}`} rows={3} value={draftMsg}
+                            placeholder={`Message ${agent.name}`}
+                            onChange={(e) => setDraftMsg(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) send(e)
+                            }} />
+                  <Button type="submit" disabled={sending || !draftMsg.trim()}>
+                    {sending ? 'Starting…' : 'Send'}
+                  </Button>
+                </form>
+                <h3 className="agent-chats-h">Chats with {agent.name}
+                  <HelpTip label="About agent chats">Sending starts a new chat run as this
+                    agent, with its prompt, project and model. Open one below to carry on.</HelpTip>
+                </h3>
+                <ul className="list-divided agent-chats">
+                  {chats.map((c) => (
+                    <li key={c.id}>
+                      <Link to={`/c/${c.id}`}>
+                        <span className="grow ellipsis">{c.summary || `Chat ${c.id}`}</span>
+                        <span className="dim small">{ago(c.started_at)}</span>
+                      </Link>
+                    </li>
+                  ))}
+                  {chats.length === 0 && <EmptyState as="li">No chats with this agent yet.</EmptyState>}
+                </ul>
+              </div>
+            ) : (
+              <>
             {lastHere && (
               <div className="agent-last">
                 Last run: {ago(lastHere.last_at || lastHere.started_at)}
@@ -359,6 +448,8 @@ export function AgentDefinitions() {
                 )}
               </div>
             </Card>
+              </>
+            )}
           </>
         )}
       </main>
