@@ -22,6 +22,7 @@
 import { api } from '../api.js'
 import { listBoxes } from '../boxes/api/vms.js'
 import { loadModel, modelCaption, modelOption, setModel } from '../modelInfo.js'
+import { findProject } from '../pages/projectHome.js'
 import { transcriptMarkdown } from './parse.js'
 import { statusRows, toggleToolRows } from './status.js'
 
@@ -231,9 +232,13 @@ export const COMMANDS = [
     run: (_, env) => { env.navigate('/agents') },
   },
   {
-    name: 'project', usage: '[slug|none|follow|create <name>]',
-    help: 'pin this chat to a project (or make a new one)',
+    // `/project <name>` opens the project's home page (pages/ProjectHome.jsx),
+    // as clicking it in the sidebar does. Pinning this chat, which the bare
+    // name used to do, is `/project pin <name>`.
+    name: 'project', usage: '[name|pin <name>|none|follow|create <name>]', busyOk: true,
+    help: 'open a project’s home page (pin <name> moves this chat there)',
     args: (env) => projectOptions(env.host, [
+      { value: 'pin ', label: 'pin <name>', meta: 'pin this chat to a project' },
       { value: 'follow', label: 'follow', meta: 'use whatever project is loaded' },
       { value: 'none', label: 'none', meta: 'no project — files go to this chat’s artifacts' },
       { value: 'create ', label: 'create <name>', meta: 'make a new project and pin to it' },
@@ -241,11 +246,16 @@ export const COMMANDS = [
     run: async (arg, env) => {
       const h = env.host
       if (!arg) return `project: ${projectLabel(h)}`
+      const pin = /^pin\s+(.+)$/i.exec(arg)
+      const create = /^create\s+(.+)$/i.exec(arg)
+      // opening a page is fine mid-turn; changing this chat's project is not
+      if (pin || create || arg === 'none' || arg === 'follow') {
+        need(!h.busy, '/project waits for this turn to finish — /stop ends it')
+      }
       if (arg === 'none' || arg === 'follow') {
         await h.pickProject(arg, '')
         return `project: ${arg}`
       }
-      const create = /^create\s+(.+)$/i.exec(arg)
       if (create) {
         const r = await api('/api/projects', {
           method: 'POST', body: JSON.stringify({ name: create[1].trim() }) })
@@ -253,10 +263,15 @@ export const COMMANDS = [
         await h.pickProject('pin', r.slug)
         return `created ${r.slug} and pinned this chat to it`
       }
-      need(h.projects.some((p) => p.slug === arg),
-           `no project “${arg}” — /project create ${arg} makes it`)
-      await h.pickProject('pin', arg)
-      return `project: ${arg}`
+      const want = pin ? pin[1] : arg
+      const p = findProject(h.projects, want)
+      need(p, `no project “${want}” — /project create ${want} makes it`)
+      if (pin) {
+        await h.pickProject('pin', p.slug)
+        return `project: ${p.slug}`
+      }
+      env.navigate(`/project/${encodeURIComponent(p.slug)}`)
+      return undefined
     },
   },
   {
