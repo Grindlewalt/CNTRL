@@ -233,6 +233,8 @@ from . import services_api  # noqa: E402  # WP3
 app.include_router(services_api.router)  # WP3
 from .vm import display_api  # noqa: E402  # the live desktop of a box (P1: watch only)
 app.include_router(display_api.router)
+from . import project_home as _project_home   # the web app's project home page
+app.include_router(_project_home.router)
 
 
 @app.get("/api/health")
