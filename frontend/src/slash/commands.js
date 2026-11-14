@@ -23,6 +23,7 @@ import { api } from '../api.js'
 import { listBoxes } from '../boxes/api/vms.js'
 import { loadModel, modelCaption, modelOption, setModel } from '../modelInfo.js'
 import { findProject } from '../pages/projectHome.js'
+import { nameProblem } from '../projectName.js'
 import { transcriptMarkdown } from './parse.js'
 import { statusRows, toggleToolRows } from './status.js'
 
@@ -252,6 +253,8 @@ export const COMMANDS = [
       if (pin || create || arg === 'none' || arg === 'follow') {
         need(!h.busy, '/project waits for this turn to finish — /stop ends it')
       }
+      // the server refuses a name that starts with a number; say so first
+      if (create) need(!nameProblem(create[1]), nameProblem(create[1]))
       if (arg === 'none' || arg === 'follow') {
         await h.pickProject(arg, '')
         return `project: ${arg}`

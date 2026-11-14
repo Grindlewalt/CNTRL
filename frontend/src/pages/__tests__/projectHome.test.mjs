@@ -4,6 +4,7 @@ import {
   cadenceLabel, chatTitle, estimateTokens, findProject, firstLine, fmtTokens, parseStamp,
   relativeDay, summaryOf,
 } from '../projectHome.js'
+import { NAME_RULE, nameProblem } from '../../projectName.js'
 
 // ---- stamps: SQLite's bare UTC text, ISO with a zone, junk ----
 assert.equal(parseStamp('2026-10-30 09:00:00'), Date.UTC(2026, 9, 30, 9, 0, 0))
@@ -78,5 +79,12 @@ assert.equal(cadenceLabel({ cadence_kind: 'interval', interval_minutes: 45 }), '
   assert.equal(findProject(ps, ''), null)
   assert.equal(findProject(null, 'x'), null)
 }
+
+// ---- a project name can't start with a number (the backend's rule) ----
+assert.equal(nameProblem('3d printer'), NAME_RULE)
+assert.equal(nameProblem('  42'), NAME_RULE)
+assert.equal(nameProblem('Harbor 2'), '')
+assert.equal(nameProblem(''), '')
+assert.equal(nameProblem(undefined), '')
 
 console.log('projectHome: ok')
