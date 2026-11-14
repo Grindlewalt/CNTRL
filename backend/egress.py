@@ -8,12 +8,9 @@ and it owns the approval queue that trains the allowlists up.
 The model (DESIGN-BOXES (c)/(d), since 2026-09-26): every project runs under a
 security PROFILE (backend/profiles.py) that carries the shared baseline — a
 default verdict, allow and deny lists, or the network off entirely — and holds
-its OWN allow and deny lists on top (`egress_policy.hosts` / `.deny_hosts`;
-emptied onto the profile by `migrate_project_lists`, since 2026-11-13).
-Approvals, reviewer approvals and `allow_host` write the always-allow list of
-the project's PROFILE (`_append_host`), so a site approved for one project is
-allowed for every project on that profile. A one-hour allow
-(`approve_host_once`) stays with the one project.
+its OWN allow and deny lists on top (`egress_policy.hosts` / `.deny_hosts`).
+Approvals, reviewer approvals and `allow_host` always write the PROJECT's own
+list, never a shared one; profile lists are edited only by the operator.
 The pre-profiles modes (allowlist / denylist / denyall, inherit_general) were
 migrated into the profiles Default / Scoped / Open / Offline with
 identical verdicts.
@@ -407,8 +404,8 @@ async def revoke_auto(db: aiosqlite.Connection, auto_id: int) -> dict:
 
 
 async def promote_auto(db: aiosqlite.Connection, auto_id: int) -> dict:
-    """Operator keeps a guess: it moves onto the always-allow list of the
-    project's profile (same rule as an approval) and stops expiring."""
+    """Operator keeps a guess: it moves onto the project's own allowlist (same
+    rule as an approval) and stops expiring."""
     async with db.execute(
             f"SELECT project_slug, host FROM egress_auto_allow WHERE id = ? AND {_AUTO_LIVE}",
             (auto_id,)) as cur:
@@ -428,8 +425,8 @@ UNATTRIBUTED = ("this request came from the shared box with no project attached:
 
 async def allow_host(db: aiosqlite.Connection, slug: str, host: str) -> dict:
     """Operator allows a host directly — the override for an auto-deny (which
-    has left the waiting queue). Writes the project's PROFILE list (every
-    project on that profile), and closes any queue row for the pair."""
+    has left the waiting queue). Writes the PROJECT's own list, and closes any
+    queue row for the pair."""
     host = _norm(host)
     if not host:
         return {"ok": False, "error": "host required"}
@@ -443,8 +440,7 @@ async def allow_host(db: aiosqlite.Connection, slug: str, host: str) -> dict:
         "WHERE project_slug = ? AND host = ?", (slug, host))
     await db.commit()
     await note_approved(db, slug, host)
-    return {"ok": True, "host": host, "added_to": target,
-            "profile": (await profiles.for_slug(db, slug))["name"]}
+    return {"ok": True, "host": host, "added_to": target}
 
 
 def _profile_ref(slug: str) -> int | str | None:
@@ -718,8 +714,7 @@ async def note_approved(db: aiosqlite.Connection, slug: str | None, host: str,
 
 async def approve_host(db: aiosqlite.Connection, pending_id: int,
                        by: str = "operator", project: str | None = None) -> dict:
-    """Approve a queued host onto its project's PROFILE list (every project on
-    that profile; `profile` in the answer names it). A row queued by
+    """Approve a queued host onto its project's list. A row queued by
     unattributed shared-box traffic has no project: the operator names one
     (`project`), and the row is re-homed to it; without one this refuses."""
     async with db.execute("SELECT project_slug, host, status FROM egress_pending WHERE id = ?",
@@ -741,8 +736,7 @@ async def approve_host(db: aiosqlite.Connection, pending_id: int,
     await db.commit()
     if r["status"] != "approved":
         await note_approved(db, slug, r["host"], by)
-    return {"ok": True, "host": r["host"], "added_to": target,
-            "profile": (await profiles.for_slug(db, slug))["name"]}
+    return {"ok": True, "host": r["host"], "added_to": target}
 
 
 async def approve_host_once(db: aiosqlite.Connection, pending_id: int,

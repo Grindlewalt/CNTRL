@@ -236,9 +236,7 @@ export function changeText(row) {
     case 'page': return 'Anyone with the link can open it, and scripts in it run.'
     case 'site':
       return r.refused ? 'It can only be denied.'
-        : "Allow always adds it to the always-allow list of the project's profile, so every "
-          + 'project on that profile can reach it. Allow 1 h lets it through for that project '
-          + 'for an hour and writes no list.'
+        : 'Allow always adds it to an always-allow list. Allow 1 h lets it through for an hour and writes no list.'
     case 'ask': return 'The agent is waiting for your answer in the chat.'
     case 'alert': return countsLine(r.counts)
     default: return ''

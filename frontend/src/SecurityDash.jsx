@@ -190,9 +190,8 @@ export function QueueList({ slug }) {
   async function sitesBulk(action) {
     const n = sites.length
     const q = {
-      approve: `Allow all ${n} sites, including the ones Auto review flagged? Each goes on the `
-        + "always-allow list of its project's profile, so every project on that profile can "
-        + 'reach it. Addresses that can never be allowed, like the CNTRL host, are skipped.',
+      approve: `Allow all ${n} sites? Each goes on an always-allow list, including the ones Auto review `
+        + 'flagged. Addresses that can never be allowed, like the CNTRL host, are skipped.',
       reject: `Deny all ${n} sites? They stay blocked and come back if a box asks again.`,
       dismiss: `Clear all ${n} sites from this list? No decision is recorded; a site a box asks for again comes back.`,
     }[action]

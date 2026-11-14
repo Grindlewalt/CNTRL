@@ -53,12 +53,9 @@ export function useEgressDecide(onDone, { project = null, names = NO_NAMES } = {
           proj = await pick(row, verb)
           if (!proj) return
         }
-        const res = await approvePending(row.id, needsProject(row) ? proj : null,
-                                         { once: verb === 'once' })
+        await approvePending(row.id, needsProject(row) ? proj : null, { once: verb === 'once' })
         const slug = needsProject(row) ? proj : (row.project_slug || row.project)
-        // Allow always went on a profile's list (every project on it): name it
-        notify(decidedText(row.host, verb, projectLabel(slug, names),
-                           verb === 'allow' ? res?.profile || '' : ''), { life: 6 })
+        notify(decidedText(row.host, verb, projectLabel(slug, names)), { life: 6 })
       }
       onDone?.()
     } catch (err) { notifyError(err) }
