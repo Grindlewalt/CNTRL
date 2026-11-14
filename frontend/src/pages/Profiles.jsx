@@ -36,8 +36,6 @@ const NEVER_AUTO = 'service_* and svc_unreported, '
   + 'docker_socket_refused, persist_imported and persist_disk_deleted, plus egress_anomaly, '
   + 'host_cut and secret_leak.'
 
-// a new profile asks for packages and services (each request still waits for you)
-const newProfile = () => ({ ...blankProfile(), allow_services: true, allow_package_requests: true })
 
 const OUTCOME = {
   ask: 'A site on neither list waits for you.',
@@ -89,7 +87,7 @@ export default function Profiles() {
             the agent may request. Every project has exactly one; projects on the same profile
             share its always-allow and always-block lists.</HelpTip>
           <div className="sec-actions">
-            <Button variant="ghost" onClick={() => setEditing(newProfile())}>New profile</Button>
+            <Button variant="ghost" onClick={() => setEditing(blankProfile())}>New profile</Button>
           </div>
         </div>
         {!pr.data && !pr.error && <div className="dim">…</div>}

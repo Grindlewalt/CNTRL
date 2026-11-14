@@ -434,7 +434,9 @@ export function blankProfile() {
     allow_hosts: [], deny_hosts: [], secrets: [], auto_handle: false,
     separate_box: false, box_image: 'main', box_mem_mb: 768,
     box_runtime: 'kvm', service_placement: 'per_project',   // shared box; per-project services
-    allow_services: false, allow_package_requests: false, projects: [],
+    // the agent may ASK for services and packages (setup_api SAFE_CHOICES);
+    // every request still waits for the operator's approval
+    allow_services: true, allow_package_requests: true, projects: [],
   }
 }
 
