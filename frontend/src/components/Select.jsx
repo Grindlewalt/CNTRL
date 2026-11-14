@@ -121,6 +121,7 @@ export default function Select({
   const popRef = useRef(null)
   const listRef = useRef(null)
   const searchRef = useRef(null)
+  const sheetRef = useRef(null)
   const typed = useRef({ text: '', at: 0 })
   const wasOpen = useRef(false)
   const close = () => { setOpen(false); setQuery('') }
@@ -193,6 +194,12 @@ export default function Select({
     }
   }, [open, sheet, items.length])
 
+  // the sheet keeps the height it opened at, so filtering doesn't make it jump
+  useLayoutEffect(() => {
+    const el = sheetRef.current
+    if (open && sheet && el) el.style.minHeight = `${el.offsetHeight}px`
+  }, [open, sheet])
+
   // on open: the search field on a desktop, the list itself on a phone
   useEffect(() => {
     if (!open) return
@@ -226,6 +233,15 @@ export default function Select({
       if (it) { e.preventDefault(); choose(it); return }
     }
     if (searchable && e.currentTarget === searchRef.current) return   // the field types
+    if (searchable && k.length === 1 && k !== ' ' && plain) {
+      // the sheet focuses the list, not the field: typing still searches
+      e.preventDefault()
+      const q = query + k
+      setQuery(q)
+      setActive(firstEnabled(arrange(list, recents, q).items))
+      searchRef.current?.focus({ preventScroll: true })
+      return
+    }
     if (k === ' ' && !typed.current.text) { e.preventDefault(); choose(items[active]); return }
     if (k.length === 1 && plain) {
       e.preventDefault()
@@ -317,7 +333,7 @@ export default function Select({
     layer = (
       <div ref={popRef} className="sel-layer" onPointerDown={keepInside}>
         <div className="sel-scrim" onClick={close} />
-        <div className="sel-sheet" role="dialog" aria-modal="true" aria-label={title}>
+        <div ref={sheetRef} className="sel-sheet" role="dialog" aria-modal="true" aria-label={title}>
           <div className="sel-sheet-head">
             <span className="sel-sheet-title">{title}</span>
             <button type="button" className="icon-btn sel-sheet-close" aria-label="Close"

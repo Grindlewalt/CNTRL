@@ -658,6 +658,8 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
 .modal-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-8);
   font-size: var(--fs-md); }
 .modal-body > p:first-child { margin-top: 0; }
+/* a form dialog's fields, straight in the body, get the field rhythm */
+.modal-body > .field + .field { margin-top: var(--sp-6); }
 .modal-foot { display: flex; align-items: center; justify-content: flex-end;
   gap: var(--sp-4); padding: var(--sp-6) var(--sp-8);
   border-top: 1px solid var(--border); }
@@ -829,7 +831,7 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
   border-bottom: 1px solid var(--line); }
 .side-panel-head h2 { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-lg); font-weight: 600;
   letter-spacing: var(--track-head); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.side-panel-tabs { margin: var(--sp-5) var(--sp-8) 0; }
+.side-panel-tabs.tabs { align-self: flex-start; margin: var(--sp-5) var(--sp-6) 0; }
 .side-panel-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-8);
   overscroll-behavior: contain; }
 .side-panel-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-4);
@@ -848,12 +850,14 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
 .help-tip { display: inline-flex; vertical-align: middle; margin-left: var(--sp-3); }
 .help-tip-btn {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
-  width: 18px; height: 18px; padding: 0; border-radius: var(--radius-round);
+  width: 18px; height: 18px; min-width: 0; min-height: 0; flex: none; padding: 0;
+  border-radius: var(--radius-round);
   background: none; border: 1px solid var(--line-strong); color: var(--slate);
   font-family: var(--sans); font-size: var(--fs-xs); font-weight: 600; line-height: 1;
   cursor: help;
 }
 .help-tip-btn::after { content: ''; position: absolute; inset: -8px; }
+@media (max-width: 768px) { .help-tip-btn::after { inset: -13px; } }   /* a 44px target */
 .help-tip-btn:hover:not(:disabled), .help-tip-btn[aria-expanded='true'] { opacity: 1;
   color: var(--ink); border-color: var(--slate); background: var(--wash); }
 .help-tip-pop {
