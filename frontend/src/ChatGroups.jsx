@@ -1,20 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from './api.js'
 import { useAsk } from './ask.jsx'
 import { notifyError } from './notify.js'
-import Menu, { MenuItem, MenuSep } from './components/Menu.jsx'
 import Input from './components/Input.jsx'
 import Button from './components/Button.jsx'
+import { useRowMenu } from './components/RowMenu.jsx'
 import { UiGlyph } from './shell/glyphs.jsx'
 import { activeFrom } from './chatActive.js'
 import { projectsChanged } from './projectsChanged.js'
+import { NAME_RULE, nameProblem } from './projectName.js'
 
-// The chat sidebar's list, grouped: Active (something running right now),
-// Projects (links to their workspace, ＋ for a new one), then Starred, then each folder, then
-// Recent (everything unfiled). Each chat shows exactly once — an active chat
-// lives under Active while it runs, a starred one under Starred even if it is
-// filed, and each returns to its usual group when that stops.
+// The chat sidebar's list, grouped: Pinned (projects the operator pinned),
+// Active (something running right now), Projects (click opens the project's
+// home, ＋ makes a new one), then Starred, each folder, then Recent (everything
+// unfiled). Each chat shows exactly once — an active chat lives under Active
+// while it runs, a starred one under Starred even if it is filed, and each
+// returns to its usual group when that stops. Each project shows once too:
+// pinned ones only under Pinned.
+//
+// Every row's ⋯ and its right-click are the same menu (useRowMenu).
+//
+// Search sits on top. Typing filters the chat and project titles already
+// loaded, instantly. Below those, "Deep search" asks the server to read the
+// message text (GET /api/search/messages, paged, time-limited); a hit opens its
+// chat through onOpen(id, { messageId }). The chat page does not scroll to a
+// message yet, so it only opens the chat.
 //
 // Active is polled, not pushed (useActive below): GET /api/chat/running (every
 // loop in flight, no DB read) for a plain chat's own streaming turn, and GET
@@ -31,10 +42,12 @@ import { projectsChanged } from './projectsChanged.js'
 // Two optional seams for the shell (/shell): `folders` hands in a folder list
 // the caller already fetched (its one-round-trip GET /api/sidebar), after which
 // every folder change is reported through `onChanged` instead of refetched
-// here; `projectHref` points the Projects rows somewhere other than the board.
+// here; `projectHref` points the project rows somewhere other than the
+// project home.
 
 const GROUPS_KEY = 'jarvis.chat.groups'
 const ACTIVE_POLL_MS = 5000
+const DEEP_PAGE = 20
 
 function useActive(enabled) {
   const [active, setActive] = useState(() => new Map())
@@ -78,9 +91,9 @@ export function listTitle(c) {
   return c.summary.replace(/^[#[\s]+/, '') || c.summary
 }
 
-function GroupHead({ id, label, count, folded, onToggle, children }) {
+function GroupHead({ id, label, count, folded, onToggle, children, rowProps }) {
   return (
-    <div className="convo-group-head">
+    <div className="convo-group-head" {...rowProps}>
       <button type="button" className="convo-group-toggle" aria-expanded={!folded}
               aria-controls={`convo-group-${id}`} onClick={() => onToggle(id)}>
         <span className={folded ? 'chev' : 'chev open'} aria-hidden="true">›</span>
@@ -93,10 +106,101 @@ function GroupHead({ id, label, count, folded, onToggle, children }) {
 }
 
 const boardHref = (p) => `/projects/${encodeURIComponent(p.slug)}`
+const homeHref = (p) => `/project/${encodeURIComponent(p.slug)}`
+
+function ChatRow({ c, act, activeId, folders, known, onOpen, onRename, onDelete,
+  patchChat, moveToNewFolder }) {
+  const { rowProps, menu, open } = useRowMenu(() => [
+    { label: c.starred ? 'Unstar' : 'Star', onSelect: () => patchChat(c.id, { starred: !c.starred }) },
+    { label: 'Rename', onSelect: () => onRename(c) },
+    '-',
+    { caption: 'Move to folder' },
+    { label: 'No folder', checked: c.folder_id == null || !known.has(c.folder_id),
+      onSelect: () => patchChat(c.id, { folder_id: null }) },
+    ...folders.map((f) => ({ label: f.name, checked: c.folder_id === f.id,
+      onSelect: () => patchChat(c.id, { folder_id: f.id }) })),
+    { label: 'New folder…', onSelect: () => moveToNewFolder(c) },
+    '-',
+    { label: 'Delete', danger: true, onSelect: () => onDelete(c) },
+  ], { label: 'chat actions', width: 220, align: 'left' })
+  return (
+    <li className={[c.id === activeId ? 'active' : '', open ? 'menu-open' : '']
+          .filter(Boolean).join(' ') || undefined}
+        onClick={() => onOpen(c.id)} {...rowProps}>
+      {/* title owns the row; the project slug sits under it so a long slug
+          can never crush the title into two letters */}
+      <div className="convo-main">
+        {act ? (
+          <span className="convo-active-line">
+            <span className={act.needs ? 'convo-active-dot needs' : 'convo-active-dot'}
+                  aria-hidden="true" />
+            <span className="convo-title ellipsis" title={c.summary || `#${c.id}`}>
+              {listTitle(c)}</span>
+            {act.agents > 0 && (
+              <span className="convo-active-agents"
+                    title={`${act.agents} agent${act.agents === 1 ? '' : 's'} working`}>
+                {act.agents}</span>
+            )}
+            {act.needs && (
+              <span className="convo-active-needs" title={act.needs}>needs you</span>
+            )}
+          </span>
+        ) : (
+          <span className="convo-title ellipsis" title={c.summary || `#${c.id}`}>
+            {listTitle(c)}</span>
+        )}
+        {/* an agent's thread is still a chat and still belongs in this list —
+            it just isn't CNTRL speaking, so say so */}
+        {(c.agent_slug || c.project_slug) && (
+          <span className="convo-proj ellipsis">
+            {c.agent_slug && <span className="convo-agent">{c.agent_slug}</span>}
+            {c.project_slug}
+          </span>
+        )}
+      </div>
+      {/* overlaid on hover rather than reserving width; the menu is portalled
+          (the list scrolls and the sidebar clips) */}
+      <span className="convo-actions">{menu}</span>
+    </li>
+  )
+}
+
+function ProjectRow({ p, href, workspace, onPin, onRename, onDelete }) {
+  const pinned = !!p.pinned_at
+  const { rowProps, menu, open } = useRowMenu(() => [
+    { label: pinned ? 'Unpin' : 'Pin to top', onSelect: () => onPin(p) },
+    workspace && { label: 'Open workspace', onSelect: () => workspace(p) },
+    { label: 'Rename', onSelect: () => onRename(p) },
+    '-',
+    { label: 'Delete', danger: true, onSelect: () => onDelete(p) },
+  ], { label: `${p.name} actions`, width: 200, align: 'left' })
+  return (
+    <li className={open ? 'menu-open' : undefined} {...rowProps}>
+      <Link to={href} title={p.slug}>
+        <span className="proj-dot" aria-hidden="true" />
+        <span className="convo-title ellipsis">{p.name}</span>
+      </Link>
+      <span className="convo-actions">{menu}</span>
+    </li>
+  )
+}
+
+function FolderHead({ f, count, folded, onToggle, onRename, onDelete }) {
+  const { rowProps, menu } = useRowMenu(() => [
+    { label: 'Rename', onSelect: () => onRename(f) },
+    { label: 'Delete folder', danger: true, onSelect: () => onDelete(f) },
+  ], { label: 'folder actions', width: 180 })
+  return (
+    <GroupHead id={`f:${f.id}`} label={f.name} count={count} folded={folded}
+               onToggle={onToggle} rowProps={rowProps}>
+      <span className="convo-group-menu">{menu}</span>
+    </GroupHead>
+  )
+}
 
 export default function ChatGroups({
   conversations, activeId, projects = [], onOpen, onRename, onDelete, onChanged,
-  folders: givenFolders, projectHref = boardHref, showActive = true,
+  folders: givenFolders, projectHref, showActive = true,
 }) {
   const ask = useAsk()
   const live = useActive(showActive)
@@ -104,9 +208,15 @@ export default function ChatGroups({
   const controlled = givenFolders !== undefined
   const folders = controlled ? givenFolders : ownFolders
   const [folded, setFolded] = useState(readFolded)
-  const [menu, setMenu] = useState(null)        // 'c:<id>' | 'f:<id>' | null
   const [draft, setDraft] = useState(null)      // new-folder name while typing
-  const closeMenu = useCallback(() => setMenu(null), [])
+  const [query, setQuery] = useState('')
+  const [deep, setDeep] = useState(null)        // null, or the deep search's state
+  const deepSeq = useRef(0)
+  // the project rows open the project's home; a shell that has its own place
+  // for a project passes projectHref, and then has no separate "workspace" item
+  const hrefOf = projectHref || homeHref
+  const navigate = useNavigate()
+  const workspace = projectHref ? null : (p) => navigate(boardHref(p))
 
   // through a ref: callers pass a fresh onChanged each render, and as a
   // dependency it would refetch the folders on every one of them
@@ -124,8 +234,10 @@ export default function ChatGroups({
   }, [folded])
   const toggle = (id) => setFolded((f) => ({ ...f, [id]: !f[id] }))
 
+  // a new query invalidates a deep search made for the old one
+  useEffect(() => { deepSeq.current += 1; setDeep(null) }, [query])
+
   async function patchChat(id, body) {
-    setMenu(null)
     try {
       await api(`/api/conversations/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
     } catch (err) { notifyError(err) }
@@ -149,7 +261,6 @@ export default function ChatGroups({
   }
 
   async function renameFolder(f) {
-    setMenu(null)
     const next = await ask.prompt('Rename folder', f.name, { confirmLabel: 'Rename' })
     if (!next?.trim()) return
     try {
@@ -160,7 +271,6 @@ export default function ChatGroups({
   }
 
   async function deleteFolder(f) {
-    setMenu(null)
     if (!await ask.confirm(`Delete the folder “${f.name}”? Its chats move to Recent.`,
                            { confirmLabel: 'Delete', danger: true })) return
     try {
@@ -171,18 +281,27 @@ export default function ChatGroups({
   }
 
   async function moveToNewFolder(c) {
-    setMenu(null)
     const name = await ask.prompt('New folder', '', { confirmLabel: 'Create' })
     if (name?.trim()) await createFolder(name, c.id)
+  }
+
+  async function pinProject(p) {
+    try {
+      await api(`/api/projects/${encodeURIComponent(p.slug)}/pin`, {
+        method: 'PUT', body: JSON.stringify({ pinned: !p.pinned_at }) })
+      projectsChanged()
+    } catch (err) { notifyError(err) }
   }
 
   // a project row's ⋯ (2026-10-02: the operator found no way to delete a
   // project; Delete lived only on the Projects sheet's cards). Same calls as
   // that sheet: delete moves it to Recently deleted, where it can be restored.
   async function renameProject(p) {
-    setMenu(null)
-    const next = await ask.prompt('Rename project', p.name, { confirmLabel: 'Rename' })
+    const next = await ask.prompt('Rename project', p.name, {
+      confirmLabel: 'Rename', body: NAME_RULE })
     if (!next?.trim()) return
+    const bad = nameProblem(next)
+    if (bad) { notifyError(new Error(bad)); return }
     try {
       await api(`/api/projects/${encodeURIComponent(p.slug)}/name`, {
         method: 'PUT', body: JSON.stringify({ name: next.trim() }) })
@@ -191,7 +310,6 @@ export default function ChatGroups({
   }
 
   async function deleteProject(p) {
-    setMenu(null)
     if (!await ask.confirm(`Move the project “${p.name}” to Recently deleted?`, {
       body: 'Its files and chats stay until you delete it forever from the Projects sheet '
         + '(＋ on Projects), where it can also be restored.',
@@ -200,6 +318,23 @@ export default function ChatGroups({
       await api(`/api/projects/${encodeURIComponent(p.slug)}`, { method: 'DELETE' })
       projectsChanged()
     } catch (err) { notifyError(err) }
+  }
+
+  async function runDeep(more = false) {
+    const seq = ++deepSeq.current
+    const offset = more ? deep.offset + DEEP_PAGE : 0
+    setDeep((d) => ({ ...(more ? d : { results: [] }), loading: true, error: '' }))
+    try {
+      const r = await api(`/api/search/messages?q=${encodeURIComponent(query.trim())}`
+        + `&limit=${DEEP_PAGE}&offset=${offset}`)
+      if (seq !== deepSeq.current) return
+      setDeep((d) => ({
+        results: [...(more ? d.results : []), ...r.results], more: r.more,
+        timedOut: r.timed_out, offset, loading: false, error: '' }))
+    } catch (err) {
+      if (seq !== deepSeq.current) return
+      setDeep((d) => ({ ...d, loading: false, error: err.message || 'Search failed' }))
+    }
   }
 
   const known = new Set(folders.map((f) => f.id))
@@ -213,155 +348,154 @@ export default function ChatGroups({
   // rather than vanishing until the next folder refresh
   const recent = rest.filter(
     (c) => !c.starred && (c.folder_id == null || !known.has(c.folder_id)))
+  const pinned = projects.filter((p) => p.pinned_at)
+    .sort((a, b) => String(b.pinned_at).localeCompare(String(a.pinned_at)))
+  const unpinned = projects.filter((p) => !p.pinned_at)
 
-  const row = (c) => {
-    const key = `c:${c.id}`
-    const act = live.get(c.id)
-    return (
-      <li key={c.id}
-          className={[c.id === activeId ? 'active' : '', menu === key ? 'menu-open' : '']
-            .filter(Boolean).join(' ') || undefined}
-          onClick={() => onOpen(c.id)}
-          onContextMenu={(e) => { e.preventDefault(); setMenu(key) }}>
-        {/* title owns the row; the project slug sits under it so a long slug
-            can never crush the title into two letters */}
-        <div className="convo-main">
-          {act ? (
-            <span className="convo-active-line">
-              <span className={act.needs ? 'convo-active-dot needs' : 'convo-active-dot'}
-                    aria-hidden="true" />
-              <span className="convo-title ellipsis" title={c.summary || `#${c.id}`}>
-                {listTitle(c)}</span>
-              {act.agents > 0 && (
-                <span className="convo-active-agents"
-                      title={`${act.agents} agent${act.agents === 1 ? '' : 's'} working`}>
-                  {act.agents}</span>
-              )}
-              {act.needs && (
-                <span className="convo-active-needs" title={act.needs}>needs you</span>
-              )}
-            </span>
-          ) : (
-            <span className="convo-title ellipsis" title={c.summary || `#${c.id}`}>
-              {listTitle(c)}</span>
-          )}
-          {/* an agent's thread is still a chat and still belongs in this list —
-              it just isn't CNTRL speaking, so say so */}
-          {(c.agent_slug || c.project_slug) && (
-            <span className="convo-proj ellipsis">
-              {c.agent_slug && <span className="convo-agent">{c.agent_slug}</span>}
-              {c.project_slug}
-            </span>
-          )}
-        </div>
-        {/* overlaid on hover rather than reserving width. The menu is portalled
-            (the list scrolls and the sidebar clips), but React still bubbles
-            its clicks through here — stop them before they open the row. */}
-        <span className="convo-actions" onClick={(e) => e.stopPropagation()}>
-          <Menu open={menu === key} onClose={closeMenu} floating align="left"
-                label="chat actions" width={220}
-                trigger={
-                  <button type="button" className="win-btn" title="chat actions"
-                          aria-haspopup="menu" aria-expanded={menu === key}
-                          onClick={() => setMenu(menu === key ? null : key)}><UiGlyph name="more" size={15} /></button>
-                }>
-            <MenuItem onClick={() => patchChat(c.id, { starred: !c.starred })}>
-              {c.starred ? 'Unstar' : 'Star'}</MenuItem>
-            <MenuItem onClick={() => { setMenu(null); onRename(c) }}>Rename</MenuItem>
-            <MenuSep />
-            <div className="menu-caption">Move to folder</div>
-            <MenuItem checked={c.folder_id == null || !known.has(c.folder_id)}
-                      onClick={() => patchChat(c.id, { folder_id: null })}>
-              No folder</MenuItem>
-            {folders.map((f) => (
-              <MenuItem key={f.id} checked={c.folder_id === f.id}
-                        onClick={() => patchChat(c.id, { folder_id: f.id })}>
-                <span className="ellipsis">{f.name}</span></MenuItem>
-            ))}
-            <MenuItem onClick={() => moveToNewFolder(c)}>New folder…</MenuItem>
-            <MenuSep />
-            <MenuItem danger onClick={() => { setMenu(null); onDelete(c) }}>Delete</MenuItem>
-          </Menu>
-        </span>
-      </li>
-    )
-  }
+  const row = (c) => (
+    <ChatRow key={c.id} c={c} act={live.get(c.id)} activeId={activeId} folders={folders}
+             known={known} onOpen={onOpen} onRename={onRename} onDelete={onDelete}
+             patchChat={patchChat} moveToNewFolder={moveToNewFolder} />
+  )
+  const projRow = (p) => (
+    <ProjectRow key={p.slug} p={p} href={hrefOf(p)} workspace={workspace}
+                onPin={pinProject} onRename={renameProject} onDelete={deleteProject} />
+  )
 
   const group = (id, label, rows, { head = null, empty = null } = {}) => (
     <section key={id} className="convo-group">
       <GroupHead id={id} label={label} count={rows.length} folded={!!folded[id]}
                  onToggle={toggle}>{head}</GroupHead>
       {!folded[id] && (rows.length
-        ? <ul id={`convo-group-${id}`} className="convo-rows">{rows.map(row)}</ul>
+        ? <ul id={`convo-group-${id}`} className="convo-rows list-divided">{rows.map(row)}</ul>
         : empty && <p id={`convo-group-${id}`} className="convo-group-empty">{empty}</p>)}
     </section>
   )
 
+  const q = query.trim().toLowerCase()
+  const searching = q.length > 0
+  const hit = (...parts) => parts.some((s) => (s || '').toLowerCase().includes(q))
+  const matchProjects = searching
+    ? projects.filter((p) => hit(p.name, p.slug)) : []
+  const matchChats = searching
+    ? conversations.filter((c) => hit(listTitle(c), c.summary, c.project_slug, c.agent_slug))
+    : []
+
+  const searchBox = (
+    <div className="convo-search">
+      <Input type="search" value={query} placeholder="Search chats and projects"
+             aria-label="search chats and projects" autoComplete="off"
+             onChange={(e) => setQuery(e.target.value)}
+             onKeyDown={(e) => { if (e.key === 'Escape') setQuery('') }} />
+    </div>
+  )
+
+  if (searching) {
+    return (
+      <div className="convo-list">
+        {searchBox}
+        {matchProjects.length > 0 && (
+          <section className="convo-group">
+            <div className="convo-group-head"><span className="convo-group-label">Projects</span></div>
+            <ul className="convo-rows list-divided">{matchProjects.map(projRow)}</ul>
+          </section>
+        )}
+        {matchChats.length > 0 && (
+          <section className="convo-group">
+            <div className="convo-group-head"><span className="convo-group-label">Chats</span></div>
+            <ul className="convo-rows list-divided">{matchChats.map(row)}</ul>
+          </section>
+        )}
+        {!matchProjects.length && !matchChats.length && (
+          <p className="convo-group-empty">No title matches.</p>
+        )}
+        <section className="convo-group convo-deep">
+          {deep === null && query.trim().length >= 2 && (
+            <Button variant="ghost" onClick={() => runDeep(false)}>
+              Deep search (takes longer, reads and checks all text)</Button>
+          )}
+          {deep !== null && (
+            <>
+              <div className="convo-group-head"><span className="convo-group-label">In message text</span></div>
+              {deep.results.length > 0 && (
+                <ul className="convo-rows list-divided">
+                  {deep.results.map((r) => (
+                    <li key={r.message_id} className="convo-hit"
+                        onClick={() => onOpen(r.conversation_id, { messageId: r.message_id })}>
+                      <div className="convo-main">
+                        <span className="convo-title ellipsis">
+                          {r.title ? listTitle({ id: r.conversation_id, summary: r.title })
+                            : `Chat #${r.conversation_id}`}</span>
+                        <span className="convo-snippet">{r.snippet}</span>
+                        {r.project_slug && <span className="convo-proj ellipsis">{r.project_slug}</span>}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {deep.loading && <p className="convo-group-empty">Searching message text…</p>}
+              {deep.error && <p className="convo-group-empty">{deep.error}</p>}
+              {!deep.loading && !deep.error && deep.timedOut && (
+                <p className="convo-group-empty">The search ran out of time. Try a longer phrase.</p>
+              )}
+              {!deep.loading && !deep.error && !deep.timedOut && !deep.results.length && (
+                <p className="convo-group-empty">Nothing in any message.</p>
+              )}
+              {!deep.loading && deep.more && (
+                <Button variant="ghost" onClick={() => runDeep(true)}>Show more</Button>
+              )}
+            </>
+          )}
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="convo-list">
+      {searchBox}
+      {pinned.length > 0 && (
+        <section className="convo-group">
+          <GroupHead id="pinned" label="Pinned" count={pinned.length}
+                     folded={!!folded.pinned} onToggle={toggle} />
+          {!folded.pinned && (
+            <ul id="convo-group-pinned" className="convo-rows proj-rows list-divided">
+              {pinned.map(projRow)}</ul>
+          )}
+        </section>
+      )}
       {activeRows.length > 0 && group('active', 'Active', activeRows)}
       {/* shown with no projects too: its ＋ is the way to make the first one.
           /projects opens the Projects sheet (create, import, rename, delete),
           which used to be reachable only from the bottom of Work's ＋ picker. */}
       <section className="convo-group">
-        <GroupHead id="projects" label="Projects" count={projects.length}
+        <GroupHead id="projects" label="Projects" count={unpinned.length}
                    folded={!!folded.projects} onToggle={toggle}>
           <Link to="/projects" className="win-btn convo-group-add" title="new project"
                 aria-label="new project"><UiGlyph name="plus" size={15} /></Link>
         </GroupHead>
-        {!folded.projects && (projects.length ? (
-          <ul id="convo-group-projects" className="convo-rows proj-rows">
-            {projects.map((p) => {
-              const key = `p:${p.slug}`
-              return (
-                <li key={p.slug} className={menu === key ? 'menu-open' : undefined}
-                    onContextMenu={(e) => { e.preventDefault(); setMenu(key) }}>
-                  <Link to={projectHref(p)} title={p.slug}>
-                    <span className="proj-dot" aria-hidden="true" />
-                    <span className="convo-title ellipsis">{p.name}</span>
-                  </Link>
-                  <span className="convo-actions" onClick={(e) => e.stopPropagation()}>
-                    <Menu open={menu === key} onClose={closeMenu} floating align="left"
-                          label="project actions" width={200}
-                          trigger={
-                            <button type="button" className="win-btn" title="project actions"
-                                    aria-label={`${p.name} actions`}
-                                    aria-haspopup="menu" aria-expanded={menu === key}
-                                    onClick={() => setMenu(menu === key ? null : key)}><UiGlyph name="more" size={15} /></button>
-                          }>
-                      <MenuItem onClick={() => renameProject(p)}>Rename</MenuItem>
-                      <MenuSep />
-                      <MenuItem danger onClick={() => deleteProject(p)}>Delete</MenuItem>
-                    </Menu>
-                  </span>
-                </li>
-              )
-            })}
+        {!folded.projects && (unpinned.length ? (
+          <ul id="convo-group-projects" className="convo-rows proj-rows list-divided">
+            {unpinned.map(projRow)}
           </ul>
         ) : (
           <p id="convo-group-projects" className="convo-group-empty">
-            No projects yet. The plus above makes one.</p>
+            {projects.length ? 'Every project is pinned.' : 'No projects yet. The plus above makes one.'}
+          </p>
         ))}
       </section>
       {starred.length > 0 && group('starred', 'Starred', starred)}
-      {folders.map((f) => {
-        const key = `f:${f.id}`
-        return group(key, f.name, inFolder(f.id), {
-          empty: 'Empty. File a chat here from its menu.',
-          head: (
-            <Menu open={menu === key} onClose={closeMenu} floating label="folder actions"
-                  width={180} wrapClassName="convo-group-menu"
-                  trigger={
-                    <button type="button" className="win-btn" title="folder actions"
-                            aria-haspopup="menu" aria-expanded={menu === key}
-                            onClick={() => setMenu(menu === key ? null : key)}><UiGlyph name="more" size={15} /></button>
-                  }>
-              <MenuItem onClick={() => renameFolder(f)}>Rename</MenuItem>
-              <MenuItem danger onClick={() => deleteFolder(f)}>Delete folder</MenuItem>
-            </Menu>
-          ),
-        })
-      })}
+      {folders.map((f) => (
+        <section key={`f:${f.id}`} className="convo-group">
+          <FolderHead f={f} count={inFolder(f.id).length} folded={!!folded[`f:${f.id}`]}
+                      onToggle={toggle} onRename={renameFolder} onDelete={deleteFolder} />
+          {!folded[`f:${f.id}`] && (inFolder(f.id).length
+            ? <ul id={`convo-group-f:${f.id}`} className="convo-rows list-divided">
+                {inFolder(f.id).map(row)}</ul>
+            : <p id={`convo-group-f:${f.id}`} className="convo-group-empty">
+                Empty. File a chat here from its menu.</p>)}
+        </section>
+      ))}
       {draft === null
         ? <Button variant="ghost" className="convo-new-folder"
                   onClick={() => setDraft('')}>New folder</Button>

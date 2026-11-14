@@ -53,6 +53,7 @@ function typing(el) {
   if (!el || el === document.body) return false
   if (el.isContentEditable || el.closest?.('.xterm, .cm-editor, [role="dialog"], [role="menu"]')) return true
   if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true
+  if (el.closest?.('[role="combobox"]')) return true
   return el.tagName === 'INPUT' && !NOT_TEXT.has((el.type || '').toLowerCase())
 }
 

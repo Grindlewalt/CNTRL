@@ -393,3 +393,20 @@
   .sh-head { min-height: 48px; }
   .sh-title { font-size: var(--fs-base); }
 }
+
+/* ================= sidebar v2: dividers, search, deep hits ================ */
+/* a clean hairline between rows (.list-divided); the rows' own gap would
+   double it, so it goes */
+.convo-rows.list-divided { gap: 0; }
+.convo-rows.list-divided > li { border-radius: 0; }
+.convo-rows.list-divided > li:hover, .convo-rows.list-divided > li.active { border-radius: var(--radius-lg); }
+.convo-rows.list-divided > li:hover, .convo-rows.list-divided > li:hover + li,
+.convo-rows.list-divided > li.active, .convo-rows.list-divided > li.active + li { border-top-color: transparent; }
+.convo-search { padding: 0 var(--sp-2) var(--sp-4); flex-shrink: 0; }
+.convo-search input { width: 100%; font-size: var(--fs-sm); padding: var(--sp-3) var(--sp-5); }
+.convo-group-label { padding: var(--sp-2) var(--sp-4); font-size: var(--fs-sm);
+  font-weight: 600; color: var(--slate); }
+.convo-deep { gap: var(--sp-3); }
+.convo-deep > button { align-self: flex-start; text-align: left; font-size: var(--fs-sm); }
+.convo-hit .convo-snippet { font-size: var(--fs-sm); color: var(--slate); line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
