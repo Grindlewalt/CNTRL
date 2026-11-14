@@ -156,6 +156,21 @@ async def test_inspect_diff_shows_new_files_whole(client):
     assert "+print('hi')" in one and "odd name" not in one
 
 
+async def test_an_environment_request_carries_its_summary_to_the_queue(client):
+    # the Queue leads with agent_summary; GET /api/environments used to drop it
+    db = await get_db()
+    try:
+        await db.execute("INSERT INTO environment_requests (project_slug, name, reason, "
+                         "agent_summary, call_id) VALUES ('demo', 'ocr', 'tesseract', "
+                         "'A new image with tesseract for scanned PDFs.', 'call_e')")
+        await db.commit()
+    finally:
+        await db.close()
+    [env] = (await client.get("/api/environments?status=pending")).json()["environments"]
+    assert env["agent_summary"] == "A new image with tesseract for scanned PDFs."
+    assert env["call_id"] == "call_e"
+
+
 async def test_request_step_knows_nothing_it_was_not_asked_about(client):
     assert (await client.get("/api/security/request_step?kind=nope&id=1")).json() == {
         "conversation_id": None, "step": None}
