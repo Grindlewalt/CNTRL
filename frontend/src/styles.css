@@ -32,9 +32,9 @@
   --accent-ink: #faf7ef;     /* text on an accent surface */
   --glass: rgba(255, 252, 245, 0.72);    /* the nav only */
   --glass-line: rgba(70, 50, 20, 0.08);
-  /* Select's list and sheet: glass you can read. The paper at 84% under a
+  /* Select's list and sheet: glass you can read. The paper at 88% under a
      24px blur; one rule for both themes, because --paper flips. */
-  --glass-pop: color-mix(in srgb, var(--paper) 84%, transparent);
+  --glass-pop: color-mix(in srgb, var(--paper) 88%, transparent);
   --sans: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
   --mono: "Martian Mono", ui-monospace, Menlo, monospace;
 
@@ -648,6 +648,7 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
   box-shadow: var(--shadow-win); overflow: hidden;
   animation: drop-in 0.16s cubic-bezier(0.21, 1.02, 0.55, 1) both;
 }
+.modal:focus { outline: none; }   /* it takes focus on open; the ring would frame the screen */
 .modal-head { display: flex; align-items: center; gap: var(--sp-5);
   padding: 13px var(--sp-8); border-bottom: 1px solid var(--border);
   font-size: var(--fs-base); }
@@ -720,7 +721,7 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
    The trigger is a field: the input's paper, hairline, corner and focus ring,
    never a pill. It is as wide as its longest option (the hidden sizer shares
    its grid cell), as a native select is, so a pick never moves the layout.
-   The list is glass: paper at 84% (--glass-pop) under a 24px blur, so the page
+   The list is glass: paper at 88% (--glass-pop) under a 24px blur, so the page
    behind is a soft wash and the text keeps ink-on-paper contrast. */
 .sel { display: inline-flex; min-width: 0; max-width: 100%; vertical-align: middle; }
 .sel-trigger {
@@ -756,7 +757,8 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
   padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--line); color: var(--slate); }
 .sel-search input { flex: 1; min-width: 0; border: 0; background: none; box-shadow: none;
   padding: var(--sp-3) 0; font-size: var(--fs-base); color: var(--ink); }
-.sel-search input:focus { box-shadow: none; }
+/* the list's active row is the focus cue; a ring inside the panel is noise */
+.sel-search input:focus, .sel-search input:focus-visible { box-shadow: none; outline: none; }
 .sel-search-ico { flex-shrink: 0; }
 .sel-list { flex: 1; min-height: 0; max-height: 340px; overflow-y: auto; padding: var(--sp-3);
   overscroll-behavior: contain; outline: none; }
@@ -802,6 +804,76 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
 .sel-sheet .sel-search input { font-size: 16px; }
 .sel-sheet .sel-list { max-height: none; padding: var(--sp-3) var(--sp-6) var(--sp-6); }
 .sel-sheet .sel-opt { min-height: var(--tap); font-size: var(--fs-lg); }
+
+/* ---- row menu (components/RowMenu.jsx) ----
+   The ⋯ button sits in the row; the menu is a floating .menu. The wrapper
+   only keeps the row's own click and right-click away from the menu. */
+.row-menu { display: inline-flex; flex-shrink: 0; }
+
+/* ---- side panel (components/SidePanel.jsx) ----
+   Paper, a strong hairline on its open edge, the window shadow. Over the page
+   at 2500: above the page and its sheets' scrims, below toasts (3000), modals
+   (4000) and popovers (5000), so a dialog or a Select opened from it is on top. */
+.side-panel { display: flex; flex-direction: column; min-height: 0; background: var(--paper);
+  outline: none; }
+.side-panel.over {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 2500;
+  width: min(var(--side-w, 420px), 100vw); padding-top: var(--sat);
+  border-left: 1px solid var(--line-strong); box-shadow: var(--shadow-win);
+  animation: panel-in 0.22s cubic-bezier(0.21, 1.02, 0.55, 1) both;
+}
+.side-panel.beside { width: var(--side-w, 420px); max-width: 100%; height: 100%; flex-shrink: 0;
+  border-left: 1px solid var(--line); }
+.side-panel-head { display: flex; align-items: center; gap: var(--sp-4);
+  min-height: var(--page-band-h); padding: var(--sp-4) var(--sp-5) var(--sp-4) var(--sp-8);
+  border-bottom: 1px solid var(--line); }
+.side-panel-head h2 { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-lg); font-weight: 600;
+  letter-spacing: var(--track-head); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-panel-tabs { margin: var(--sp-5) var(--sp-8) 0; }
+.side-panel-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-8);
+  overscroll-behavior: contain; }
+.side-panel-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-8) max(var(--sp-6), var(--sab));
+  border-top: 1px solid var(--line); }
+@media (max-width: 768px) {
+  /* a phone: the whole screen, either mode */
+  .side-panel.over, .side-panel.beside { position: fixed; inset: 0; z-index: 2500; width: 100%;
+    height: auto; border: 0; padding-top: var(--sat); }
+  .side-panel-head { padding-left: max(var(--sp-8), env(safe-area-inset-left)); }
+}
+
+/* ---- help tip (components/HelpTip.jsx) ----
+   A small ringed `?`, slate until hovered; the popover is paper with a strong
+   hairline, prose at --fs-md. The hit area is 34px around an 18px mark. */
+.help-tip { display: inline-flex; vertical-align: middle; margin-left: var(--sp-3); }
+.help-tip-btn {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; padding: 0; border-radius: var(--radius-round);
+  background: none; border: 1px solid var(--line-strong); color: var(--slate);
+  font-family: var(--sans); font-size: var(--fs-xs); font-weight: 600; line-height: 1;
+  cursor: help;
+}
+.help-tip-btn::after { content: ''; position: absolute; inset: -8px; }
+.help-tip-btn:hover:not(:disabled), .help-tip-btn[aria-expanded='true'] { opacity: 1;
+  color: var(--ink); border-color: var(--slate); background: var(--wash); }
+.help-tip-pop {
+  position: fixed; z-index: 5100; width: max-content;
+  max-width: min(var(--tip-w, 280px), calc(100vw - 2 * var(--sp-8)));
+  padding: var(--sp-5) var(--sp-6); background: var(--paper); color: var(--ink);
+  border: 1px solid var(--line-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-pop);
+  font-size: var(--fs-md); font-weight: 400; line-height: var(--lh-base); text-align: left;
+  white-space: normal; animation: drop-in 0.12s ease both;
+}
+.help-tip-pop[data-side='up'] { animation-name: rise-in; }
+.help-tip-pop > p { margin: 0 0 var(--sp-3); }
+.help-tip-pop > :last-child { margin-bottom: 0; }
+
+/* ---- divided lists ----
+   A hairline between rows, the full width of the row, and nothing else: no
+   boxes, no zebra. On the list (ul, ol or any container); each direct child
+   is a row. The Work and Agents sidebars and every list use it. */
+.list-divided { list-style: none; margin: 0; padding: 0; }
+.list-divided > * + * { border-top: 1px solid var(--line); }
 
 /* ---- tabs ----
    .voice-tier-switch's segmented pill, written once: a glass track with the
