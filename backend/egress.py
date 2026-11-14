@@ -741,8 +741,11 @@ async def approve_host(db: aiosqlite.Connection, pending_id: int,
     await db.commit()
     if r["status"] != "approved":
         await note_approved(db, slug, r["host"], by)
+    prof = await profiles.for_slug(db, slug)
+    # `list` is the list key the host was written to, so an undo removes it from
+    # that profile even if the project has moved to another profile since
     return {"ok": True, "host": r["host"], "added_to": target,
-            "profile": (await profiles.for_slug(db, slug))["name"]}
+            "profile": prof["name"], "list": f"profile:{prof['id']}"}
 
 
 async def approve_host_once(db: aiosqlite.Connection, pending_id: int,

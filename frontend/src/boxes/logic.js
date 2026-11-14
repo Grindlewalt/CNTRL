@@ -566,7 +566,7 @@ export function projectPolicy({ groups = [], profiles = [], projects = [], filte
 
 // Plain words for where an effective entry lives.
 export const POLICY_FROM = {
-  project: { text: 'project', title: "this project's own list" },
+  project: { text: 'project', title: "this project's own list (kept from before approvals moved to the profile)" },
   auto: { text: 'auto', title: 'a live auto-mode allow: it expires unless you keep it' },
   profile: { text: 'profile', title: "the profile's list: every project on the profile shares it" },
   general: { text: 'general', title: "the Default profile's list: every project on Default shares it" },

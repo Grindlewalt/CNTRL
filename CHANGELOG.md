@@ -12,6 +12,7 @@ UI v2 of the web app (plan in `docs/ui-v2-plan.md`).
 - Agents: the roster follows the Work sidebar, clicking an agent opens a chat with it, Edit moved to the row menu, and skills import from a link (a GitHub repo or folder, a raw SKILL.md, a zip) or a dropped folder or zip, arriving off until granted.
 - Security: the Queue is a dashboard of what waits for you, each request led by a summary the agent must write (at most two sentences, checked before anything is filed), with Deny, Inspect (the chat step that asked, and the full diff for git) and Approve, plus the running boxes at a glance; the Security history moved to Logs.
 - Network and Profiles: the last 30 decisions show their profile, with an All page with search and filters; profiles are edited in a Modal, and secrets get one field per site.
+- Network approvals go on the profile's always-allow list (the operator's decision): approving a site for one project lets every project on that profile reach it, Auto review's approvals included. A project's own entries moved onto its profile at upgrade, nothing dropped. Packages and services may be requested by default (each request still waits for approval).
 - Setup: agents may request packages and background services by default; each request still waits for approval.
 - Research for Settings > Connectors (BETA) over MCP (`docs/connectors-research.md`); no code yet.
 

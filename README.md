@@ -283,7 +283,10 @@ profile: the default profile allows a short list of package registries and
 GitHub hosts, and any other new host is refused and queued for your approval.
 A separate model call, the triage reviewer ("Auto review", on by default, with
 no tools and no network), goes through that queue every five minutes and can
-approve hosts it judges routine; you can switch it off in Security.
+approve hosts it judges routine; you can switch it off in Security. An
+approval adds the site to the profile's always-allow list, so every project on
+that profile can reach it from then on, whether you approved it or Auto review
+did. To keep a project's approvals to itself, give it a profile of its own.
 
 "Allow 1 h" lets a host through for one project for an hour and writes no list.
 Security > Network shows the last 30 decisions with the profile each was made
