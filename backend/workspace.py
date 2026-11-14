@@ -33,7 +33,10 @@ async def project_dir(slug: str) -> Path:
                 raise HTTPException(status_code=404, detail="no such project")
     finally:
         await db.close()
-    return settings.projects_dir / slug
+    # resolved, like every path safe_join hands back: compares (relative_to,
+    # "project.md at the root") must hold when the state dir sits behind a
+    # symlink (macOS /tmp; an upgraded install's old state path)
+    return (settings.projects_dir / slug).resolve()
 
 
 def _refuse_git(base: Path, p: Path) -> Path:

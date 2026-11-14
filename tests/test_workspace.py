@@ -136,3 +136,31 @@ async def test_zip_has_the_listed_files_and_needs_login(client):
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as anon:
         assert (await anon.get("/api/projects/demo/zip")).status_code == 401
+
+
+async def test_upload_and_move_work_when_the_state_dir_is_a_symlink(client, tmp_env, monkeypatch):
+    # macOS /tmp, and an upgraded install that left its old state path as a
+    # symlink: the project dir is reached through a link, safe_join resolves it,
+    # and every compare must be resolved on both sides
+    import io
+    import zipfile
+    link = tmp_env / "state-link"
+    link.symlink_to(settings.projects_dir, target_is_directory=True)
+    monkeypatch.setattr(settings, "projects_dir", link)
+    r = await client.post("/api/projects/demo/upload", params={"dest": "docs"},
+                          files={"file": ("brief.txt", b"hello", "text/plain")})
+    assert r.status_code == 200, r.text
+    assert r.json()["path"] == "docs/brief.txt"
+    assert (link / "demo" / "docs" / "brief.txt").read_bytes() == b"hello"
+    # the journal stays at the root: that guard compares resolved paths too
+    r = await client.post("/api/projects/demo/move",
+                          json={"src": "project.md", "dest": "old/project.md"})
+    assert r.status_code == 400 and "project root" in r.json()["detail"]
+    # a zip lands and says where, relative to the project
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("a.txt", "x")
+    r = await client.post("/api/projects/demo/upload_archive", data={"dest": "code"},
+                          files={"file": ("a.zip", buf.getvalue(), "application/zip")})
+    assert r.status_code == 200, r.text
+    assert r.json()["dest"] == "code"
