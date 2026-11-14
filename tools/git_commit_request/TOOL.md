@@ -17,7 +17,10 @@ parameters:
       items:
         type: string
       description: Only commit these paths. Omit to commit all changes.
-  required: [message]
+    summary:
+      type: string
+      description: What this request does and why, in at most two sentences. The operator reads it first.
+  required: [message, summary]
 ---
 Commits the project's live files — your write_file/edit_file changes apply
 immediately, so they are already committable. Nothing commits or pushes until

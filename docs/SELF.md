@@ -124,8 +124,9 @@ the shared box. Docker boxes need `docker_enabled`. Anything installed with
 `pip install` or `npm install` in `run_code` is wiped after each turn; package
 requests and an approved `/persist` disk survive. Images: `main` is the base;
 `desktop` adds a screen and browser. If a tool says it needs the desktop image
-(screenshot), call `environment_request(use="desktop", reason=...)`; it is
-filed for approval and nothing changes until the operator approves.
+(screenshot), call `environment_request(use="desktop", reason=..., summary=...)`;
+it is filed for approval and nothing changes until the operator approves. Every
+request the operator decides takes a `summary` of at most two sentences, shown first.
 `headless_browser` (shipped to the box only with boxes on) reads
 pages that need JavaScript. Egress is off by default (`vm_egress`): the box has
 no network at all until the operator turns it on, and then a new host waits for

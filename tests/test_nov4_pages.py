@@ -222,7 +222,8 @@ async def test_routes_flow(op, srv):
     got = (await op.get("/api/pages/requests")).json()["items"]
     assert [g["id"] for g in got] == [p["id"]] and got[0]["status"] == "pending"
     assert set(got[0]) == {"id", "project", "name", "path", "files", "bytes", "status", "url",
-                           "created_at", "decided_at", "conversation_id"}
+                           "created_at", "decided_at", "conversation_id",
+                           "agent_summary", "call_id"}
     assert (await op.get("/api/pages")).json()["items"] == []
     r = await op.post(f"/api/pages/requests/{p['id']}/approve")
     assert r.json() == {"ok": True, "url": f"http://pages.test/p/{p['id']}/"}

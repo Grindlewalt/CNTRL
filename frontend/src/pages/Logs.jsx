@@ -6,6 +6,7 @@ import { notify, notifyError } from '../notify.js'
 import { Button, Select, Tabs, Toggle } from '../components/index.js'
 import { Group, Section } from '../securityParts.jsx'
 import { mergeConvos } from '../logsList.js'
+import SecurityHistory from '../SecurityHistory.jsx'
 import { proseLabel, timelineHeader } from '../logsTimeline.js'
 
 // Logs: full transcript viewer for any conversation — every user/assistant
@@ -339,7 +340,12 @@ export default function Logs() {
   const [selected, setSelected] = useState(null)
   const [detail, setDetail] = useState(null)
   const [calls, setCalls] = useState([])
-  const [view, setView] = useState('logs')   // 'logs' | 'cost'
+  // 'logs' | 'cost' | 'security' (the Security history, moved here from the Queue);
+  // ?view= opens one directly
+  const [view, setView] = useState(() => {
+    const v = new URLSearchParams(window.location.search).get('view')
+    return ['logs', 'cost', 'security'].includes(v) ? v : 'logs'
+  })
   const selectedRef = useRef(null)
   const inFlight = useRef(false)
   const shownRef = useRef(null)            // the list on screen, for the merge below
@@ -408,8 +414,11 @@ export default function Logs() {
     <div className="lg-view">
       <Tabs label="Logs view" value={view} onChange={setView}
             items={[{ id: 'logs', label: 'Transcripts', panel: 'logs-panel' },
-                    { id: 'cost', label: 'Cost', panel: 'logs-panel' }]} />
-      {view === 'cost' ? (
+                    { id: 'cost', label: 'Cost', panel: 'logs-panel' },
+                    { id: 'security', label: 'Security history', panel: 'logs-panel' }]} />
+      {view === 'security' ? (
+        <div className="lg-cost" id="logs-panel" role="tabpanel"><SecurityHistory /></div>
+      ) : view === 'cost' ? (
         <div className="lg-cost" id="logs-panel" role="tabpanel"><CostView /></div>
       ) : (
         <div className="lg-split" id="logs-panel" role="tabpanel">

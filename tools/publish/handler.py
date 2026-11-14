@@ -2,17 +2,22 @@
 
 Everything lives in backend/pages.py: the snapshot, the secret scan, the Queue
 request. In yolo the request is approved on the spot and the result carries the link."""
-from backend import pages, runtime
+from backend import pages, reqsummary, runtime
 from backend.agent.tools.toolctx import require_files
 from backend.db import get_db
 
 
-async def run(path: str, name: str) -> str:
+async def run(path: str, name: str, summary: str = "") -> str:
+    try:
+        summary = reqsummary.check(summary)
+    except reqsummary.SummaryError as e:
+        return reqsummary.refusal(e)
     key = await require_files()
     try:
         page = await pages.request(key, path, name, runtime.conversation_id.get())
     except pages.PageError as e:
         return f"error: {e}"
+    await reqsummary.store_new("pages", page["id"], summary)
     if page["status"] == "live":
         return f"published '{page['name']}': {page['url']} (anyone with the link can open it)."
     if page["status"] == "refused":

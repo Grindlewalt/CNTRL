@@ -113,6 +113,6 @@ async def test_service_request_snapshots_files_written_this_turn(demo, monkeypat
 
     monkeypatch.setattr(services, "file_request", fake_file_request)
     with in_guest_turn(monkeypatch, {"app.py": "print(1)"}) as calls:
-        out = await _call("service_request", name="web", command=["python", "app.py"],
+        out = await _call("service_request", summary="Test request.", name="web", command=["python", "app.py"],
                           files=["app.py"], reason="serve it")
     assert calls == ["demo"] and seen == [True], (calls, seen, out)

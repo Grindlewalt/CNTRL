@@ -1,8 +1,13 @@
 from backend.agent.tools.toolctx import require_project
+from backend import reqsummary
 from backend.gitgate import create_request, ensure_repo, yolo_decide
 
 
-async def run(message: str, paths: list[str] | None = None) -> str:
+async def run(message: str, summary: str = "", paths: list[str] | None = None) -> str:
+    try:
+        summary = reqsummary.check(summary)
+    except reqsummary.SummaryError as e:
+        return reqsummary.refusal(e)
     try:
         slug = await require_project()
     except LookupError as e:
@@ -12,6 +17,7 @@ async def run(message: str, paths: list[str] | None = None) -> str:
         row = await create_request(slug, message, paths)
     except ValueError as e:
         return f"error: {e}"
+    await reqsummary.store_new("git_requests", row["id"], summary)
     scope = f" (paths: {', '.join(paths)})" if paths else ""
     replaced = row.get("replaced") or []
     if replaced:
