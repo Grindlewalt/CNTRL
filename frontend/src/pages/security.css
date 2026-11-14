@@ -223,7 +223,7 @@
 .nw-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-8) var(--sp-11);
   align-items: start; }
 .nw-controls { display: flex; flex-direction: column; gap: var(--sp-5); min-width: 0; }
-.nw-controls select { align-self: flex-start; min-width: 220px; max-width: 100%; }
+.nw-controls :is(select, .sel) { align-self: flex-start; min-width: 220px; max-width: 100%; }
 .nw-auto { display: flex; flex-direction: column; gap: var(--sp-2); }
 .nw-auto .toggle { align-self: flex-start; text-align: left; }
 .nw-auto p { margin: 0; font-size: var(--fs-sm); color: var(--slate); max-width: 68ch; line-height: 1.5; }

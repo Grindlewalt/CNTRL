@@ -335,6 +335,7 @@ export function AgentDefinitions() {
             <Card title="Settings" className="agent-settings">
               <div className="agent-grid">
                 <Select label="Works in" value={agent.project || ''} options={projectOptions}
+                        recentKey="project"
                         onChange={(e) => patch({ project: e.target.value })} />
                 <AgentModel models={modelInfo} value={agent.model || ''}
                             onChange={(model) => patch({ model })} />

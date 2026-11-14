@@ -6,6 +6,7 @@ import { useAsk } from '../ask.jsx'
 import { useIsPhone } from '../breakpoints.js'
 import Page from '../components/Page.jsx'
 import EmptyState from '../components/EmptyState.jsx'
+import Select from '../components/Select.jsx'
 import Md from '../Md.jsx'
 import { serverTime, utcTime } from '../schedTime.js'
 
@@ -128,34 +129,25 @@ export default function Schedules() {
               onSubmit={save}>
           <input placeholder="schedule name" aria-label="schedule name" value={form.name}
                  onChange={(e) => set({ name: e.target.value })} />
-          <label className="mini">What runs
-            <select value={form.kind} onChange={(e) => set({ kind: e.target.value })}>
-              <option value="jarvis">CNTRL (main)</option>
-              <option value="agent">an agent</option>
-            </select>
-          </label>
+          <Select label="What runs" value={form.kind}
+                  onChange={(e) => set({ kind: e.target.value })}
+                  options={[{ value: 'jarvis', label: 'CNTRL (main)' },
+                            { value: 'agent', label: 'an agent' }]} />
           {form.kind === 'agent' && (
-            <label className="mini">Agent
-              <select value={form.agent_slug} onChange={(e) => set({ agent_slug: e.target.value })}>
-                <option value="">Pick an agent</option>
-                {agents.map((a) => <option key={a.slug} value={a.slug}>{a.name}</option>)}
-              </select>
-            </label>
+            <Select label="Agent" value={form.agent_slug} placeholder="Pick an agent"
+                    onChange={(e) => set({ agent_slug: e.target.value })}
+                    options={agents.map((a) => ({ value: a.slug, label: a.name }))} />
           )}
-          <label className="mini">Project (optional)
-            <select value={form.project_slug} onChange={(e) => set({ project_slug: e.target.value })}>
-              <option value="">No project</option>
-              {projects.map((p) => <option key={p.slug} value={p.slug}>{p.name}</option>)}
-            </select>
-          </label>
+          <Select label="Project (optional)" value={form.project_slug} recentKey="project"
+                  onChange={(e) => set({ project_slug: e.target.value })}
+                  options={[{ value: '', label: 'No project' },
+                            ...projects.map((p) => ({ value: p.slug, label: p.name }))]} />
           <textarea rows={3} placeholder="What should it do?" value={form.task}
                     onChange={(e) => set({ task: e.target.value })} />
-          <label className="mini">Repeats
-            <select value={form.cadence_kind} onChange={(e) => set({ cadence_kind: e.target.value })}>
-              <option value="daily">Every day at a time</option>
-              <option value="interval">Every N minutes</option>
-            </select>
-          </label>
+          <Select label="Repeats" value={form.cadence_kind}
+                  onChange={(e) => set({ cadence_kind: e.target.value })}
+                  options={[{ value: 'daily', label: 'Every day at a time' },
+                            { value: 'interval', label: 'Every N minutes' }]} />
           {form.cadence_kind === 'daily'
             ? <input type="time" value={form.daily_at} onChange={(e) => set({ daily_at: e.target.value })} />
             : <input type="number" min="15" value={form.interval_minutes}

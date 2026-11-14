@@ -3,6 +3,7 @@ import { api } from '../api.js'
 import Md from '../Md.jsx'
 import { notify } from '../notify.js'
 import { useAsk } from '../ask.jsx'
+import Select from '../components/Select.jsx'
 import './runtime.css'
 
 // Everything CNTRL made in project-less chats, grouped by chat: view/edit,
@@ -93,10 +94,10 @@ export default function Artifacts() {
             </ul>
             <div className="row">
               <button className="ghost" onClick={() => convert(a)}>Make a project</button>
-              <select defaultValue="" onChange={(e) => { merge(a, e.target.value); e.target.value = '' }}>
-                <option value="" disabled>Merge into project</option>
-                {projects.map((p) => <option key={p.slug} value={p.slug}>{p.name}</option>)}
-              </select>
+              {/* an action, not a setting: it never shows a current value */}
+              <Select value="" placeholder="Merge into project" aria-label="Merge into project"
+                      recentKey="project" onChange={(e) => merge(a, e.target.value)}
+                      options={projects.map((p) => ({ value: p.slug, label: p.name }))} />
             </div>
           </div>
         ))}

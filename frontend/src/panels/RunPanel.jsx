@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api.js'
+import Select from '../components/Select.jsx'
 import { IMG_EXT, rawUrl } from './shared.js'
 
 // A Workspace board panel, split out of pages/Workspace.jsx so the shell's
@@ -37,11 +38,9 @@ export default function RunPanel({ slug, state, setState }) {
       <div className="row">
         <button onClick={() => run({ code })} disabled={busy}>
           {busy ? 'running…' : '▶ scratch'}</button>
-        <select className="grow" value={runFile}
-                onChange={(e) => setState({ runFile: e.target.value })}>
-          <option value="">— or a .py file —</option>
-          {pyFiles.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
+        <Select className="grow" value={runFile} placeholder="Or a .py file"
+                aria-label="Python file to run" recentKey="file"
+                onChange={(e) => setState({ runFile: e.target.value })} options={pyFiles} />
         <button className="ghost" disabled={!runFile || busy}
                 onClick={() => run({ path: runFile })}>▶ file</button>
       </div>
