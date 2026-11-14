@@ -2,18 +2,25 @@
 import assert from 'node:assert/strict'
 import {
   ALLOW_ALWAYS_TIP, ALLOW_ONCE_TIP, AUTO_ALLOW_LABEL, AUTO_ALLOW_LEDE, AUTO_REVIEW_LEDE,
-  PERSISTENT_LEGEND, SECURITY_LEDES, VMS_LEDES, WAITING_LEDE, allowedLine, baselineAsk,
+  AUTO_REVIEW_LINE, PERSISTENT_LEGEND, SECURITY_LEDE_LINES, SECURITY_LEDES, VMS_LEDES, WAITING_LEDE,
+  allowedLine, baselineAsk,
   askAge, askKindText, decidedText, dockerLead, dockerMemoryUnlimited, faultText, ledeFor, plural,
   IMPORT_TIP, TOOLS_LEDE, builtinState, postureItems, ramLabel, secretChecklist, tallyLine,
   tabTitle, variantBuilds, variantSource,
 } from '../securityCopy.js'
 
 // WEB-12: every Security tab that has no line of its own gets one, found by path
-for (const tab of ['/security', '/security/persistent', '/security/network',
-  '/security/profiles', '/security/logs']) {
+// UI v2: one short line on screen, the full lede behind a ? beside it; Profiles
+// has neither (its page heading carries its own ?)
+for (const tab of ['/security', '/security/persistent', '/security/network', '/security/logs']) {
   const t = ledeFor(SECURITY_LEDES, tab)
   assert.ok(t.length > 30 && t.endsWith('.'), `lede for ${tab}`)
+  const line = ledeFor(SECURITY_LEDE_LINES, tab)
+  assert.ok(line.length > 10 && line.length <= 60 && line.endsWith('.'), `short line for ${tab}`)
 }
+assert.equal(ledeFor(SECURITY_LEDES, '/security/profiles'), '')
+assert.equal(ledeFor(SECURITY_LEDE_LINES, '/security/profiles'), '')
+assert.ok(AUTO_REVIEW_LINE.length <= 60)
 assert.equal(ledeFor(SECURITY_LEDES, '/security/network/'), SECURITY_LEDES['/security/network'])
 // Secrets keeps its panel's own line; an unknown tab has none (the queue's key
 // is a prefix of every other tab, and must not leak onto them)

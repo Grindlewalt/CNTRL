@@ -4,7 +4,8 @@ import TriagePanel from '../TriagePanel.jsx'
 import Posture from '../Posture.jsx'
 import ScrollHint from '../ScrollHint.jsx'
 import { PendingCountContext } from '../Notices.jsx'
-import { ledeFor, SECURITY_LEDES } from '../securityCopy.js'
+import { ledeFor, SECURITY_LEDE_LINES, SECURITY_LEDES } from '../securityCopy.js'
+import HelpTip from '../components/HelpTip.jsx'
 import { BoxesGlance, LivePages, QueueList } from '../SecurityDash.jsx'
 import Page from '../components/Page.jsx'
 import Tabs from '../components/Tabs.jsx'
@@ -50,8 +51,11 @@ export default function Review() {
             ]} /></ScrollHint>
           )}>
       <div className="review-body">
-        {/* one line on what this tab is, in the tab's own column */}
-        {ledeFor(SECURITY_LEDES, pathname) && <p className="tab-lede dim">{ledeFor(SECURITY_LEDES, pathname)}</p>}
+        {/* one short line on what this tab is, the rest behind a ? */}
+        {ledeFor(SECURITY_LEDE_LINES, pathname) && (
+          <p className="tab-lede dim">{ledeFor(SECURITY_LEDE_LINES, pathname)}{' '}
+            <HelpTip label="About this tab">{ledeFor(SECURITY_LEDES, pathname)}</HelpTip></p>
+        )}
         <Outlet />
       </div>
     </Page>

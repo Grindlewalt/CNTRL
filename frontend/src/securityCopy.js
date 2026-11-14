@@ -20,11 +20,18 @@ export const SECURITY_LEDES = {
   '/security/network': 'Every site the boxes try to reach, what was decided, and the lists '
     + "behind it. A site no list covers is blocked and waits here, unless the project's "
     + 'profile lets new sites through.',
-  '/security/profiles': 'A profile is a saved set of security settings: what a project\'s '
-    + 'boxes may reach on the network, which secrets it may use, and where it runs. '
-    + 'Every project uses exactly one.',
+  // no line for Profiles: its page heading carries its own "About profiles" ?
   '/security/logs': 'Transcripts of every conversation, down to each tool call, what the '
     + 'model calls cost, and the history of every security event.',
+}
+
+// The one short line a tab shows on screen; its SECURITY_LEDES text sits behind
+// a ? beside it (the operator: no explanation paragraphs on screen).
+export const SECURITY_LEDE_LINES = {
+  '/security': 'What waits for you, and the boxes running now.',
+  '/security/persistent': 'What still runs inside each box.',
+  '/security/network': 'Every site the boxes try to reach, and what was decided.',
+  '/security/logs': 'Transcripts, model costs and security history.',
 }
 
 export const VMS_LEDES = {
@@ -179,6 +186,9 @@ export const AUTO_REVIEW_LEDE = [
     + 'alerts about processes, secrets, or service and package requests. Everything it does '
     + 'is listed below, and each action can be undone.',
 ]
+
+// on screen under the heading; AUTO_REVIEW_LEDE is behind the ? beside it
+export const AUTO_REVIEW_LINE = 'A model with no tools sweeps new items every few minutes.'
 
 export const AUTO_REVIEW_ON_TIP = 'On: sweeps new items on its own every few minutes'
 export const AUTO_REVIEW_OFF_TIP = 'Off: nothing is swept on its own; use Review now'
