@@ -453,7 +453,9 @@ function Summary({ row, project }) {
       {row.summary && (
         <figure className="sd-summary">
           <figcaption>
-            {row.byAgent ? "The agent's summary" : row.kind === 'ask' ? 'The question' : 'Reason'}
+            {row.byAgent ? "The agent's summary" : ({
+              ask: 'The question', journal: 'The entry', alert: 'The newest alert',
+            })[row.kind] || 'Reason'}
             {row.byAgent && (
               <HelpTip label="About the summary">The agent that asked wrote this, in at most two
                 sentences. It is its own account: check it under Inspect.</HelpTip>)}
