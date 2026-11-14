@@ -24,8 +24,8 @@ import { NAME_RULE, nameProblem } from './projectName.js'
 // Search sits on top. Typing filters the chat and project titles already
 // loaded, instantly. Below those, "Deep search" asks the server to read the
 // message text (GET /api/search/messages, paged, time-limited); a hit opens its
-// chat through onOpen(id, { messageId }). The chat page does not scroll to a
-// message yet, so it only opens the chat.
+// chat through onOpen(id, { messageId, query }), and the chat page scrolls to
+// that message and marks the matched text (chatAnchor.js).
 //
 // Active is polled, not pushed (useActive below): GET /api/chat/running (every
 // loop in flight, no DB read) for a plain chat's own streaming turn, and GET
@@ -421,7 +421,8 @@ export default function ChatGroups({
                 <ul className="convo-rows list-divided">
                   {deep.results.map((r) => (
                     <li key={r.message_id} className="convo-hit"
-                        onClick={() => onOpen(r.conversation_id, { messageId: r.message_id })}>
+                        onClick={() => onOpen(r.conversation_id,
+                                             { messageId: r.message_id, query: query.trim() })}>
                       <div className="convo-main">
                         <span className="convo-title ellipsis">
                           {r.title ? listTitle({ id: r.conversation_id, summary: r.title })

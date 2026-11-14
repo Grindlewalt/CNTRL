@@ -4426,7 +4426,10 @@ a:has(> .nav-dot) { position: relative; }
 .srun.sev-crit { border-left-color: var(--red); }
 
 /* "Open chat at step": the step the chat scrolled to */
-.tool-row.step-hit, .tool-fold.step-hit { animation: step-hit 3.5s ease-out; }
+/* …and a deep-search hit: the message, with the matched text highlighted */
+.tool-row.step-hit, .tool-fold.step-hit, .msg.step-hit { animation: step-hit 3.5s ease-out; }
+.msg.step-hit { border-radius: var(--radius-lg); }
+::highlight(chat-hit) { background: color-mix(in srgb, var(--warn) 30%, transparent); color: inherit; }
 @keyframes step-hit {
   0%, 60% { box-shadow: 0 0 0 2px var(--accent); }
   100% { box-shadow: 0 0 0 2px transparent; }

@@ -24,6 +24,7 @@ import ProjectPanel from '../panels/project/ProjectPanel.jsx'
 import { SendGlyph, UiGlyph } from '../shell/glyphs.jsx'
 import { MODE_HINT } from '../askUser.js'
 import { MODE_SHORT } from '../AskUser.jsx'
+import { clearMsgAnchor, findTextRange, peekMsgAnchor, setMsgAnchor } from '../chatAnchor.js'
 import './work.css'
 
 // A new chat's empty state: what this chat is scoped to, how it will ask,
@@ -218,6 +219,31 @@ export default function Chat({
     setTimeout(() => el.classList.remove('step-hit'), 3600)
   }, [conversationId, messages])
 
+  // A deep-search hit (or /c/<id>?msg=<n>&q=…, kept by routes.jsx): once that
+  // message is drawn, scroll the list to the matching text in it (the message
+  // itself when the text can't be found, e.g. split by markdown), flash the
+  // message and mark the text with a CSS highlight (no DOM change under React).
+  useEffect(() => {
+    if (!conversationId || !messages.length) return
+    const a = peekMsgAnchor(conversationId)
+    if (!a) return
+    const el = document.getElementById(`msg-${a.mid}`)
+    const box = scrollRef.current
+    if (!el || !box) return          // not drawn yet: the next messages change tries again
+    clearMsgAnchor()
+    const range = findTextRange(el, a.q)
+    const at = (range && range.getBoundingClientRect().height ? range : el).getBoundingClientRect()
+    const top = at.top - box.getBoundingClientRect().top + box.scrollTop
+    box.scrollTop = Math.max(0, top - box.clientHeight / 3)
+    el.classList.add('step-hit')
+    setTimeout(() => el.classList.remove('step-hit'), 3600)
+    const hl = typeof CSS !== 'undefined' && CSS.highlights && typeof Highlight === 'function'
+    if (range && hl) {
+      CSS.highlights.set('chat-hit', new Highlight(range))
+      setTimeout(() => CSS.highlights.delete('chat-hit'), 6000)
+    }
+  }, [conversationId, messages])
+
   // the composer grows with the draft, up to the CSS max-height. Past one line
   // the pill relaxes into a rounded box — .multi is that threshold.
   function autoGrow() {
@@ -275,7 +301,10 @@ export default function Chat({
     if (isPhone()) setSideOpen(false)
   }
 
-  async function openConversation(id, { resume = false, attempt = 0 } = {}) {
+  async function openConversation(id, { resume = false, attempt = 0, messageId = null,
+                                        query = '' } = {}) {
+    // a deep-search hit: open the chat AT that message (the effect below)
+    if (messageId) setMsgAnchor(id, messageId, query)
     tailAbort.current?.abort()
     folder.current.cancel()
     const mine = ++gen.current
@@ -676,7 +705,8 @@ export default function Chat({
           ) : (
             <div className="thread">
               {messages.map((m, i) => (
-                <div key={i} className={`msg ${m.role}${m.midturn ? ` midturn ${m.midturn}` : ''}`}>
+                <div key={i} id={m.id ? `msg-${m.id}` : undefined}
+                     className={`msg ${m.role}${m.midturn ? ` midturn ${m.midturn}` : ''}`}>
                   {m.role === 'assistant' ? <MessageBody m={m} />
                     : <pre>{m.content || (m.streaming ? '…' : '')}</pre>}
                 </div>
