@@ -152,7 +152,7 @@ function Counts({ project, tick }) {
 // ---- waiting for you --------------------------------------------------------------
 
 // Hosts the guest's code tried to reach that nobody has decided on. Allow
-// always trains the allowlist up (the project's own list); Allow 1 h lets it
+// always trains the allowlist up (the list of the project's profile); Allow 1 h lets it
 // through for an hour on no list; Deny keeps it out. WAITING_LEDE says so on
 // the page, and useEgressDecide (shared with the Queue) does the asking.
 const WAITING_TIP = 'Sites a box tried to reach that no list covers yet. "Allow always" adds the site '

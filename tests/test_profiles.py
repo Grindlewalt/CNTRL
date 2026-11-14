@@ -167,9 +167,23 @@ async def test_unattributed_approval_needs_a_project(db):
     assert not res["ok"] and res["needs_project"]
     res = await egress.approve_host(db, row["id"], project="alpha")
     assert res["ok"] and res["added_to"] == "alpha"
+    assert res["profile"] == "Alpha only"          # the UI's toast names the list it went on
     assert (await egress.decide(db, "alpha", "cdn.example.dev"))[0] == "allow"
     assert (await egress.decide(db, None, "cdn.example.dev"))[0] == "deny"
     assert not (await egress.allow_host(db, egress.GENERAL, "x.dev"))["ok"]
+
+
+async def test_allow_always_reaches_every_project_on_the_profile(db):
+    # the copy says "every project on that profile can reach it": hold it to that
+    shared = await new_profile(db, name="Shared lists")
+    for slug in ("alpha", "beta"):
+        await add_project(db, slug)
+        await profiles.assign(db, slug, shared["id"])
+    await add_project(db, "gamma")                   # stays on its own profile
+    res = await egress.allow_host(db, "alpha", "api.harbor-example.dev")
+    assert res["ok"] and res["profile"] == "Shared lists"
+    assert (await egress.decide(db, "beta", "api.harbor-example.dev"))[0] == "allow"
+    assert (await egress.decide(db, "gamma", "api.harbor-example.dev"))[0] == "deny"
 
 
 async def test_bulk_approve_skips_unattributed_rows(db):
