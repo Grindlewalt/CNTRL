@@ -133,7 +133,7 @@ function ProjectPicker({ host, verb, onPick }) {
       {slugs && slugs.length === 0 && (
         <div className="dim small">No projects yet, so there is nothing to attach it to.</div>)}
       {slugs && slugs.length > 0 && (
-        <Select aria-label="project" value={slug} placeholder="Choose a project"
+        <Select aria-label="project" value={slug} placeholder="Choose a project" recentKey="project"
                 onChange={(e) => setSlug(e.target.value)}
                 options={slugs.map((s) => ({ value: s, label: names[s] || s }))} />
       )}

@@ -400,7 +400,7 @@ export default function Git() {
       {st?.configured && st.running && (
         <div className="git-bar">
           {options.length > 0 && (
-            <Select aria-label="Project" value={slug || ''} options={options}
+            <Select aria-label="Project" value={slug || ''} options={options} recentKey="project"
                     onChange={(e) => choose(e.target.value)} />
           )}
           <Tag tone="done">Gitea running{st.version ? ` ${st.version}` : ''}</Tag>

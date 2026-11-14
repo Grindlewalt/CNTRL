@@ -508,7 +508,7 @@ function WarmUp({ boxes, onDone }) {
     <section className="sbx-sec">
       <div className="sbx-sec-head"><h3>Warm up a project box</h3></div>
       <div className="row">
-        <Select aria-label="project" value={pick} placeholder="project…"
+        <Select aria-label="project" value={pick} placeholder="project…" recentKey="project"
                 onChange={(e) => setPick(e.target.value)} options={slugs} />
         <Button variant="ghost" disabled={!pick} onClick={go}>Start its box</Button>
         <span className="dim small">boots it now instead of on the project's next turn</span>

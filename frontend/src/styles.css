@@ -32,6 +32,9 @@
   --accent-ink: #faf7ef;     /* text on an accent surface */
   --glass: rgba(255, 252, 245, 0.72);    /* the nav only */
   --glass-line: rgba(70, 50, 20, 0.08);
+  /* Select's list and sheet: glass you can read. The paper at 84% under a
+     24px blur; one rule for both themes, because --paper flips. */
+  --glass-pop: color-mix(in srgb, var(--paper) 84%, transparent);
   --sans: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
   --mono: "Martian Mono", ui-monospace, Menlo, monospace;
 
@@ -242,6 +245,9 @@ button, a, input, select, textarea, label { touch-action: manipulation; }
 @keyframes scrim-in { from { opacity: 0; } }
 /* the upward twin of drop-in, for a menu that opens above its trigger */
 @keyframes rise-in { from { opacity: 0; transform: translateY(6px) scale(0.97); } }
+/* a bottom sheet or a side panel arriving from its edge */
+@keyframes sheet-up { from { transform: translateY(100%); } }
+@keyframes panel-in { from { transform: translateX(100%); } }
 
 .app { display: flex; flex-direction: column; height: 100vh; }
 
@@ -709,6 +715,93 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
 .menu-item .m-sub { font-size: var(--fs-xs); color: var(--dim); }
 .menu-item .m-check { color: var(--accent); font-size: var(--fs-xs); }
 .menu-sep { height: 1px; margin: 5px 8px; background: var(--border); }
+
+/* ---- select (components/Select.jsx) ----
+   The trigger is a field: the input's paper, hairline, corner and focus ring,
+   never a pill. It is as wide as its longest option (the hidden sizer shares
+   its grid cell), as a native select is, so a pick never moves the layout.
+   The list is glass: paper at 84% (--glass-pop) under a 24px blur, so the page
+   behind is a soft wash and the text keeps ink-on-paper contrast. */
+.sel { display: inline-flex; min-width: 0; max-width: 100%; vertical-align: middle; }
+.sel-trigger {
+  display: inline-flex; align-items: center; gap: var(--sp-4); width: 100%; min-width: 0;
+  background: var(--field-bg); color: var(--text); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md); padding: var(--pad-field); font: inherit;
+  font-size: var(--fs-base); font-weight: 400; line-height: var(--lh-tight);
+  text-align: left; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.sel-trigger:hover:not(:disabled) { opacity: 1; border-color: var(--slate); }
+.sel-trigger:focus-visible, .sel.open .sel-trigger { outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.sel-trigger:disabled { opacity: 0.55; cursor: default; }
+.sel-value { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.sel-value > * { grid-area: 1 / 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel-sizer { visibility: hidden; height: 0; }
+.sel-ph { color: var(--faint); }
+.sel-chev { flex-shrink: 0; color: var(--slate); transition: transform 0.15s; }
+.sel.open .sel-chev { transform: rotate(180deg); }
+.field > .sel { width: 100%; }
+
+.sel-pop {
+  position: fixed; z-index: 5000; display: flex; flex-direction: column;
+  min-width: max(var(--sel-w, 0px), 220px); width: max-content;
+  max-width: min(420px, calc(100vw - 2 * var(--sp-8)));
+  background: var(--glass-pop); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-pop); overflow: hidden;
+  backdrop-filter: blur(24px) saturate(1.2); -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  transform-origin: top left; animation: drop-in 0.14s cubic-bezier(0.21, 1.02, 0.55, 1) both;
+}
+.sel-pop[data-side='up'] { transform-origin: bottom left; animation-name: rise-in; }
+.sel-search { display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--line); color: var(--slate); }
+.sel-search input { flex: 1; min-width: 0; border: 0; background: none; box-shadow: none;
+  padding: var(--sp-3) 0; font-size: var(--fs-base); color: var(--ink); }
+.sel-search input:focus { box-shadow: none; }
+.sel-search-ico { flex-shrink: 0; }
+.sel-list { flex: 1; min-height: 0; max-height: 340px; overflow-y: auto; padding: var(--sp-3);
+  overscroll-behavior: contain; outline: none; }
+.sel-group { padding: var(--sp-4) var(--sp-5) var(--sp-2); font-size: var(--fs-sm);
+  font-weight: 600; color: var(--slate); }
+.sel-groupbox + .sel-groupbox, .sel-opt + .sel-groupbox { margin-top: var(--sp-2);
+  border-top: 1px solid var(--line); }
+.sel-opt {
+  display: flex; align-items: center; gap: var(--sp-4); padding: var(--pad-row);
+  border-radius: var(--radius-lg); font-size: var(--fs-md); color: var(--ink);
+  cursor: pointer; user-select: none;
+}
+.sel-opt.active { background: var(--wash); }
+.sel-opt.selected .sel-opt-label { font-weight: 600; }
+.sel-opt[aria-disabled='true'] { color: var(--faint); cursor: default; }
+.sel-opt-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sel-opt-label { overflow-wrap: anywhere; }
+.sel-opt-sub { font-size: var(--fs-xs); color: var(--slate); }
+.sel-check { flex-shrink: 0; color: var(--accent); }
+.sel-num { flex-shrink: 0; min-width: 20px; text-align: center; font-size: var(--fs-xs);
+  padding: 1px 4px; color: var(--slate); background: var(--wash); border: 1px solid var(--line);
+  border-radius: var(--radius-xs); }
+.sel-empty { padding: var(--sp-5); font-size: var(--fs-md); color: var(--slate); }
+
+/* the bottom sheet: phones and touch screens. Same list, same search. */
+.sel-layer { position: fixed; inset: 0; z-index: 5000; display: flex;
+  flex-direction: column; justify-content: flex-end; }
+.sel-scrim { position: absolute; inset: 0; background: var(--overlay); touch-action: none;
+  animation: scrim-in 0.14s ease both; }
+.sel-sheet {
+  position: relative; display: flex; flex-direction: column; max-height: min(78vh, 640px);
+  background: var(--glass-pop); border-top: 1px solid var(--line-strong);
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0; box-shadow: var(--shadow-win);
+  backdrop-filter: blur(24px) saturate(1.2); -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  padding-bottom: var(--sab); animation: sheet-up 0.2s cubic-bezier(0.21, 1.02, 0.55, 1) both;
+}
+.sel-sheet-head { display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-5) var(--sp-5) var(--sp-3) var(--sp-8); }
+.sel-sheet-title { flex: 1; min-width: 0; font-size: var(--fs-lg); font-weight: 600;
+  letter-spacing: var(--track-head); }
+.sel-sheet .sel-search { margin: 0 var(--sp-6) var(--sp-3); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md); background: var(--field-bg); }
+.sel-sheet .sel-search input { font-size: 16px; }
+.sel-sheet .sel-list { max-height: none; padding: var(--sp-3) var(--sp-6) var(--sp-6); }
+.sel-sheet .sel-opt { min-height: var(--tap); font-size: var(--fs-lg); }
 
 /* ---- tabs ----
    .voice-tier-switch's segmented pill, written once: a glass track with the
@@ -1695,13 +1788,13 @@ kbd {
 .skill-param { margin: 0; flex-wrap: nowrap; }
 /* the argument row's bare inputs matched the base 15px; everything else in
    the form is the field size */
-.skill-param input, .skill-param select { font-size: var(--fs-md); padding: 6px 9px; }
+.skill-param input, .skill-param select, .skill-param .sel-trigger { font-size: var(--fs-md); padding: 6px 9px; }
 .skill-param-name { width: 110px; }
 .skill-param .grow { min-width: 0; }
 
 /* ---- agent outputs ---- */
 .outputs-pane { overflow-y: auto; gap: var(--sp-6); }
-.outputs-bar select { min-width: 180px; }
+.outputs-bar :is(select, .sel) { min-width: 180px; }
 .outputs-list { display: flex; flex-direction: column; gap: var(--sp-5); }
 .output-card { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
 .output-card.running { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
@@ -1806,7 +1899,7 @@ kbd {
 
 /* ---- schedules ---- */
 .sched-form { display: flex; flex-direction: column; gap: 8px; }
-.sched-form input, .sched-form select, .sched-form textarea {
+.sched-form input, .sched-form select, .sched-form .sel, .sched-form textarea {
   width: 100%; box-sizing: border-box; }
 .sched-form label.mini { display: flex; flex-direction: column; gap: 3px;
   font-size: 12px; color: var(--dim); }
@@ -2120,7 +2213,7 @@ button.sched-more { align-self: flex-start; margin-left: 0; font-size: var(--fs-
 
   /* iOS zooms the whole page when a focused control is under 16px — the
      single biggest "it doesn't feel like an app" offender. Phone only. */
-  input, textarea, select, .composer textarea { font-size: 16px; }
+  input, textarea, select, .composer textarea, .sel-trigger { font-size: 16px; }
   /* the one-size rule above outranks the bare element rule; restate it */
   .field > :where(input, select),
   .window-body :where(input, select) { font-size: 16px; }
@@ -2301,7 +2394,7 @@ button.sched-more { align-self: flex-start; margin-left: 0; font-size: var(--fs-
   /* the create fields stack: full-width each, not one narrow name field
      above two stretched ones */
   .sched-head button, .sbx-actions button { min-height: 38px; }
-  .sched-form select { min-height: 38px; }
+  .sched-form :is(select, .sel-trigger) { min-height: 38px; }
   /* visually hidden, not display:none — the word stays the button's name */
   .ws-head .ws-btn-word { position: absolute; width: 1px; height: 1px;
     overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -2953,7 +3046,7 @@ pre > .copy-btn, .device-login-line > .copy-btn {
 .desk-dot.on { background: var(--green); }
 .desk-grants, .desk-allow { display: flex; flex-wrap: wrap; align-items: center;
   gap: var(--sp-4) var(--sp-6); }
-.settings-page .desk-grants select { min-width: 0; }
+.settings-page .desk-grants :is(select, .sel) { min-width: 0; }
 .desk-pattern { display: inline-flex; align-items: center; gap: var(--sp-2); margin-left: 0; }
 .desk-pattern code { font-size: var(--fs-xs); }
 .desk-pattern-x { background: none; border: 0; padding: 0 var(--sp-1); color: var(--dim);
@@ -3040,11 +3133,11 @@ pre > .copy-btn, .device-login-line > .copy-btn {
 .settings-page .card { margin-bottom: var(--sp-7); }
 .settings-page .card > .card-head { margin-bottom: var(--sp-5); }
 .settings-page .card > .stack, .settings-page .card .stack { gap: var(--sp-5); }
-.settings-page :is(input, select, textarea) { font-size: var(--fs-md); }
-.settings-page :is(input, select) { height: var(--ctl-h); padding-block: 0; }
+.settings-page :is(input, select, textarea, .sel-trigger) { font-size: var(--fs-md); }
+.settings-page :is(input, select, .sel-trigger) { height: var(--ctl-h); padding-block: 0; }
 .settings-page .card button:not(.toggle):not(.copy-btn):not(.link) {
   min-height: var(--ctl-h); }
-.settings-page select { min-width: 220px; max-width: 100%; }
+.settings-page :is(select, .sel) { min-width: 220px; max-width: 100%; }
 .settings-page :not(.tabs) > a { color: var(--accent); }
 /* prose inside a card: the card's gap does the spacing, not the <p> margins */
 .settings-note { margin: 0; }
@@ -3066,7 +3159,7 @@ pre > .copy-btn, .device-login-line > .copy-btn {
   /* 16px text is the iOS no-zoom floor; the page rule above must not undo the
      phone's global one */
   .settings-page { --ctl-h: 40px; }
-  .settings-page :is(input, select, textarea) { font-size: 16px; }
+  .settings-page :is(input, select, textarea, .sel-trigger) { font-size: 16px; }
   .settings-inline > input { flex-basis: 100%; }
   .device-row { align-items: flex-start; }
 }
@@ -4197,7 +4290,7 @@ a:has(> .nav-dot) { position: relative; }
 /* Git page */
 .git-page > .card, .git-page > .git-bar, .git-page > p { margin-bottom: var(--sp-7); }
 .git-bar { display: flex; align-items: center; gap: var(--sp-5); flex-wrap: wrap; }
-.git-bar select { max-width: 100%; }
+.git-bar :is(select, .sel) { max-width: 100%; }
 .git-refresh { display: flex; justify-content: flex-end; margin-bottom: var(--sp-3); }
 .git-note { margin: var(--sp-4) 0 0; }
 .git-card-link { margin-left: auto; color: var(--dim); }
@@ -4225,7 +4318,7 @@ a:has(> .nav-dot) { position: relative; }
 .git-commits + button { margin-top: var(--sp-5); }
 .git-access { display: flex; flex-wrap: wrap; gap: var(--sp-4) var(--sp-8); }
 .git-access li { display: flex; align-items: center; gap: var(--sp-4); }
-.git-access select { width: auto; }
+.git-access :is(select, .sel) { width: auto; }
 @media (max-width: 768px) {
   .git-pull-row { flex-wrap: wrap; }
   .git-pull-row > strong { flex-basis: 100%; order: 2; white-space: normal; }

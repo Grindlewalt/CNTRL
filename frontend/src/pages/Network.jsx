@@ -686,7 +686,7 @@ export default function Network() {
     <div className="nw-view">
       <div className="nw-top">
         <div className="nw-controls">
-          <Select label="Project" value={filter}
+          <Select label="Project" value={filter} recentKey="project"
                   onChange={(e) => setFilter(e.target.value)}
                   options={[{ value: '', label: 'All projects' },
                     ...projects.map((p) => ({ value: p.slug, label: p.name }))]} />

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api.js'
 import { cspMediaSources } from '../mediaHosts.js'
 import EmptyState from '../components/EmptyState.jsx'
+import Select from '../components/Select.jsx'
 import { MEDIA_EXT, rawUrl } from './shared.js'
 
 // A Workspace board panel, split out of pages/Workspace.jsx so the shell's
@@ -49,10 +50,9 @@ export default function RendererPanel({ slug, state, setState, onToggleExpand })
   return (
     <div className="pane-col">
       <div className="row">
-        <select className="grow" value={path} onChange={(e) => setState({ path: e.target.value })}>
-          <option value="">— pick html / pdf / image —</option>
-          {files.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
+        <Select className="grow" value={path} placeholder="Pick an HTML, PDF or image file"
+                aria-label="File to show" recentKey="file"
+                onChange={(e) => setState({ path: e.target.value })} options={files} />
         <button className="ghost" onClick={refresh} title="refresh">↻</button>
         {url && <a className="ghost-link" href={url} target="_blank" rel="noreferrer">raw</a>}
       </div>
