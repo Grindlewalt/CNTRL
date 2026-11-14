@@ -593,6 +593,10 @@ async def init_db() -> None:
         if "autonomy" not in cols:
             # autonomy dial: read_only|stage|gated|full (NULL == full, unrestricted)
             await db.execute("ALTER TABLE projects ADD COLUMN autonomy TEXT")
+        if "pinned_at" not in cols:
+            # sidebar pins: when the operator pinned the project, NULL = not
+            # pinned. Server-side so a pin follows them across browsers.
+            await db.execute("ALTER TABLE projects ADD COLUMN pinned_at TEXT")
         if "persist_approved" not in cols:
             # approved persistence inside the guest VM: the operator's opt-in
             # (GUI only) for a project's /persist disk. In the DB, not
