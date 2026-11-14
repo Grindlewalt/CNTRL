@@ -75,6 +75,8 @@ const VmImages = lazy(() => import('./pages/Vms.jsx').then((m) => ({ default: m.
 const Catalogue = lazy(() => import('./pages/Catalogue.jsx'))
 
 const Memory = lazy(() => import('./pages/Memory.jsx'))
+// a project's home: its chats, instructions, context, memory and schedules
+const ProjectHome = lazy(() => import('./pages/ProjectHome.jsx'))
 // the terminal-style shell, on trial beside the classic UI: /shell, a chat at
 // /shell/c/:id, a project's home at /shell/p/:slug — one route, parsed inside,
 // so moving between them never remounts it mid-stream
@@ -140,6 +142,7 @@ export default function AppRoutes({ onLogin, onSetup, authed }) {
         <Route path="/c/:id" element={<OpenChat />} />
         <Route path="/projects" element={<Work openProjects />} />
         <Route path="/projects/:slug" element={<Work />} />
+        <Route path="/project/:slug" element={<ProjectHome />} />
         <Route path="/agents" element={<Agents />}>
           <Route index element={<AgentDefinitions />} />
           <Route path="skills" element={<SkillsPanel />} />
