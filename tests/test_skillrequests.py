@@ -355,7 +355,7 @@ async def test_tool_files_a_row_without_a_project(db, monkeypatch):
 def test_tool_frontmatter():
     meta = registry._parse_md(settings.base_dir / "tools" / "skill_request" / "TOOL.md")
     assert meta["section"] == "skills" and meta["enabled"] is True
-    assert "action" not in meta and "requires_settings" not in meta
+    assert meta["action"] == "request_install" and "requires_settings" not in meta
     assert meta["parameters"]["required"] == ["source", "reason", "summary"]
 
 

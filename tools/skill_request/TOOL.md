@@ -4,6 +4,7 @@ description: Ask the operator to install an existing published skill (a GitHub r
 when_to_use: Only for an existing published skill you have found, named as an https git URL (optionally `#sub/dir`) or `clawhub:<slug>`. Never to install packages or programs (that is package_request), and never to write a new skill yourself.
 enabled: true
 section: skills
+action: request_install
 parameters:
   type: object
   properties:

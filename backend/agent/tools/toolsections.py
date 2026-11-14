@@ -42,9 +42,11 @@ import re
 
 CORE_MAX = 11            # tools in the prompt before any section loads, META included
 FLAT_MAX = 14            # a granted set this small is shown as granted: no sections, no folding
+MAX_VISIBLE = 15         # hard ceiling: function names in one request, META included (= len(View.wire()))
 META = "tools"           # the meta-tool's name
 SUB = "do"               # a merged tool's name for a member's own `action` argument
 MERGED_NOTES_MAX = 300   # per-action Notes kept in a merged tool's description
+EXAMPLE_MAX = 160        # one action's sample call (`example:` in its TOOL.md)
 
 # The order here is the order sections are listed in. `about` is the one-line
 # listing; `merged` describes the merged tool when the section has one;
@@ -53,7 +55,8 @@ MERGED_NOTES_MAX = 300   # per-action Notes kept in a merged tool's description
 # only granted to the kind of turn that needs them); `with` names sections
 # that load along with an autoloaded one; `guide` names the navigation
 # playbook block that rides the section when it loads; `lead` puts a merged
-# tool's first-step actions first; `notes_max` overrides MERGED_NOTES_MAX.
+# tool's first-step actions first; `notes_max` overrides MERGED_NOTES_MAX;
+# `list_actions` names a merged tool's actions in the `tools` listing.
 SECTIONS: dict[str, dict] = {
     "files": {"about": "project files and the sandbox: read, write, edit, search, run code"},
     "project": {
@@ -108,21 +111,21 @@ SECTIONS: dict[str, dict] = {
         "triggers": r"\b(services?|daemons?|systemd|logs?|keep (it )?running|long[- ]running|"
                     r"server|bot|worker)\b"},
     "agents": {
-        "about": "run or define agents, agent teams, plan runs, message a running agent",
+        "about": "run or define agents, agent teams, plan runs, message a running agent, "
+                 "propose recurring headless runs (schedules)",
         "merged": "Other agents: run a saved one, spawn a disposable one, deploy a team, "
-                  "define a new agent, turn a big ask into a plan, or message a running agent.",
+                  "define a new agent, turn a big ask into a plan, message a running agent, "
+                  "or propose a recurring schedule (action schedule; it starts paused until "
+                  "the operator approves).",
         "triggers": r"\b(agents?|subagents?|team|delegate|spawn|orchestrate|in parallel|"
-                    r"checklist)\b",
+                    r"checklist|schedules?|scheduled|every (day|morning|evening|night|hour|week|"
+                    r"weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
+                    r"\d+ ?(m|min|mins|minutes|h|hours))|daily|weekly|hourly|cron|remind)\b",
         "lead": ["spawn", "spawn_temp", "send"]},
     "plans": {"about": "the running plan: status, repairs, an item's report",
               "merged": "The running plan, the team's checklist: follow it, repair a failed "
                         "or blocked item, report your own item's outcome.",
               "autoload": True, "with": ["agents"], "lead": ["status"]},
-    "schedules": {
-        "about": "propose recurring headless runs",
-        "triggers": r"\b(schedules?|scheduled|every (day|morning|evening|night|hour|week|"
-                    r"weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
-                    r"\d+ ?(m|min|mins|minutes|h|hours))|daily|weekly|hourly|cron|remind)\b"},
     "memory": {
         "about": "your durable memory notes",
         "merged": "Your durable memory notes (they survive every restart and VM wipe): "
@@ -130,19 +133,16 @@ SECTIONS: dict[str, dict] = {
         "triggers": r"\b(remember|memory|memories|forget)\b"},
     "media": {
         "about": "the operator's music (play, pause, volume, download), the clap songs, "
-                 "videos and web pages on their screen",
+                 "videos and web pages on their screen, the projection mapper",
         "merged": "The operator's music and screen: search, play, pause and download songs "
                   "from their library, edit the double-clap list, put a video or web page on "
-                  "their screen.",
+                  "their screen. The projection mapper (surfaces, scenes, output window, universe "
+                  "simulation) has projector_* actions that appear only while the projector "
+                  "is configured.",
         "triggers": r"\b(music|songs?|play|playing|playlist|album|artist|tracks?|volume|"
-                    r"pause|skip|movie|video|clap|youtube)\b",
+                    r"pause|skip|movie|video|clap|youtube|projector|projection|universe|"
+                    r"surfaces?)\b",
         "lead": ["play", "search", "control", "status"]},
-    "projector": {
-        "about": "the projection mapper: surfaces, scenes, output window, universe",
-        "merged": "The projection mapper: put something on a surface, see what is showing, "
-                  "run the output window, drive the universe simulation.",
-        "triggers": r"\b(projector|projection|universe|surfaces?)\b",
-        "lead": ["show", "status"]},
     "local": {"about": "files and shell on the operator's own computer (a /local chat)",
               "autoload": True},
     "system": {
@@ -151,7 +151,11 @@ SECTIONS: dict[str, dict] = {
         "triggers": r"\b(cntrl|jav3|jarvis|harness|your (own )?(docs|manual|architecture|tools)|"
                     r"how do you work)\b"},
     "skills": {"about": "installed skills (calling one loads its instructions), and "
-                        "asking the operator to install another"},
+                        "asking the operator to install another",
+               "list_actions": True,
+               "merged": "Installed skills: each action is one skill, and calling it loads "
+                         "that skill's instructions for you to follow. request_install asks "
+                         "the operator to install a published skill."},
     "other": {"about": "tools with no section"},
 }
 
@@ -276,23 +280,79 @@ class View:
         # calls goes to the registry, whose handlers and the broker decide
         self.strict = any("section" in s for s in self.specs)
         self.loaded: set[str] = set()
+        self._order: list[str] = []         # loaded sections, least recently used first
         self.guided: set[str] = set()
         if not self.active:
             return
         text = _latest_user_text(history)
+        # the budget is filled in priority order: autoload, then sections used
+        # earlier in this conversation, then a tool named in the message, then
+        # triggers. One that does not fit is not preloaded; it loads on demand
+        tiers: list[list[str]] = [[], [], [], []]
         for u in deferred:
             sec = self.section_of(u)
             meta = SECTIONS.get(sec) or {}
-            if (meta.get("autoload") or self._marked(u)
-                    or (meta.get("triggers") and text
-                        and re.search(meta["triggers"], text, re.I))
-                    or self._named_in(u, text)):
-                self.loaded.add(sec)
-        # sections that ride along with a loaded one (the plan's team messages)
-        for sec in list(self.loaded):
-            for w in (SECTIONS.get(sec) or {}).get("with") or ():
-                if any(self.section_of(u) == w for u in deferred):
-                    self.loaded.add(w)
+            if meta.get("autoload"):
+                tier = 0
+            elif self._marked(u):
+                tier = 1
+            elif self._named_in(u, text):
+                tier = 2
+            elif meta.get("triggers") and text and re.search(meta["triggers"], text, re.I):
+                tier = 3
+            else:
+                continue
+            if sec not in tiers[tier]:
+                tiers[tier].append(sec)
+        have = {self.section_of(u) for u in deferred}
+        for tier, secs in enumerate(tiers):
+            for sec in secs:
+                group = [sec] + [w for w in (SECTIONS.get(sec) or {}).get("with") or ()
+                                 if w in have and w != sec]
+                fresh = [g for g in group if g not in self.loaded]
+                self.loaded.update(fresh)
+                if tier and self._count() > MAX_VISIBLE:      # autoload always stays
+                    self.loaded.difference_update(fresh)
+                    continue
+                for g in group:
+                    self._touch(g)
+
+    def _touch(self, sec: str) -> None:
+        if sec in self._order:
+            self._order.remove(sec)
+        self._order.append(sec)
+
+    def _count(self) -> int:
+        """len(self.wire()) without building the specs."""
+        n = sum(1 for u in self.units if self.visible(u))
+        return n + (1 if self.active else 0)
+
+    def _protected(self) -> set[str]:
+        """Sections never put away: autoload ones and what rides with them."""
+        out = set()
+        for sec in self.loaded:
+            meta = SECTIONS.get(sec) or {}
+            if meta.get("autoload"):
+                out.add(sec)
+                out.update(meta.get("with") or ())
+        return out
+
+    def _evict(self, keep: str) -> str:
+        """Put away least recently used sections until the list fits. Never
+        `keep` (just loaded), its companions, or a protected section; if
+        nothing else can go, the list stays long. Returns the note."""
+        keep_set = {keep, *((SECTIONS.get(keep) or {}).get("with") or ())}
+        notes = []
+        while self._count() > MAX_VISIBLE:
+            prot = self._protected() | keep_set
+            victim = next((s for s in self._order if s in self.loaded and s not in prot), None)
+            if victim is None:
+                break
+            self.loaded.discard(victim)
+            self._order.remove(victim)
+            notes.append(f"[section '{victim}' was put away to keep your tool list short; "
+                         f"calling one of its tools or tools(section=\"{victim}\") brings it back.]")
+        return "\n".join(notes)
 
     # --- units ----------------------------------------------------------------
 
@@ -388,6 +448,12 @@ class View:
                 line += f" {_clip(notes, notes_max)}"
             if own and len(own.get("description") or "") > 70:   # more than a restatement
                 line += f" do: {_clip(own['description'], MERGED_NOTES_MAX)}"
+            # a flat schema cannot say which fields an action needs; one sample
+            # call per action can (Anthropic measured examples at 72% -> 90% on
+            # complex parameters). `example:` in the member's TOOL.md, ours only
+            ex = self.by_name[real].get("example")
+            if ex:
+                line += f" e.g. {_clip(str(ex), EXAMPLE_MAX)}"
             lines.append(line)
         if SUB in props:
             props[SUB] = {"type": "string", **{k: v for k, v in props[SUB].items()
@@ -402,8 +468,12 @@ class View:
     def _listing(self) -> str:
         lines = []
         for sec, units in self.sections().items():
-            about = (SECTIONS.get(sec) or {}).get("about", "")
-            lines.append(f"- {sec}: {about} [{', '.join(units)}]")
+            meta = SECTIONS.get(sec) or {}
+            # skills folded into one tool would list as just `skills`; their
+            # names are the only way to know one fits (the eval saw a skill
+            # go unfound once the listing stopped naming it)
+            shown = [self._unit_line(u) if meta.get("list_actions") else u for u in units]
+            lines.append(f"- {sec}: {meta.get('about', '')} [{', '.join(shown)}]")
         return "\n".join(lines)
 
     def _meta_spec(self) -> dict:
@@ -426,7 +496,10 @@ class View:
     def _load(self, sec: str) -> str:
         """Load `sec`; returns the playbook to show with it, once per turn."""
         self.loaded.add(sec)
-        return self._guide(sec)
+        self._touch(sec)
+        note = self._evict(sec)
+        guide = self._guide(sec)
+        return "\n".join(x for x in (note, guide) if x)
 
     def _guide(self, sec: str) -> str:
         key = (SECTIONS.get(sec) or {}).get("guide")
@@ -540,6 +613,8 @@ class View:
     def _autoload_note(self, unit: str) -> str:
         sec = self.section_of(unit)
         if self.visible(unit) or not sec:
+            if sec and self.active and sec in self.loaded:
+                self._touch(sec)            # a call keeps its section warm
             return ""
         guide = self._load(sec)
         tools = ", ".join(self._unit_line(u) for u in self.sections().get(sec, []))

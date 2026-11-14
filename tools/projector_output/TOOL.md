@@ -3,8 +3,8 @@ name: projector_output
 description: Open or close the projector output window — the borderless window that actually puts the image on the wall — and toggle the calibration overlay used for aiming it.
 when_to_use: When the operator wants the projection started or stopped, or wants the alignment guides on to aim something.
 enabled: true
-section: projector
-action: output
+section: media
+action: projector_output
 requires_settings: [mcp_projector_url, mcp_projector_token]
 parameters:
   type: object
