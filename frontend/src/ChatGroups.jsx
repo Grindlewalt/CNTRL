@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { api } from './api.js'
 import { useAsk } from './ask.jsx'
 import { notifyError } from './notify.js'
@@ -174,9 +174,12 @@ function ProjectRow({ p, href, workspace, onPin, onRename, onDelete }) {
     '-',
     { label: 'Delete', danger: true, onSelect: () => onDelete(p) },
   ], { label: `${p.name} actions`, width: 200, align: 'left' })
+  // its home is open in the main area (Work, /project/:slug)
+  const here = useLocation().pathname === href
   return (
-    <li className={open ? 'menu-open' : undefined} {...rowProps}>
-      <Link to={href} title={p.slug}>
+    <li className={[open && 'menu-open', here && 'active'].filter(Boolean).join(' ') || undefined}
+        {...rowProps}>
+      <Link to={href} title={p.slug} aria-current={here ? 'page' : undefined}>
         <span className="proj-dot" aria-hidden="true" />
         <span className="convo-title ellipsis">{p.name}</span>
         {pinned && <span className="proj-pin" title="Pinned">
