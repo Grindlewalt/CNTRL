@@ -158,6 +158,8 @@ async def test_unattributed_is_judged_by_default_only(db):
 
 async def test_unattributed_approval_needs_a_project(db):
     await add_project(db, "alpha")
+    own = await new_profile(db, name="Alpha only")      # lists are per profile
+    await profiles.assign(db, "alpha", own["id"])
     await egress.note_denied(db, egress.GENERAL, "cdn.example.dev", box_id="shared")
     row = (await egress.list_pending(db))[0]
     assert row["box_id"] == "shared"
@@ -184,7 +186,7 @@ async def test_approval_lifts_the_host_off_the_project_denylist(db):
     pid = (await egress.list_pending(db, "proj"))[0]["id"]
     await egress.approve_host(db, pid)
     pol = await egress.get_policy(db, "proj")
-    assert pol["project_allow"] == ["x.dev"] and pol["project_deny"] == []
+    assert "x.dev" in pol["effective_allow"] and pol["project_deny"] == []
     assert (await egress.decide(db, "proj", "x.dev"))[0] == "allow"
 
 
@@ -586,3 +588,44 @@ async def test_proxy_injects_a_profile_granted_secret(db):
 async def test_seed_hosts_setting_is_the_default_profile_seed(db):
     d = await profiles.default(db)
     assert sorted(set(settings.egress_seed_hosts)) == d["allow_hosts"]
+
+
+async def test_project_lists_migrate_onto_the_profile_without_loss(db):
+    await add_project(db, "a")
+    await add_project(db, "b")
+    shared = await new_profile(db, name="Shared", allow_hosts=["keep.dev"])
+    await profiles.assign(db, "a", shared["id"])
+    await profiles.assign(db, "b", shared["id"])
+    await egress.set_lists(db, "a", allow=["one.dev"], deny=["bad.dev"])
+    await egress.set_lists(db, "b", allow=["two.dev", "keep.dev"])
+    before = {s: await egress.get_policy(db, s) for s in ("a", "b")}
+    assert await egress.migrate_project_lists(db) == 2
+    p = await profiles.get(db, shared["id"])
+    assert p["allow_hosts"] == ["keep.dev", "one.dev", "two.dev"]
+    assert p["deny_hosts"] == ["bad.dev"]
+    for s in ("a", "b"):                       # every old entry still applies
+        pol = await egress.get_policy(db, s)
+        assert pol["project_allow"] == [] and pol["project_deny"] == []
+        assert set(before[s]["effective_allow"]) <= set(pol["effective_allow"])
+        assert set(before[s]["effective_deny"]) <= set(pol["effective_deny"])
+    assert await egress.migrate_project_lists(db) == 0      # idempotent
+    assert (await profiles.get(db, shared["id"]))["allow_hosts"] == p["allow_hosts"]
+
+
+async def test_decisions_page_search_and_profile(db):
+    from backend import egress_api
+    await add_project(db, "a")
+    p = await new_profile(db, name="Work")
+    await profiles.assign(db, "a", p["id"])
+    for i in range(7):
+        await egress.record_event(db, slug="a", host=f"h{i}.dev", verdict="allow" if i % 2 else "deny",
+                                  reason="why")
+    await egress.record_event(db, slug="nope", host="x.dev", verdict="approved")
+    r = await egress_api.decisions(limit=3, offset=0)
+    assert r["total"] == 8 and len(r["rows"]) == 3 and r["rows"][0]["host"] == "x.dev"
+    assert r["rows"][0]["profile"] == "Default"       # unassigned: the default's name
+    r = await egress_api.decisions(q="h3", profile=p["id"])
+    assert [x["host"] for x in r["rows"]] == ["h3.dev"]
+    assert r["rows"][0]["profile"] == "Work" and r["rows"][0]["decided_by"]
+    assert (await egress_api.decisions(verdict="blocked"))["total"] == 4
+    assert (await egress_api.decisions(offset=6))["rows"][0]["host"] == "h1.dev"

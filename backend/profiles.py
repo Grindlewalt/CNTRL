@@ -10,7 +10,7 @@ deny) and are the only thing approvals ever train (egress.py).
 No profile is seeded on a fresh install: first-run setup (backend.cli setup,
 the web /setup page) creates the one new projects use and marks it the
 default. If setup was skipped, the first use creates the same safe default
-(ask for new sites, shared box, no services, no packages). Every profile can
+(ask for new sites, shared box, services and packages may be requested). Every profile can
 be renamed, edited and deleted, except one a project still points at and the
 marked default (make another the default first). Exactly one row is the
 default whenever any row exists (a partial unique index keeps it at most one;
@@ -147,7 +147,7 @@ class _Txn:
 # --- shapes -----------------------------------------------------------------------
 
 def setup_fields(network: str = "ask", placement: str = "shared",
-                 services: bool = False, packages: bool = False) -> dict:
+                 services: bool = True, packages: bool = True) -> dict:
     """First-run setup's four answers -> the profile fields they set.
       network   ask   = deny-by-default, new sites queue for approval
                 allow = allow-by-default
@@ -437,6 +437,8 @@ async def migrate_at_startup() -> None:
     try:
         _migrated.discard(str(settings.db_path))
         await ensure_migrated(db)
+        from . import egress
+        await egress.migrate_project_lists(db)
     finally:
         await db.close()
 

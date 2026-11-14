@@ -224,7 +224,7 @@
   align-items: start; }
 .nw-controls { display: flex; flex-direction: column; gap: var(--sp-5); min-width: 0; }
 .nw-controls :is(select, .sel) { align-self: flex-start; min-width: 220px; max-width: 100%; }
-.nw-auto { display: flex; flex-direction: column; gap: var(--sp-2); }
+.nw-auto { display: flex; align-items: center; gap: var(--sp-4); }
 .nw-auto .toggle { align-self: flex-start; text-align: left; }
 .nw-auto p { margin: 0; font-size: var(--fs-sm); color: var(--slate); max-width: 68ch; line-height: 1.5; }
 .nw-counts { display: flex; margin: 0; border: 1px solid var(--line); border-radius: var(--radius);
@@ -530,3 +530,44 @@
   .bd-facts { grid-template-columns: minmax(0, 1fr); gap: var(--sp-1); }
   .bd-facts dd { margin-bottom: var(--sp-4); }
 }
+
+/* ---- pf-: Profiles (list, edit Modal, secrets) ---- */
+.pf-list { margin-top: var(--sp-4); }
+.pf-row { position: relative; display: flex; align-items: center; gap: var(--sp-4); }
+.pf-row.menu-open, .pf-row:hover { background: var(--wash); }
+.pf-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--sp-1);
+  text-align: left; background: none; border: 0; padding: var(--sp-6) var(--sp-4); font: inherit;
+  color: inherit; cursor: pointer; box-shadow: none; transform: none; }
+.pf-sum { font-size: var(--fs-md); color: var(--slate); overflow-wrap: anywhere; }
+.pf-used { font-size: var(--fs-sm); color: var(--faint); }
+.pf-assign { display: flex; align-items: center; gap: var(--sp-6); padding: var(--sp-5) var(--sp-4); }
+.pf-seg { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line-strong);
+  border-radius: var(--r-md, 8px); align-self: flex-start; }
+.pf-seg button { border: 0; background: none; padding: var(--sp-2) var(--sp-8); border-radius: 6px;
+  font: inherit; font-weight: 500; color: var(--slate); cursor: pointer; box-shadow: none; transform: none; }
+.pf-seg button.on { background: var(--wash); color: var(--ink); box-shadow: inset 0 0 0 1px var(--accent); }
+.pf-two { margin-bottom: var(--sp-2); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-6); }
+.pf-secret-line { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-6);
+  flex-wrap: wrap; }
+.pf-secret-line .mono { overflow-wrap: anywhere; min-width: 0; }
+.pf-secret { display: flex; align-items: center; gap: var(--sp-5); padding: var(--sp-3) 0; }
+.pf-secret .check-row { flex: 1; min-width: 0; }
+.pf-hosts { display: flex; flex-direction: column; gap: var(--sp-3); align-items: flex-start; }
+.pf-host { display: flex; gap: var(--sp-3); align-items: center; width: 100%; }
+.pf-host .field, .pf-host input { flex: 1; min-width: 0; }
+.pf-never { display: block; }
+@media (max-width: 560px) { .pf-two { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- nw-: the All decisions page and the decision drawer ---- */
+.nw-all-head { display: flex; align-items: baseline; gap: var(--sp-6); flex-wrap: wrap; }
+.nw-all-head h3 { margin: 0; }
+.nw-filters { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-5); }
+.nw-pager { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-6); }
+.nw-facts { margin: 0; display: flex; flex-direction: column; }
+.nw-facts > div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: var(--sp-5);
+  padding: var(--sp-4) 0; border-top: 1px solid var(--line); }
+.nw-facts > div:first-child { border-top: 0; }
+.nw-facts dt { color: var(--slate); font-size: var(--fs-md); }
+.nw-facts dd { margin: 0; overflow-wrap: anywhere; font-size: var(--fs-md); }
+.nw-facts dd.mono { font-size: var(--fs-sm); }
+@media (max-width: 640px) { .nw-filters { grid-template-columns: minmax(0, 1fr); } }
