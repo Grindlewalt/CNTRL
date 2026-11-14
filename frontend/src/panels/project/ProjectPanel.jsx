@@ -15,10 +15,13 @@ import FileViewer from './FileViewer.jsx'
 // project, else `chat-<id>`), isProject; projects, loaded (the globally loaded
 // project) and scope { mode, value, onPick(mode, slug) } for the Files tab's
 // "Works in" control; permMode / onPermMode; runs (offer the tab), chatJobs.
+// Optional: agent ({slug, name}: an agent chat, whose outputs the Files tab
+// adds), chatIds (a project home: its chats, whose artifacts the Files tab
+// adds) and onOpenChat(id) (an output that is a chat opens in the chat view).
 
 export default function ProjectPanel({
   open, tab, onTab, onClose, cid, temporary, slug, isProject, projects, loaded, scope,
-  permMode, onPermMode, runs, chatJobs = [],
+  permMode, onPermMode, runs, chatJobs = [], agent = null, chatIds, onOpenChat,
 }) {
   const [file, setFile] = useState(null)       // { slug, path, mode } open in the viewer
   const [version, setVersion] = useState(0)    // bumps when a save may have changed a list
@@ -47,6 +50,8 @@ export default function ProjectPanel({
         }
         return <FilesTab slug={slug} isProject={isProject} cid={cid} temporary={temporary}
                          projects={projects} loaded={loaded} scope={scope} version={version}
+                         agent={agent} chatIds={chatIds}
+                         onOpenChat={onOpenChat && ((id) => { onClose(); onOpenChat(id) })}
                          onOpen={(s, path, mode) => setFile({ slug: s, path, mode })} />
       }}
     </SidePanel>

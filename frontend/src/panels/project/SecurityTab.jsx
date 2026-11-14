@@ -179,6 +179,29 @@ function Network({ slug }) {
   )
 }
 
+// The one-line version a project home shows: where the project's chats run
+// and whether its profile has the network on. The same reads as the
+// sections above; null while loading, '' when a read failed.
+export function useSecuritySummary(slug) {
+  const [where, setWhere] = useState(null)
+  const [network, setNetwork] = useState(null)
+  useEffect(() => {
+    if (!slug) { setWhere(''); setNetwork(''); return undefined }
+    let live = true
+    Promise.all([listBoxes(), getPlacement(slug).catch(() => null)]).then(([boxes, place]) => {
+      if (!live) return
+      const eff = place?.effective
+      const own = !!(boxes.enabled && eff && eff.mode !== 'shared' && eff.box_id && eff.box_id !== 'shared')
+      setWhere(own ? 'its own box' : 'the shared VM')
+    }).catch(() => { if (live) setWhere('') })
+    getPolicy(slug).then((p) => {
+      if (live) setNetwork(p?.profile ? (p.profile.network_off ? 'off' : 'on') : '')
+    }).catch(() => { if (live) setNetwork('') })
+    return () => { live = false }
+  }, [slug])
+  return { where, network }
+}
+
 export default function SecurityTab({ cid, slug, isProject, temporary, permMode, onPermMode }) {
   return (
     <div className="pp-tab">

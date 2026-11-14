@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../../api.js'
 import { EmptyState, HelpTip, Select, useRowMenu } from '../../components/index.js'
-import { human } from '../../format.js'
+import { ago, human } from '../../format.js'
 import { rawUrl } from '../shared.js'
 import { isRunnable, isText } from './FileViewer.jsx'
 
@@ -15,6 +16,12 @@ import { isRunnable, isText } from './FileViewer.jsx'
 // The scope row at the top is where the chat's project is picked: follow the
 // loaded project, no project, or pinned to one. It is the Select that
 // replaced the toolbar's project dropdown.
+//
+// Two optional widenings: `agent` ({slug, name}, an agent chat) adds that
+// agent's outputs (GET /api/agents/<slug>/outputs, the Agents page's Outputs
+// data) with their files, and the pages its threads published; `chatIds` (a
+// project's home: the project's chats) adds those chats' own artifact stores
+// (GET /api/artifacts, filtered to them) and the pages they published.
 
 // `version` bumps when a save or a run may have changed the store
 function useStoreFiles(slug, version = 0) {
@@ -28,6 +35,69 @@ function useStoreFiles(slug, version = 0) {
   useEffect(() => { setFiles(null); load() }, [load])
   useEffect(() => { if (version) load() }, [version, load])
   return files
+}
+
+// The agent's outputs, newest first: null while loading or with no agent
+function useAgentOutputs(slug, version = 0) {
+  const [outs, setOuts] = useState(null)
+  useEffect(() => {
+    if (!slug) { setOuts(null); return undefined }
+    let live = true
+    api(`/api/agents/${encodeURIComponent(slug)}/outputs?limit=50`)
+      .then((r) => { if (live) setOuts(r.outputs || []) })
+      .catch(() => { if (live) setOuts([]) })
+    return () => { live = false }
+  }, [slug, version])
+  return outs
+}
+
+// The artifact stores (`chat-<id>`) of these chats, the ones with files
+function useArtifacts(ids, version = 0) {
+  const key = (ids || []).join(',')
+  const [stores, setStores] = useState([])
+  useEffect(() => {
+    if (!key) { setStores([]); return undefined }
+    const want = new Set(key.split(',').map(Number))
+    let live = true
+    api('/api/artifacts')
+      .then((r) => { if (live) setStores((r.artifacts || []).filter((a) => want.has(a.chat_id))) })
+      .catch(() => { if (live) setStores([]) })
+    return () => { live = false }
+  }, [key, version])
+  return stores
+}
+
+// Published pages from this scope: the project's, the open chat's, and any
+// from a thread in `ids` (an agent's outputs, a project's chats)
+function usePages({ slug, isProject, cid, ids = [] }) {
+  const key = ids.join(',')
+  const [pages, setPages] = useState([])
+  useEffect(() => {
+    if (!slug && !cid && !key) { setPages([]); return undefined }
+    const want = new Set(key ? key.split(',').map(Number) : [])
+    let live = true
+    api('/api/pages').then((r) => {
+      if (live) {
+        setPages((r.items || []).filter((p) => (isProject && p.project === slug)
+          || (cid && p.conversation_id === cid) || want.has(p.conversation_id)))
+      }
+    }).catch(() => { if (live) setPages([]) })
+    return () => { live = false }
+  }, [slug, isProject, cid, key])
+  return pages
+}
+
+// What the project home's Files row counts: exactly what this tab lists for
+// the project (its files, its chats' artifacts, its published pages)
+export function useFilesSummary({ slug, chatIds = [] }) {
+  const files = useStoreFiles(slug)
+  const stores = useArtifacts(chatIds)
+  const pages = usePages({ slug, isProject: true, cid: null, ids: chatIds })
+  return {
+    files: Array.isArray(files) ? files.length : files === null ? null : 0,
+    artifacts: stores.reduce((n, a) => n + (a.files?.length || 0), 0),
+    pages: pages.length,
+  }
 }
 
 function FileRow({ slug, f, onOpen }) {
@@ -52,7 +122,7 @@ function FileRow({ slug, f, onOpen }) {
       <button type="button" className="pp-file-open" onClick={() => onOpen(f.path, 'view')}
               title={f.path}>
         <span className="pp-name mono ellipsis">{dir && <span className="pp-dir">{dir}</span>}{name}</span>
-        <span className="pp-size mono">{human(f.size)}</span>
+        {f.size != null && <span className="pp-size mono">{human(f.size)}</span>}
       </button>
       {menu}
     </li>
@@ -105,18 +175,58 @@ function PageRow({ p }) {
   )
 }
 
+// "[Name] task…" titles carry the agent's prefix; the section already says whose
+const outputTitle = (o) => (o.title || '').replace(/^\[[^\]]*\]\s*/, '') || `#${o.id}`
+const OUTPUT_KIND = { chat: 'chat', agent: 'run', head: 'job' }
+
+// One output of the agent: its title and age; its files (a job's rollup
+// files) open in the viewer like any other. The menu opens the thread: a chat
+// in this chat view, anything else on the Outputs tab.
+function OutputItem({ o, agent, onOpen, onOpenChat }) {
+  const navigate = useNavigate()
+  const inChat = o.kind === 'chat' && onOpenChat
+  const { rowProps, menu, open } = useRowMenu([
+    inChat && { label: 'Open in chat', onSelect: () => onOpenChat(o.id) },
+    { label: 'Open on the Outputs tab',
+      onSelect: () => navigate(`/agents/outputs/${encodeURIComponent(agent.slug)}`) },
+  ], { label: `${outputTitle(o)} actions`, buttonClassName: 'icon-btn pp-more' })
+  const when = o.last_at || o.started_at
+  return (
+    <li className="pp-output">
+      <div {...rowProps} className={`pp-file${open ? ' menu-open' : ''}`}>
+        <button type="button" className="pp-file-open" title={o.title || ''}
+                onClick={() => (inChat ? onOpenChat(o.id)
+                  : navigate(`/agents/outputs/${encodeURIComponent(agent.slug)}`))}>
+          <span className="pp-name ellipsis">{outputTitle(o)}</span>
+          <span className="pp-size">{o.running ? 'running' : `${OUTPUT_KIND[o.kind] || o.kind}, ${ago(when)}`}</span>
+        </button>
+        {menu}
+      </div>
+      {o.project && o.runs_files?.length > 0 && (
+        <ul className="list-divided pp-files pp-output-files">
+          {o.runs_files.map((path) => (
+            <FileRow key={path} slug={o.project} f={{ path, size: null }}
+                     onOpen={(p, mode) => onOpen(o.project, p, mode)} />
+          ))}
+        </ul>
+      )}
+    </li>
+  )
+}
+
 export default function FilesTab({
   slug, isProject, cid, temporary, projects = [], loaded, scope, onOpen, version = 0,
+  agent = null, chatIds = [], onOpenChat,
 }) {
   const files = useStoreFiles(slug, version)
   const artSlug = isProject && cid ? `chat-${cid}` : null
   const artifacts = useStoreFiles(artSlug, version)
-  const [pages, setPages] = useState([])
-  useEffect(() => {
-    if (!slug && !cid) { setPages([]); return }
-    api('/api/pages').then((r) => setPages((r.items || []).filter((p) =>
-      (isProject && p.project === slug) || (cid && p.conversation_id === cid)))).catch(() => setPages([]))
-  }, [slug, isProject, cid])
+  const outputs = useAgentOutputs(agent?.slug, version)
+  // the threads whose artifacts and pages belong here besides the open chat
+  const threadIds = [...new Set([...chatIds, ...(outputs || []).map((o) => o.id)])]
+    .filter((id) => id !== cid)
+  const stores = useArtifacts(threadIds, version)
+  const pages = usePages({ slug, isProject, cid, ids: threadIds })
 
   // the scope Select: follow / none / pin:<slug>
   const scopeValue = scope ? (scope.mode === 'pin' ? `pin:${scope.value}` : scope.mode) : ''
@@ -170,6 +280,37 @@ export default function FilesTab({
                      )}>
               <FileList slug={artSlug} files={artifacts}
                         onOpen={(path, mode) => onOpen(artSlug, path, mode)} empty="" />
+            </Section>
+          )}
+          {stores.length > 0 && (
+            <Section title="Artifacts" count={stores.reduce((n, a) => n + a.files.length, 0)}
+                     help={agent
+                       ? `Files ${agent.name}’s chats wrote with no project, each kept in the chat’s own store.`
+                       : 'Files this project’s chats wrote before they were pinned to it, each kept in the chat’s own store.'}>
+              {stores.map((a) => (
+                <div key={a.slug} className="pp-store">
+                  <h4 className="pp-sub pp-store-h">
+                    <span className="ellipsis">{a.title}</span>
+                    <a className="ghost-link pp-zip" href={`/api/projects/${encodeURIComponent(a.slug)}/zip`}
+                       download={`${a.slug}.zip`}>Download all</a>
+                  </h4>
+                  <FileList slug={a.slug} files={a.files}
+                            onOpen={(path, mode) => onOpen(a.slug, path, mode)} empty="" />
+                </div>
+              ))}
+            </Section>
+          )}
+          {agent && (
+            <Section title={`${agent.name}’s outputs`} count={outputs?.length || 0}
+                     help={`Everything that ran as ${agent.name}, newest first: its chats, its runs and the jobs they started. The same list as the Outputs tab.`}>
+              {outputs === null ? <p className="pp-note">Loading…</p>
+                : outputs.length === 0 ? <p className="pp-note">Nothing has run as {agent.name} yet.</p>
+                  : (
+                    <ul className="list-divided pp-files pp-outputs">
+                      {outputs.map((o) => <OutputItem key={o.id} o={o} agent={agent}
+                                                      onOpen={onOpen} onOpenChat={onOpenChat} />)}
+                    </ul>
+                  )}
             </Section>
           )}
           <Section title="Published pages" count={pages.length}
