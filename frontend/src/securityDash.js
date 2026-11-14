@@ -220,7 +220,8 @@ export function changeText(row) {
       if (row.sub === 'push' || row.sub === 'merge') return 'Merge merges the pull request into main.'
       return 'Approve commits the changes to main, then pushes them if the project has a remote.'
     case 'package':
-      return `Approve shows every project the image ${r.target_variant || 'main'} reaches before it installs.`
+      return `Approve first lists every project on the ${r.target_variant || 'main'} image; `
+        + 'nothing is installed until you confirm there.'
     case 'service':
       return 'Approve opens the full request, where you choose where it runs and which ports are reachable.'
     case 'environment':
