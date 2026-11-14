@@ -237,13 +237,23 @@ export default function Chat({
     const top = at.top - box.getBoundingClientRect().top + box.scrollTop
     follow.leave()                   // stay on it as later rows or approvals grow the list
     box.scrollTop = Math.max(0, top - box.clientHeight / 3)
-    el.classList.add('step-hit')
-    setTimeout(() => el.classList.remove('step-hit'), 3600)
+    // mark it now and again shortly: on a fresh open the approvals that load
+    // next re-render the rows, which drops the class and collapses the range
     const hl = typeof CSS !== 'undefined' && CSS.highlights && typeof Highlight === 'function'
-    if (range && hl) {
-      CSS.highlights.set('chat-hit', new Highlight(range))
-      setTimeout(() => CSS.highlights.delete('chat-hit'), 6000)
+    const mark = () => {
+      const m = document.getElementById(`msg-${a.mid}`)
+      if (!m) return
+      m.classList.add('step-hit')
+      const r = findTextRange(m, a.q)
+      if (r && hl) CSS.highlights.set('chat-hit', new Highlight(r))
     }
+    mark()
+    const again = [setTimeout(mark, 400), setTimeout(mark, 1200)]
+    setTimeout(() => {
+      again.forEach(clearTimeout)
+      document.getElementById(`msg-${a.mid}`)?.classList.remove('step-hit')
+      if (hl) CSS.highlights.delete('chat-hit')
+    }, 6000)
   }, [conversationId, messages])
 
   // the composer grows with the draft, up to the CSS max-height. Past one line
