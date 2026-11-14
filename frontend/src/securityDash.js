@@ -121,6 +121,29 @@ export function alertRow(run) {
   }
 }
 
+// A state worth a word on the row, as {tone, word, why} or null: a failed
+// attempt, a site that can never be allowed, Auto review's flag, an alert's
+// severity. Ordinary waiting needs no word: being in the list says it.
+export function rowState(row) {
+  const r = row?.raw || {}
+  if (row?.kind === 'git' && r.error) return { tone: 'bad', word: 'Last attempt failed', why: r.error }
+  if (row?.kind === 'site') {
+    if (r.refused) return { tone: 'bad', word: 'Cannot be allowed', why: r.refused }
+    if (r.triage_verdict === 'flag') return { tone: 'warn', word: 'Flagged by Auto review', why: r.triage_reason || '' }
+    if (r.auto_verdict === 'unsure') return { tone: 'warn', word: 'Auto-allow was not sure', why: r.auto_reason || '' }
+  }
+  if ((row?.kind === 'package' || row?.kind === 'environment') && r.status === 'pending'
+      && (row.kind === 'package' ? !r.resolved_version : (row.sub !== 'use' && !r.resolved))) {
+    return { tone: 'warn', word: 'Not resolved yet', why: '' }
+  }
+  if (row?.kind === 'skill' && r.error) return { tone: 'bad', word: 'Error', why: r.error }
+  if (row?.kind === 'alert') {
+    if (row.tone === 'bad') return { tone: 'bad', word: 'Critical', why: '' }
+    if (row.tone === 'warn') return { tone: 'warn', word: 'Warning', why: '' }
+  }
+  return null
+}
+
 // Newest first; a row with no time keeps its place after the timed ones.
 const newestFirst = (a, b) => String(b.at || '').localeCompare(String(a.at || ''))
 
@@ -256,7 +279,7 @@ export function glanceBoxes(boxes = [], roles = {}) {
   for (const b of boxes || []) {
     if (b?.state !== 'running') { stopped += 1; continue }
     running.push({
-      id: b.id, name: boxName(b), image: imageLabel(b), runtime: b.runtime || 'kvm',
+      id: b.id, kind: b.kind, name: boxName(b), image: imageLabel(b), runtime: b.runtime || 'kvm',
       state: activityWord(b), project: b.project || null,
       work: doingNow(b).map((t) => ({ ...t, role: roles[t.conversationId] || '' })),
     })

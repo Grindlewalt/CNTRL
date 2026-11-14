@@ -142,6 +142,20 @@ async def test_a_row_without_a_call_id_finds_the_filing_call_by_tool_and_time(cl
     assert r == {"conversation_id": 9, "step": step}
 
 
+async def test_inspect_diff_shows_new_files_whole(client):
+    from backend.config import settings
+    (settings.projects_dir / "demo" / "code" / "new.py").write_text("print('hi')\n")
+    (settings.projects_dir / "demo" / "odd name.txt").write_text("x\n")
+    plain = (await client.get("/api/projects/demo/git/diff")).json()["diff"]
+    assert "untracked files" in plain and "+print('hi')" not in plain
+    full = (await client.get("/api/projects/demo/git/diff?new_files=true")).json()["diff"]
+    assert "+++ b/code/new.py" in full and "+print('hi')" in full
+    # a name git quotes stays a name
+    assert "untracked files" in full and "odd name.txt" in full
+    one = (await client.get("/api/projects/demo/git/diff?new_files=true&path=code")).json()["diff"]
+    assert "+print('hi')" in one and "odd name" not in one
+
+
 async def test_request_step_knows_nothing_it_was_not_asked_about(client):
     assert (await client.get("/api/security/request_step?kind=nope&id=1")).json() == {
         "conversation_id": None, "step": None}

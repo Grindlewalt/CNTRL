@@ -6,7 +6,7 @@ import {
 } from '../securityRuns.js'
 import {
   STEP_KINDS, alertRow, approveLabel, approveOpensInspect, boxName, changeText, denyLabel, detailTitle,
-  glanceBoxes, imageLabel, queueRows, rolesOf, rowFor, summaryOf,
+  glanceBoxes, imageLabel, queueRows, rolesOf, rowFor, rowState, summaryOf,
 } from '../securityDash.js'
 
 // the header's counts, as the sketch words them
@@ -209,6 +209,16 @@ assert.deepEqual(g.running[0].work.map((w) => [w.project, w.title, w.role]), [['
 assert.equal(boxName({ kind: 'service', project: 'web' }), 'Service box for web')
 assert.equal(imageLabel({}), 'main')
 assert.ok(STEP_KINDS.includes('git') && !STEP_KINDS.includes('site'))
+
+// a word on the row only when there is something to say
+assert.equal(rowState(git), null)
+assert.equal(rowState(rowFor('git', { id: 1, slug: 'w', message: 'm', error: 'rejected' })).word, 'Last attempt failed')
+assert.equal(rowState(rowFor('site', { id: 1, host: 'h', refused: 'private address' })).word, 'Cannot be allowed')
+assert.equal(rowState(rowFor('site', { id: 1, host: 'h', triage_verdict: 'flag' })).tone, 'warn')
+assert.equal(rowState(rowFor('package', { id: 1, manager: 'apt', package: 'x', status: 'pending' })).word, 'Not resolved yet')
+assert.equal(rowState(rowFor('package', { id: 1, manager: 'apt', package: 'x', status: 'pending', resolved_version: '1' })), null)
+assert.equal(rowState(alertRow(runs[0])).word, 'Warning')
+assert.equal(rowState(alertRow(runs[1])), null)
 }
 
 console.log('securityRuns ok')

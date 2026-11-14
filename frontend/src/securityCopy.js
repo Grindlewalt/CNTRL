@@ -13,8 +13,8 @@ import { newSitesText, runsInText } from './boxes/logic.js'
 // <Page lede>. The Secrets tab is missing on purpose: its panel already opens
 // with its own line.
 export const SECURITY_LEDES = {
-  '/security': 'Everything waiting on you: alerts, sites a box tried to reach, and '
-    + 'requests to commit, install a package or run a service.',
+  '/security': 'What waits for you, and the boxes running now. Open a row for its summary, '
+    + 'then deny, inspect or approve.',
   '/security/persistent': 'What is still running inside each box beyond the operating '
     + 'system: services you approved, code the agent left running, and anything unexpected.',
   '/security/network': 'Every site the boxes try to reach, what was decided, and the lists '
@@ -23,8 +23,8 @@ export const SECURITY_LEDES = {
   '/security/profiles': 'A profile is a saved set of security settings: what a project\'s '
     + 'boxes may reach on the network, which secrets it may use, and where it runs. '
     + 'Every project uses exactly one.',
-  '/security/logs': 'Transcripts of every conversation, down to each tool call, and '
-    + 'what the model calls cost.',
+  '/security/logs': 'Transcripts of every conversation, down to each tool call, what the '
+    + 'model calls cost, and the history of every security event.',
 }
 
 export const VMS_LEDES = {

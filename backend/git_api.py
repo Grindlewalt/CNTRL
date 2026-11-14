@@ -26,10 +26,12 @@ async def status(slug: str):
 
 
 @router.get("/diff")
-async def diff(slug: str, path: str | None = None):
+async def diff(slug: str, path: str | None = None, new_files: bool = False):
+    """`new_files`: untracked files whole, as added lines (Security's Inspect),
+    instead of a list of names."""
     _check_project(slug)
     await gitgate.ensure_repo(slug)
-    return {"diff": await gitgate.diff_text(slug, path)}
+    return {"diff": await gitgate.diff_text(slug, path, new_files=new_files)}
 
 
 class RemoteBody(BaseModel):

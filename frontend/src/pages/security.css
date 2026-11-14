@@ -162,6 +162,76 @@
   font: inherit; font-size: var(--fs-sm); font-weight: 500; cursor: pointer; }
 .sq-fold:hover:not(:disabled) { opacity: 1; text-decoration: underline; }
 
+/* ---- the dashboard (SecurityDash.jsx): one quiet row per thing waiting ---- */
+.sd-queue { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; }
+.sd-head { display: flex; align-items: baseline; gap: var(--sp-4); min-height: 32px; }
+.sd-head h3 { margin: 0; font-size: var(--fs-lg); font-weight: 600;
+  letter-spacing: var(--track-head); color: var(--ink); }
+.sd-bulk { margin-left: auto; align-self: center; }
+.sd-list { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.sd-list .sd-row { display: flex; flex-direction: column; gap: var(--sp-2); width: 100%;
+  margin: 0; padding: var(--sp-6) var(--sp-5); background: none; border: 0;
+  border-radius: var(--radius-lg); color: var(--ink); text-align: left; font: inherit;
+  font-weight: 400; cursor: pointer; }
+.sd-list .sd-row:hover:not(:disabled), .sd-list .sd-row.open { opacity: 1; background: var(--wash); }
+.sd-row-top { display: flex; align-items: baseline; gap: var(--sp-5); min-width: 0;
+  font-size: var(--fs-md); line-height: 1.4; }
+.sd-row-what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--slate); }
+.sd-row-what b { color: var(--ink); font-weight: 600; }
+.sd-subject { color: var(--ink); }
+.sd-subject.mono { font-size: var(--fs-sm); }
+.sd-word { font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; }
+.sd-word.bad { color: var(--bad); }
+.sd-word.warn { color: var(--warn); }
+.sd-when { font-size: var(--fs-sm); color: var(--faint); white-space: nowrap;
+  font-variant-numeric: tabular-nums; }
+.sd-row-sum { font-size: var(--fs-base); line-height: 1.45; color: var(--ink);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  overflow-wrap: anywhere; }
+.sd-quiet { display: flex; flex-direction: column; gap: var(--sp-4); padding-top: var(--sp-2); }
+
+/* the detail panel: summary first, the evidence under Inspect */
+.sd-detail { display: flex; flex-direction: column; gap: var(--sp-6); min-width: 0; }
+.sd-summary { margin: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+.sd-summary figcaption { display: flex; align-items: center; gap: var(--sp-3);
+  font-size: var(--fs-sm); font-weight: 600; color: var(--slate); }
+.sd-summary blockquote { margin: 0; padding: var(--sp-1) 0 var(--sp-1) var(--sp-7);
+  border-left: 2px solid var(--line-strong); font-size: var(--fs-lg); line-height: 1.5;
+  color: var(--ink); overflow-wrap: anywhere; white-space: pre-wrap; }
+.sd-step { margin: 0; font-size: var(--fs-md); color: var(--slate); }
+.sd-step a { color: var(--accent); text-decoration: none; font-weight: 500; }
+.sd-step a:hover { text-decoration: underline; }
+.sd-inspect { container-type: inline-size; }
+.sd-inspect > .sq-item, .sd-inspect > .sq-item-main { padding: 0; }
+.sd-inspect .sd-diff { margin-top: 0; max-height: none; }
+.sd-panel .side-panel-foot button { padding: var(--pad-btn-sm); font-size: var(--fs-md); }
+
+/* at a glance: the boxes running, live pages */
+.sq-rail-h .sd-edit { margin-left: auto; font-size: var(--fs-sm); font-weight: 500;
+  color: var(--accent); text-decoration: none; }
+.sq-rail-h .sd-edit:hover { text-decoration: underline; }
+.sd-boxes, .sd-pages { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.sd-boxes > li { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-5) 0; }
+.sd-box-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-5); }
+.sd-box-name { font-size: var(--fs-md); font-weight: 600; color: var(--ink); }
+.sd-box-img { font-size: var(--fs-xs); color: var(--slate); white-space: nowrap; }
+.sd-box-idle { font-size: var(--fs-sm); color: var(--faint); }
+.sd-box-work { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column;
+  gap: var(--sp-1); font-size: var(--fs-sm); color: var(--slate); }
+.sd-box-work li { overflow-wrap: anywhere; }
+.sd-box-work b { color: var(--ink); font-weight: 600; }
+.sd-box-work a { color: var(--accent); text-decoration: none; }
+.sd-box-work a:hover { text-decoration: underline; }
+.sd-role { color: var(--faint); }
+.sd-tool { font-size: var(--fs-xs); color: var(--faint); }
+.sd-pages .sd-page { display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--sp-5); width: 100%; margin: 0; padding: var(--sp-4) var(--sp-3); background: none;
+  border: 0; border-radius: var(--radius-lg); color: var(--ink); font: inherit;
+  font-size: var(--fs-md); font-weight: 400; text-align: left; cursor: pointer; }
+.sd-pages .sd-page:hover:not(:disabled) { opacity: 1; background: var(--wash); }
+.sd-proj { color: var(--slate); }
+
 /* ---- hosts a box asked for (the Queue and Network's "Waiting for you") ---- */
 .sq-host .sq-title.mono { font-size: var(--fs-md); }
 
