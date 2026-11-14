@@ -640,7 +640,7 @@ async def record_event(db: aiosqlite.Connection, *, slug: str | None, host: str,
                              "box_id": box_id, "service_id": service_id})
 
 
-# --- approval queue (trains the PROJECT's allowlist up) -----------------------
+# --- approval queue (trains the allowlist of the project's PROFILE up) --------
 
 async def _append_host(db: aiosqlite.Connection, slug: str, host: str) -> str:
     """Add a host to the always-allow list of the PROJECT'S PROFILE (lists are
