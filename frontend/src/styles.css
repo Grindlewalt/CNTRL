@@ -842,6 +842,9 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
   .side-panel.over, .side-panel.beside { position: fixed; inset: 0; z-index: 2500; width: 100%;
     height: auto; border: 0; padding-top: var(--sat); }
   .side-panel-head { padding-left: max(var(--sp-8), env(safe-area-inset-left)); }
+  /* the queue pill lives in the top bar the panel covers: it sat on the
+     panel's title. It waits (paused, not drained) until the panel closes */
+  body:has(.side-panel.over, .side-panel.beside) .notice-pill { display: none; }
 }
 
 /* ---- help tip (components/HelpTip.jsx) ----
@@ -1003,7 +1006,7 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
    for a floating VM chip that lives in the nav bar now, so the last row was
    cut mid-text above an empty band; the list's own bottom padding lets the
    final row scroll clear of the edge instead. */
-.chat-layout aside {
+.chat-layout > aside {
   width: 260px; padding: 12px 12px 0; border-right: 1px solid var(--border);
   display: flex; flex-direction: column; gap: 10px; background: var(--bg-soft);
   /* above the composer's bottom fade, which spans the whole chat layout and
@@ -1020,7 +1023,7 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
    the sidebar, and `hidden` clipped it into nothing — it measured as visible
    and on-screen but no click ever reached it. z-index lifts it over <main>,
    which otherwise paints on top by DOM order. */
-.chat-layout aside.collapsed {
+.chat-layout > aside.collapsed {
   width: 56px; padding: 12px 9px 54px;
   overflow: visible; position: relative; z-index: 30;
 }
@@ -1033,8 +1036,8 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
    the middle of the sidebar instead of at its foot.
    The title keeps display:none — it is `flex: 1`, so merely hiding it would
    still have it claim height and shove the head's buttons apart. */
-.chat-layout aside.collapsed .side-title { display: none; }
-.chat-layout aside.collapsed .convo-list {
+.chat-layout > aside.collapsed .side-title { display: none; }
+.chat-layout > aside.collapsed .convo-list {
   opacity: 0; pointer-events: none; transition: opacity 0.15s ease;
   position: absolute; left: 9px; right: 9px; top: 62px; bottom: 54px;
 }
@@ -1043,10 +1046,10 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
    across the whole collapse, fighting the flight that was already carrying
    them down from the bar. Fixed width, and they are in their final place from
    the first frame. */
-.chat-layout aside.collapsed .side-head,
-.chat-layout aside.collapsed .side-nav { width: 38px; align-self: flex-start; }
+.chat-layout > aside.collapsed .side-head,
+.chat-layout > aside.collapsed .side-nav { width: 38px; align-self: flex-start; }
 .side-head { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.chat-layout aside.collapsed .side-head { flex-direction: column; gap: 10px; }
+.chat-layout > aside.collapsed .side-head { flex-direction: column; gap: 10px; }
 .side-head .side-title { flex: 1; }
 .icon-btn {
   background: none; border: 0; color: var(--dim); width: 34px; height: 34px;
@@ -2321,7 +2324,7 @@ button.sched-more { align-self: flex-start; margin-left: 0; font-size: var(--fs-
      It used to sit stacked above the thread at 34vh, so a third of the
      screen was a chat list cut off mid-row before you could read a reply. */
   .chat-layout { flex-direction: column; position: relative; }
-  .chat-layout aside {
+  .chat-layout > aside {
     position: absolute; z-index: 20; top: 0; bottom: 0; left: 0;
     width: min(300px, 84vw); max-height: none;
     padding: 10px 10px calc(10px + var(--sab));
@@ -2333,13 +2336,13 @@ button.sched-more { align-self: flex-start; margin-left: 0; font-size: var(--fs-
      mirrored into the chat toolbar */
   /* visibility (delayed so the slide-out still animates) takes the off-canvas
      list out of the tab order — otherwise Tab walks into invisible controls */
-  .chat-layout aside {
+  .chat-layout > aside {
     transition: transform 0.24s ease, visibility 0s linear 0s;
   }
-  .chat-layout aside.collapsed {
+  .chat-layout > aside.collapsed {
     /* position must be restated here: the desktop rail rule sets
        `aside.collapsed { position: relative }` at higher specificity than
-       the plain `.chat-layout aside` overlay above, which put the collapsed
+       the plain `.chat-layout > aside` overlay above, which put the collapsed
        list back in flow and shoved the whole thread below the fold */
     position: absolute;
     width: min(300px, 84vw); padding: 10px 10px calc(10px + var(--sab));
@@ -2347,17 +2350,17 @@ button.sched-more { align-self: flex-start; margin-left: 0; font-size: var(--fs-
     visibility: hidden; transition: transform 0.24s ease,
       visibility 0s linear 0.24s;
   }
-  .chat-layout aside.collapsed .side-title,
-  .chat-layout aside.collapsed .convo-list { display: flex; }
-  .chat-layout aside.collapsed .side-title { display: block; }
-  .chat-layout aside.collapsed .side-head { flex-direction: row; }
+  .chat-layout > aside.collapsed .side-title,
+  .chat-layout > aside.collapsed .convo-list { display: flex; }
+  .chat-layout > aside.collapsed .side-title { display: block; }
+  .chat-layout > aside.collapsed .side-head { flex-direction: row; }
   /* the desktop rail's geometry must not follow the list into the phone
      drawer: collapsed there means off-canvas at full width, not a 38px rail */
-  .chat-layout aside.collapsed .convo-list {
+  .chat-layout > aside.collapsed .convo-list {
     position: static; opacity: 1; pointer-events: auto;
   }
-  .chat-layout aside.collapsed .side-head,
-  .chat-layout aside.collapsed .side-nav { width: auto; align-self: auto; }
+  .chat-layout > aside.collapsed .side-head,
+  .chat-layout > aside.collapsed .side-nav { width: auto; align-self: auto; }
   .chat-scrim {
     position: absolute; inset: 0; z-index: 19; background: var(--overlay);
     animation: scrim-in 0.18s ease both;
@@ -2745,6 +2748,11 @@ body.jarvis-float { margin: 0; height: 100vh; overflow: hidden; }
 /* Chat's composer owns the bottom edge (its send button sits under the
    corner), so there the stack rides above it */
 .app:has(form.composer) .notices { bottom: calc(var(--sab) + 104px); }
+/* ...and an open side panel owns the right edge: the stack sits left of it
+   (a 420px panel, the default; a wider viewer can still be crossed) */
+@media (min-width: 769px) {
+  .app:has(.side-panel.over) .notices { right: calc(420px + 16px); }
+}
 .notice {
   position: relative; overflow: hidden; display: block; width: 100%;
   text-align: left; background: var(--glass); color: var(--text);

@@ -5,7 +5,7 @@
    AskUser, ApprovalRow, the windows' chrome and the empty state. */
 
 /* ================= sidebar: projects, starred, folders, recent ============ */
-.chat-layout aside {
+.chat-layout > aside {
   background: var(--surface); border-right: 1px solid var(--line);
   padding: var(--sp-6) var(--sp-5) 0; gap: var(--sp-4);
 }
@@ -43,7 +43,7 @@
 .proj-rows .proj-pin { flex: none; margin-left: auto; display: inline-flex; color: var(--faint); }
 .convo-group-empty { font-size: var(--fs-sm); color: var(--faint); padding: var(--sp-2) var(--sp-5); }
 .convo-new-folder { font-size: var(--fs-sm); margin: var(--sp-2) 0 0 var(--sp-2); }
-.chat-layout aside .menu-caption { text-transform: none; letter-spacing: 0;
+.chat-layout > aside .menu-caption { text-transform: none; letter-spacing: 0;
   font-size: var(--fs-sm); font-weight: 600; color: var(--slate); }
 .convo-agent { font-family: var(--mono); font-size: var(--fs-xs); }
 
@@ -372,7 +372,7 @@
 
 /* ================= phone ================================================== */
 @media (max-width: 768px) {
-  .chat-layout aside { background: var(--surface);
+  .chat-layout > aside { background: var(--surface);
     padding: var(--sp-5) var(--sp-5) calc(var(--sp-5) + var(--sab)); }
   .chat-toolbar { flex-wrap: wrap; min-height: 0; padding: var(--sp-4) var(--sp-8); gap: var(--sp-3); }
   .chat-toolbar > .chat-title { flex: 1 1 100%; font-size: var(--fs-lg); }
