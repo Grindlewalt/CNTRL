@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 from .auth import require_user
@@ -72,11 +72,40 @@ async def read_file(slug: str, path: str):
 
 @router.put("/file")
 async def save_file(slug: str, body: SaveFile):
+    """The operator's save, from any editor in the GUI. It lands through the
+    same chokepoint as an agent's write (writes.apply_write): no protected
+    path, a file holding a real secret value is refused, the diff gate's
+    advisory scan runs, and the bytes land with no exec bit. Before, this
+    wrote the file directly and was the one write in the app that skipped
+    the secret scan."""
     base = await project_dir(slug)
-    p = _refuse_git(base, safe_join(base, body.path))
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(body.content)
-    return {"ok": True, "path": body.path}
+    _refuse_git(base, safe_join(base, body.path))
+    from . import writes
+    try:
+        flags = await writes.apply_write(slug, body.path, body.content.encode())
+    except writes.SecretLeakError as e:
+        raise HTTPException(status_code=400,
+                            detail=f"refused: the file contains the value of secret {', '.join(e.args[0])}")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True, "path": body.path, "flags": flags}
+
+
+@router.get("/zip")
+async def zip_all(slug: str):
+    """Everything the project's file list shows, as one zip (the same files
+    as GET /files: dotfiles and the harness's own files left out). Same login
+    as the list: this router is require_user."""
+    base = await project_dir(slug)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in list_tree(base):
+            z.write(base / f["path"], f["path"])
+    buf.seek(0)
+    name = f"{slug}.zip"
+    return Response(buf.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"',
+                             "Cache-Control": "no-store"})
 
 
 @router.delete("/file")
