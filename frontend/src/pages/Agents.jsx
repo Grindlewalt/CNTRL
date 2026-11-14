@@ -15,6 +15,7 @@ import Tag from '../components/Tag.jsx'
 import Toggle from '../components/Toggle.jsx'
 import Menu, { MenuItem } from '../components/Menu.jsx'
 import EmptyState from '../components/EmptyState.jsx'
+import './manage.css'
 
 // The Agents page is a layout route: this shell owns the one <h1> and the tab
 // strip, and each tab is a real URL (/agents, /agents/skills,
@@ -256,9 +257,9 @@ export function AgentDefinitions() {
     <>
       <aside className={selected ? 'agents-aside picked' : 'agents-aside'}>
         <form className="agent-new" onSubmit={create}>
-          <Input id={NEW_ID} placeholder="New agent" aria-label="New agent name"
+          <Input id={NEW_ID} placeholder="Agent name" aria-label="New agent name"
                  value={newName} onChange={(e) => setNewName(e.target.value)} />
-          <Button type="submit" aria-label="Create agent">+</Button>
+          <Button type="submit" aria-label="Create agent">Add</Button>
         </form>
         <ul className="agent-list">
           {agents.map((a) => (
@@ -271,7 +272,7 @@ export function AgentDefinitions() {
               </button>
             </li>
           ))}
-          {agents.length === 0 && <EmptyState as="li">None yet — press n</EmptyState>}
+          {agents.length === 0 && <EmptyState as="li">No agents yet. Name one above and press Add.</EmptyState>}
         </ul>
         {trash.length > 0 && (
           <details className="deleted-fold">
@@ -295,7 +296,7 @@ export function AgentDefinitions() {
       </aside>
       <main className={agent ? 'editor-pane agent-detail' : 'editor-pane split-idle'}>
         {!agent ? (
-          <EmptyState pad>Select an agent, or press <kbd>n</kbd></EmptyState>
+          <EmptyState pad>Pick an agent on the left to edit it, or press <kbd>n</kbd> to name a new one.</EmptyState>
         ) : (
           <>
             <div className="agent-head">
@@ -320,7 +321,7 @@ export function AgentDefinitions() {
             {lastHere && (
               <div className="agent-last">
                 Last run: {ago(lastHere.last_at || lastHere.started_at)}
-                {' · '}{lastHere.running ? 'running' : 'done'}
+                {', '}{lastHere.running ? 'running' : 'done'}
               </div>
             )}
             <div className="agent-prompt-head">
@@ -408,7 +409,7 @@ function PrivateNotes({ slug }) {
     <details className="agent-notes" onToggle={load}>
       <summary>Notes <span className="chev" aria-hidden="true">›</span></summary>
       {notes === null ? <EmptyState>Loading…</EmptyState>
-        : notes.length === 0 ? <EmptyState>None yet</EmptyState>
+        : notes.length === 0 ? <EmptyState>This agent has no private notes yet.</EmptyState>
           : notes.map((n) => (
             <details key={n.name} className="agent-note">
               <summary><code>{n.name}</code></summary>

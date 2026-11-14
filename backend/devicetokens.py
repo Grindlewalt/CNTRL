@@ -6,7 +6,7 @@ stored, so the DB never holds anything usable if it leaks; verification hashes
 the presented token and looks the hash up.
 
 A token is not forever. It stops verifying when any of these holds:
-- it was revoked (Settings -> Devices, or `jav3 logout`);
+- it was revoked (Settings -> Devices, or `cntrl logout`);
 - `expires_at` has passed (`device_token_ttl_days` after minting);
 - it went unused for `device_token_idle_days` (`last_used_at`);
 - the user it was minted for no longer exists (`user_id` joins `users`).
@@ -15,7 +15,7 @@ All four look the same to the caller: no row, one 401.
 Every token has a SCOPE, fixed at minting:
 - `cli`  operator-equivalent reach on the routes that opt into
          `auth.require_actor` (chat); refused on /api/desk/ws.
-- `desk` the computer-use client (`clients/jav3-desk`): accepted ONLY on
+- `desk` the computer-use client (`clients/cntrl-desk`): accepted ONLY on
          /api/desk/ws, refused by `require_actor`. A leaked CLI token must not
          be able to pose as a desk and feed forged screenshots into a turn,
          and a desk token must not be able to drive chat.

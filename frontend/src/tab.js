@@ -1,6 +1,6 @@
-// Which machine this browser tab is, so Jav3 can play something HERE.
+// Which machine this browser tab is, so CNTRL can play something HERE.
 //
-// Every open Jav3 tab used to be an anonymous subscriber on one broadcast
+// Every open CNTRL tab used to be an anonymous subscriber on one broadcast
 // channel, so asking for music started it on the laptop, the desktop and the
 // phone at once — all slightly out of sync, with no way to say which one you
 // meant because none of them had a name. A tab now carries:
@@ -59,7 +59,7 @@ function guess() {
     : /Firefox\//.test(ua) ? 'Firefox'
     : /Chrome\//.test(ua) ? 'Chrome'
     : /Safari\//.test(ua) ? 'Safari' : ''
-  return browser ? `${os} · ${browser}` : os
+  return browser ? `${os}, ${browser}` : os
 }
 
 export function tabName() {

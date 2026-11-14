@@ -39,7 +39,7 @@ async def list_all(project: str | None = None):
     except portfwd.PortfwdError as e:
         lan_ip, lan_error = "", str(e)
     # services_lan_ip: the configured address ONLY when it passes the checks
-    # (dedicated, not Jav3's own); the UI offers LAN exposure only then
+    # (dedicated, not CNTRL's own); the UI offers LAN exposure only then
     return {"services": [services.row_json(r) for r in rows],
             "services_lan_ip": lan_ip,
             "services_lan_ip_configured": settings.services_lan_ip or "",

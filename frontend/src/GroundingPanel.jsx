@@ -89,7 +89,7 @@ export default function GroundingPanel() {
                 <>
                   <span className="small">
                     Testing… {job?.done ?? 0} / {job?.total || '?'}
-                    {job?.current ? <span className="dim"> · {job.current}</span> : null}
+                    {job?.current ? <span className="dim">, {job.current}</span> : null}
                   </span>
                   <progress max={job?.total || 1} value={job?.done || 0}
                             aria-label="Model finder progress" />
@@ -152,7 +152,7 @@ export default function GroundingPanel() {
                       disabled={pinnedByConfig}
                       onChange={(e) => pin(e.target.value)}
                       hint={pinnedByConfig
-                        ? `Set by JARVIS_GROUNDING_MODEL: ${data.pinned}`
+                        ? `Set by CNTRL_GROUNDING_MODEL: ${data.pinned}`
                         : data.model ? `Now using ${labels[data.model] || data.model}`
                           : 'None yet: run the model finder or pick one'}
                       options={[{ value: '', label: 'Automatic (best measured)' },

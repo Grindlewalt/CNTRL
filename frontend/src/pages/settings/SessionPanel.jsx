@@ -12,7 +12,7 @@ export default function SessionPanel() {
     <Card title="Session" headingLevel={2} id="session">
       <p className="dim small settings-note">
         Signed in as <strong>{user?.username}</strong>. Logging out ends this
-        browser’s session; computers logged in with <code>jav3</code> keep
+        browser’s session; computers logged in with <code>cntrl</code> keep
         their own tokens until revoked under Access.
       </p>
       <div className="settings-actions">

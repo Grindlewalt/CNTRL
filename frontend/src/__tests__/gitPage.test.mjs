@@ -77,7 +77,7 @@ assert.equal(urlNote(null), '')
 assert.equal(urlNote({ configured: false, url_configured: false }), '')
 const note = urlNote({ configured: true, url_configured: false, url: 'http://10.0.0.82:3000' })
 assert.match(note, /http:\/\/10\.0\.0\.82:3000/)
-assert.match(note, /JARVIS_GITEA_URL/)
+assert.match(note, /CNTRL_GITEA_URL/)
 
 // a diff paints its file headers, hunks, adds and removes; `-- sql comment` is a removal
 const d = diffLines(['diff --git a/x.py b/x.py', 'index 1..2 100644', '--- a/x.py', '+++ b/x.py',

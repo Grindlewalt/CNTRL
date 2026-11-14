@@ -1,4 +1,4 @@
-"""The terminal client when the connection drops mid-turn (clients/jav3cli/jav3): it
+"""The terminal client when the connection drops mid-turn (clients/cntrl/cntrl): it
 keeps retrying quietly, re-attaches to a turn that is still running, and draws what
 a finished turn did while it was away, each row once. And /logout in two steps."""
 import pytest
@@ -13,7 +13,7 @@ def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(jav3, "RECONNECT_STEPS", (0.05,), raising=False)
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 def notes(app) -> list[str]:

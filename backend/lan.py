@@ -17,9 +17,10 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends
 
 from .auth import require_user
+from . import config
 from .config import settings
 
-log = logging.getLogger("jav3.lan")
+log = logging.getLogger("cntrl.lan")
 
 SERVICE_TYPE = "_http._tcp.local."
 # Interfaces that are never "the LAN": container bridges, VM taps/bridges.
@@ -39,9 +40,14 @@ def _label(raw: str) -> str:
 
 def instance_name(app_title: str = "") -> str:
     """Configured instance_name, else the app's own name (its first word,
-    lowercased), else the machine's hostname."""
+    lowercased), else the machine's hostname. An install from before the rename
+    to CNTRL that still runs from ~/.config/jarvis keeps the name it had then
+    (jav3, the old app title), so paired computers still find it; the installer
+    writes that name down when it moves the install."""
     if settings.instance_name.strip():
         name = _label(settings.instance_name)
+    elif config.CONFIG_DIR.name.startswith("jarvis"):
+        name = "jav3"
     else:
         name = _label((app_title or "").split()[0] if (app_title or "").split() else "")
     return name or _label(socket.gethostname().split(".")[0]) or "server"
@@ -72,7 +78,7 @@ def lan_ips() -> list[str]:
                 and ip != settings.vm_egress_host_ip and ip not in out \
                 and ip != settings.services_lan_ip:
             # services_lan_ip (WP3) is the services' dedicated address: never
-            # advertised as Jav3's, never one of its own CSRF hosts
+            # advertised as CNTRL's, never one of its own CSRF hosts
             out.append(ip)
     return out
 
@@ -130,7 +136,7 @@ async def start(app_title: str = "") -> None:
     _own = None
     own_hosts()
     if not settings.mdns:
-        _state["error"] = "disabled (JARVIS_MDNS=false)"
+        _state["error"] = "disabled (CNTRL_MDNS=false)"
         return
     try:
         from zeroconf import ServiceInfo
@@ -151,7 +157,7 @@ async def start(app_title: str = "") -> None:
         free = await _free_name(_zc, name, ips)
         if free != name:
             log.warning("mDNS: %s.local is already another server's on this LAN; "
-                        "advertising as %s.local (set JARVIS_INSTANCE_NAME to choose)",
+                        "advertising as %s.local (set CNTRL_INSTANCE_NAME to choose)",
                         name, free)
             name = free
             _state.update(name=name, hostname=f"{name}.local")

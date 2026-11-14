@@ -225,4 +225,4 @@ def test_ram_refusal_names_the_shared_reservation_and_the_way_out(reg, monkeypat
     msg = str(e.value)
     assert "1936 MB reserved" in msg and "shared 912" in msg and "p-a 512" in msg
     assert "+ 512 MB for this box > 2400 MB" in msg
-    assert "JARVIS_VM_GUEST_RAM_BUDGET_MB" in msg and "Destroy a box" in msg
+    assert "CNTRL_VM_GUEST_RAM_BUDGET_MB" in msg and "Destroy a box" in msg

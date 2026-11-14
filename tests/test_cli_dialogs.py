@@ -1,4 +1,4 @@
-"""The terminal client's ask dialogs (clients/jav3cli/jav3): several agents asking
+"""The terminal client's ask dialogs (clients/cntrl/cntrl): several agents asking
 at once queue up and each names its agent, a dialog that has just opened does not
 take the keys the operator was typing, and the permission dialog reads clearly."""
 import pytest
@@ -12,7 +12,7 @@ jav3 = load_client("jav3cli_dialogs")
 @pytest.fixture(autouse=True)
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 # --- TUI-01: concurrent asks -------------------------------------------------------------

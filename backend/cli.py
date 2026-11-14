@@ -143,7 +143,7 @@ def guest_shell(slug: str | None) -> None:
 
 
 def services_check() -> None:
-    """Which companion services (derived from JARVIS_SERVICES_HOST unless set
+    """Which companion services (derived from CNTRL_SERVICES_HOST unless set
     explicitly) answer a 1s TCP connect from here."""
     from .config import settings
     from .lan import probe
@@ -392,7 +392,10 @@ def _provider_step(a, tty: bool, scripted: bool,
         if run_test:
             res = asyncio.run(setup_api.test_provider(pid, key, base))
             if res["ok"]:
-                print(f"   ok · {len(res['models_found'])} models")
+                print(f"   ok, {len(res['models_found'])} models")
+                if model and res["models_found"] and model not in res["models_found"]:
+                    print(f"   note: the server does not list '{model}'; it is used as "
+                          "you typed it")
             else:
                 print(f"   test failed: {res['detail']}")
                 if not tty or scripted or not _yes("   save it anyway?", False):

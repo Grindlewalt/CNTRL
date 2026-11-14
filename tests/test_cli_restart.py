@@ -1,4 +1,4 @@
-"""/restart, and yes to "Restart jav3 now?" after /update: the client keeps what is open
+"""/restart, and yes to "Restart cntrl now?" after /update: the client keeps what is open
 in restart.json (0600), leaves the terminal and starts the file on disk again in the same
 process; the new one puts back the tabs and tiles, each tile's chat (re-attached when its
 turn still runs), draft, settings, attachments and page, the notifications and the /local
@@ -12,7 +12,7 @@ import time
 
 import pytest
 
-from cli_fake import FakeServer, load_client, send, wait_for
+from cli_fake import FakeServer, load_client, mounted_name, send, wait_for
 
 jav3 = load_client("jav3cli_restart")
 BASE = "http://h:1"
@@ -147,7 +147,7 @@ async def test_a_temporary_chat_is_said_to_start_empty_and_n_keeps_the_client():
         await started(pilot, app)
         app.chat.ephemeral, app.chat.last_user = True, "a secret question"
         await send(pilot, app, "/restart")
-        assert await wait_for(lambda: type(app.screen).__name__ == "Confirm")
+        assert await wait_for(lambda: mounted_name(app.screen) == "Confirm")
         assert "temporary chat starts empty again" in str(
             app.screen.query("Static")[1].render())
         await pilot.press("n")
@@ -168,7 +168,7 @@ def test_a_kept_state_is_good_once_for_its_own_server_and_a_short_while():
 
 def test_the_restart_runs_the_file_on_disk_again_told_to_pick_up_the_state(tmp_path):
     seen = []
-    p = tmp_path / "jav3"
+    p = tmp_path / "cntrl"
     jav3.restart_client("10.0.0.82:8000", path=p, execv=lambda exe, argv: seen.append((exe, argv)))
     assert seen == [(sys.executable, [sys.executable, str(p), "--restored",
                                       "--server", "10.0.0.82:8000"])]
@@ -179,7 +179,7 @@ def test_the_restart_runs_the_file_on_disk_again_told_to_pick_up_the_state(tmp_p
     def boom(*a):
         raise OSError("no such file")
     jav3.save_restart_state({"v": 1, "at": time.time(), "base": BASE})
-    with pytest.raises(jav3.CliError, match="run jav3"):
+    with pytest.raises(jav3.CliError, match="run cntrl"):
         jav3.restart_client(None, path=p, execv=boom)
     assert not jav3._restart_path().exists()
 

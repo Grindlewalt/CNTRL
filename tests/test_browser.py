@@ -216,7 +216,7 @@ def test_closed_verb_list_and_bounds():
             ("read_page", {"tab": 1, "min_elements": 0})]:
         with pytest.raises(browser.BrowserError):
             v(verb, params)
-    with pytest.raises(browser.BrowserError, match="Jav3 server"):
+    with pytest.raises(browser.BrowserError, match="CNTRL server"):
         v("open_tab", {"url": "http://jav3.lan:8000/settings"},
           browser._own_hosts("jav3.lan:8000"))
 
@@ -271,7 +271,7 @@ async def test_redeem_for_browser_scope(env):
 
 
 async def test_ws_with_operator_cookie_from_extension_origin(env):
-    """The extension's socket carries the Jav3 cookie from chrome-extension://;
+    """The extension's socket carries the CNTRL cookie from chrome-extension://;
     the route is origin-exempt because it never reads the cookie."""
     cookie = "; ".join(f"{k}={v}" for k, v in env["op"].cookies.items())
     fe = FakeExt(env["btok"], headers=[(b"origin", b"chrome-extension://abcdef"),
@@ -375,7 +375,7 @@ async def test_frame_scoped_click_needs_a_fresh_read(env, monkeypatch):
 
 
 async def test_popup_adoption_routing(env, monkeypatch):
-    """When a Jav3 tab spawns a popup the extension adopts, the spawning action
+    """When a CNTRL tab spawns a popup the extension adopts, the spawning action
     reports its tab id and list_tabs shows it."""
     monkeypatch.setattr(browser, "ACTIONS_PER_S", 100)
     fe = await FakeExt(env["btok"]).start()
@@ -471,11 +471,12 @@ async def test_pause_cancel_and_stop(env):
 
 
 async def test_extension_zip_is_served(env):
-    r = await env["op"].get("/cli/jav3-browser.zip")
+    r = await env["op"].get("/cli/cntrl-browser.zip")
     assert r.status_code == 200 and r.headers["content-type"] == "application/zip"
+    assert 'filename="cntrl-browser.zip"' in r.headers["content-disposition"]
     names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
-    assert "jav3-browser/manifest.json" in names and "jav3-browser/lib/verbs.js" in names
-    assert "jav3-browser/lib/dom.js" in names         # injected into every frame
+    assert "cntrl-browser/manifest.json" in names and "cntrl-browser/lib/verbs.js" in names
+    assert "cntrl-browser/lib/dom.js" in names         # injected into every frame
     assert not any("/test/" in n for n in names)
 
 
@@ -659,7 +660,7 @@ async def test_outdated_extension_is_refused_with_a_reload_hint(env, monkeypatch
         try:
             await _tool("browser_read_page")(tab=7)
             r = await _tool("browser_key")(tab=7, combo="Enter")
-            assert r == ("error: the jav3-browser extension in that browser is 0.2.0; this "
+            assert r == ("error: the CNTRL browser extension in that browser is 0.2.0; this "
                          "action needs 0.5.0 — reload it in chrome://extensions (Developer "
                          "mode → Reload) and read the page again")
             assert fe.reqs[-1]["verb"] == "read_page"          # never sent
@@ -688,7 +689,7 @@ async def test_unreported_version_turns_unknown_action_into_reload_hint(env, mon
         try:
             await _tool("browser_read_page")(tab=7)
             r = await _tool("browser_back")(tab=7)
-            assert r.startswith("error: the jav3-browser extension in that browser is 0.2.0 "
+            assert r.startswith("error: the CNTRL browser extension in that browser is 0.2.0 "
                                 "or older; this action needs 0.3.0 — reload it")
             lst = (await env["op"].get("/api/browser")).json()["browsers"][0]
             assert lst["ext_version"] == "0.3.0 or older"
@@ -794,9 +795,8 @@ def test_click_needs_exactly_one_of_element_or_xy():
     # the current version is whatever the shipped manifest says, so a version
     # bump never needs this test edited
     import json
-    import pathlib
-    manifest = json.loads((pathlib.Path(__file__).resolve().parents[1]
-                           / "clients/jav3-browser/manifest.json").read_text())
+    from client_paths import BROWSER
+    manifest = json.loads((BROWSER / "manifest.json").read_text())
     assert browser.CURRENT_EXT_VERSION == manifest["version"]
     assert browser.ext_outdated("0.4.0")
     assert not browser.ext_outdated(browser.CURRENT_EXT_VERSION)
@@ -956,7 +956,7 @@ async def test_coordinate_click_carries_the_expected_element_and_reports_a_moved
             await _tool("browser_read_page")(tab=7)
             await _tool("browser_screenshot_tab")(tab=7)
             r = await _tool("browser_click")(tab=7, x=50, y=50)
-            assert r.startswith("error: the jav3-browser extension in that browser is 0.4.0; "
+            assert r.startswith("error: the CNTRL browser extension in that browser is 0.4.0; "
                                 "this action needs 0.5.0")
         finally:
             budget_mod.active_op_id.reset(tok)
@@ -974,7 +974,7 @@ async def test_coordinate_click_needs_extension_0_4_0(env, monkeypatch):
         try:
             await _tool("browser_screenshot_tab")(tab=7)
             r = await _tool("browser_click")(tab=7, x=1, y=1)
-            assert r.startswith("error: the jav3-browser extension in that browser is 0.3.0 or "
+            assert r.startswith("error: the CNTRL browser extension in that browser is 0.3.0 or "
                                 "older (it does not report its version); this action needs "
                                 "0.5.0 — reload it")
             assert fe.reqs[-1]["verb"] == "screenshot_tab"
@@ -1100,7 +1100,7 @@ def test_own_names_are_refused_on_the_servers_port(monkeypatch):
               "http://127.0.0.1:8000/", "http://127.9.9.9:8000/", "http://[::1]:8000/",
               "http://[::ffff:127.0.0.1]:8000/", "http://10.0.0.82:8000/api/x",
               "http://LOCALHOST:8000/"):
-        with pytest.raises(browser.BrowserError, match="Jav3 server"):
+        with pytest.raises(browser.BrowserError, match="CNTRL server"):
             browser.check_url(u, deny)
 
 
@@ -1113,13 +1113,13 @@ def test_gitea_and_other_sites_are_allowed(monkeypatch):
 
 
 def test_host_only_entries_from_older_setups_still_deny_every_port():
-    with pytest.raises(browser.BrowserError, match="Jav3 server"):
+    with pytest.raises(browser.BrowserError, match="CNTRL server"):
         browser.check_url("http://jav3.lan:3000/", frozenset({"jav3.lan"}))
 
 
 def test_proxy_host_header_without_a_port(monkeypatch):
     deny = _own(monkeypatch, header="tunnel.example.org", csrf=())
-    with pytest.raises(browser.BrowserError, match="Jav3 server"):
+    with pytest.raises(browser.BrowserError, match="CNTRL server"):
         browser.check_url("https://tunnel.example.org:1234/", deny)
     assert browser.check_url("http://10.0.0.82:3000/", deny)
 
@@ -1246,7 +1246,7 @@ async def test_an_older_extension_that_changed_nothing_gets_the_reload_note(env,
     assert "\ninput:" not in r                                     # it reports no path: nothing is claimed
     lines = r.rstrip().splitlines()
     assert lines[-1] == "changed: no"
-    assert lines[-2].startswith("note: the jav3-browser extension in that browser is 0.5.1, so this "
+    assert lines[-2].startswith("note: the CNTRL browser extension in that browser is 0.5.1, so this "
                                 "click was a script event")
     assert "0.6.0 sends real mouse input" in lines[-2] and "chrome://extensions" in lines[-2]
 
@@ -1283,7 +1283,7 @@ async def test_coordinate_click_into_an_iframe_with_an_old_extension_says_to_rel
     refusal = {"ok": False, "code": "frame", "err": "that point is inside an iframe; browser_read_page and "
                                                       "click its element by id (f1:…)"}
     r, _ = await _click_with(env, monkeypatch, "0.5.1", {"__reply__": refusal}, x=100, y=50)
-    assert r.startswith("error: that point is inside an iframe, and the jav3-browser extension in that "
+    assert r.startswith("error: that point is inside an iframe, and the CNTRL browser extension in that "
                         "browser is 0.5.1; 0.6.0 clicks there with real mouse input — reload it in "
                         "chrome://extensions")
     assert 'element="f1:…"' in r

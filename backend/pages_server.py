@@ -1,7 +1,7 @@
 """The pages server: published snapshots, read-only, on a port of its own.
 
 `python -m backend.pages_server` (its own systemd user unit, scripts/
-jarvis-pages.service). It serves <data_dir>/pages/<id>/ at /p/<id>/<path> and
+cntrl-pages.service). It serves <data_dir>/pages/<id>/ at /p/<id>/<path> and
 knows nothing else: no database, no project folder, no login. Anyone with the
 link opens the page; the link is the secret (secrets.token_urlsafe(12)).
 

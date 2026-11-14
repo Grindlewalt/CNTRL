@@ -1,4 +1,4 @@
-"""/resume in the terminal client (clients/jav3cli/jav3): continues a turn that died
+"""/resume in the terminal client (clients/cntrl/cntrl): continues a turn that died
 from its last step. The failure is saved with its tool calls and the server gives
 them back to the model on the next message (tests/test_failed_turn_resume.py);
 here the client only has to say so, check the chat's last message really is a
@@ -15,7 +15,7 @@ jav3 = load_client("jav3cli_resume")
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     monkeypatch.setenv("HOME", str(tmp_path))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 def notes(app) -> list[str]:

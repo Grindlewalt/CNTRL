@@ -4,6 +4,7 @@ import { Button } from './components/index.js'
 import { notifyError } from './notify.js'
 import { useLoad } from './boxes/ui.jsx'
 import { allowedLine } from './securityCopy.js'
+import { Group } from './securityParts.jsx'
 
 // Security > Persistent > "Allowed from alerts": the programs and units you
 // allowed from an unexpected-process alert (POST /api/security/events/{id}/baseline),
@@ -30,22 +31,21 @@ export default function AllowedProcesses() {
   }
 
   return (
-    <details className="sbx-sec allowed-procs">
-      <summary className="small">Allowed from alerts ({data.length})</summary>
-      <p className="dim small">Programs you allowed from an alert. They no longer count as
-        unexpected in any box.</p>
-      <ul className="staged-list rev-list">
+    <details className="sk-fold allowed-procs">
+      <summary>Allowed from alerts ({data.length})</summary>
+      <p>Programs you allowed from an alert. They no longer count as unexpected in any box.</p>
+      <Group>
         {data.map((e) => {
           const line = allowedLine(e)
           return (
-            <li key={`${e.exe}|${e.unit}`}>
-              <span className="grow ellipsis mono small" title={line.what}>{line.what}</span>
-              <span className="dim small">{line.when}</span>
+            <div key={`${e.exe}|${e.unit}`} className="sk-rule">
+              <span className="mono" title={line.what}>{line.what}</span>
+              <span className="sk-sub">{line.when.replace(', ', ', ')}</span>
               <Button variant="ghost" onClick={() => remove(e)}>Take off</Button>
-            </li>
+            </div>
           )
         })}
-      </ul>
+      </Group>
     </details>
   )
 }

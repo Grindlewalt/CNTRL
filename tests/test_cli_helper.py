@@ -1,5 +1,5 @@
 """/pull and /helper (nov1): the commands that bring a project's code here, and a turn
-that carries Jav3's own manual."""
+that carries CNTRL's own manual."""
 import httpx
 import pytest
 
@@ -8,7 +8,7 @@ from cli_fake import FakeServer, finish, load_client, send, wait_for
 jav3 = load_client("jav3cli_helper")
 
 PULL = {"project": "demo", "clone": "git clone http://h:1/git/demo",
-        "pull": "cd demo && git pull", "auth": "git asks for your Jav3 username and password",
+        "pull": "cd demo && git pull", "auth": "git asks for your CNTRL username and password",
         "uncommitted": 2, "last_commit": "a1b2c3d add the loop",
         "note": "only committed work is served"}
 
@@ -144,16 +144,16 @@ async def test_transcript_copy_puts_the_whole_chat_on_the_clipboard(copied, tmp_
         await send(pilot, app, "/transcript copy")
         assert await wait_for(lambda: copied)
         text = copied[0]
-        for part in ("# Jav3 chat #7", "first question", "first answer", "a.py",
+        for part in ("# CNTRL chat #7", "first question", "first answer", "a.py",
                      "second question", "second answer"):
             assert part in text, part
         assert "never copied" not in text
-        assert text == jav3.transcript_markdown("Jav3 chat #7", [
+        assert text == jav3.transcript_markdown("CNTRL chat #7", [
             m for m in srv.conv_messages[7]["messages"] if m["role"] != "system"])
         await app.c_transcript("")                             # bare: copy too
         assert len(copied) == 2 and copied[1] == text
         await app.c_transcript("save")
-        assert "second answer" in (tmp_path / "jav3-7.md").read_text()
+        assert "second answer" in (tmp_path / "cntrl-7.md").read_text()
         with pytest.raises(jav3.CliError, match="/transcript copy"):
             await app.c_transcript("print")
         app.editor.text = "/transcript "

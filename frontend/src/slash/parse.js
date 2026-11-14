@@ -88,7 +88,7 @@ export function transcriptMarkdown(title, messages) {
   const parts = [`# ${title}\n`]
   for (const m of messages || []) {
     if (m.role !== 'user' && m.role !== 'assistant') continue
-    parts.push(`## ${m.role === 'user' ? 'You' : 'Jav3'}\n`)
+    parts.push(`## ${m.role === 'user' ? 'You' : 'CNTRL'}\n`)
     for (const a of m.activity || [])
       parts.push(`- ${a.name}${a.ok === false ? ' (failed)' : ''}`)
     parts.push(`${m.content || ''}\n`)

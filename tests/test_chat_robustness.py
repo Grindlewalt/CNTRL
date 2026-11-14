@@ -145,7 +145,7 @@ async def _fail_turn(client, monkeypatch, exc):
 @pytest.mark.parametrize("exc", [asyncio.TimeoutError(), AssertionError(),
                                  httpx.ReadTimeout("")])
 async def test_blank_exception_still_reads_as_something(client, monkeypatch, caplog, exc):
-    with caplog.at_level(logging.ERROR, logger="jav3.chat"):
+    with caplog.at_level(logging.ERROR, logger="cntrl.chat"):
         cid, errs = await _fail_turn(client, monkeypatch, exc)
     assert len(errs) == 1 and errs[0]["message"]
     assert type(exc).__name__ in errs[0]["message"]

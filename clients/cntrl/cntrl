@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""jav3 — a terminal client for a Jav3 server: an interactive agent TUI.
+"""cntrl — a terminal client for a CNTRL server: an interactive agent TUI.
 
-    jav3                       the interactive TUI (/help inside it)
-    jav3 fix the flaky test    the TUI, starting with that message
-    jav3 -c | -r ID            resume the latest chat | chat ID
-    jav3 -p "message"          one turn, plain output (also: cmd | jav3 -p)
-    jav3 login                 paste the line from Settings -> Add computer (chat only)
-    jav3 login --password      server address, username, password (full access)
+    cntrl                       the interactive TUI (/help inside it)
+    cntrl fix the flaky test    the TUI, starting with that message
+    cntrl -c | -r ID            resume the latest chat | chat ID
+    cntrl -p "message"          one turn, plain output (also: cmd | cntrl -p)
+    cntrl login                 paste the line from Settings -> Add computer (chat only)
+    cntrl login --password      server address, username, password (full access)
                                (or /login inside the TUI: either of the two)
-    jav3 chat [message]        one turn, or the TUI with no message
-    jav3 whoami
-    jav3 logout
-    jav3 update                replace this jav3 with the server's newer one (also /update)
+    cntrl chat [message]        one turn, or the TUI with no message
+    cntrl whoami
+    cntrl logout
+    cntrl update                replace this cntrl with the server's newer one (also /update)
 
-Credentials live in $XDG_CONFIG_HOME/jav3/credentials.json (default
-~/.config/jav3), file 0600 in a 0700 directory: {"address", "token"} for a
+Credentials live in $XDG_CONFIG_HOME/cntrl/credentials.json (default
+~/.config/cntrl), file 0600 in a 0700 directory: {"address", "token"} for a
 device token (chat only), or {"address", "session", "username"} for an
 operator password session (full access, like the web app).
 Needs Python 3.11+ and httpx; the TUI also needs textual (the installer
-provides it; without it `jav3` falls back to a plain REPL).
+provides it; without it `cntrl` falls back to a plain REPL).
 """
 from __future__ import annotations
 
@@ -43,12 +43,12 @@ from pathlib import Path
 try:
     import httpx
 except ImportError:  # pragma: no cover — the installer provides it
-    sys.exit("jav3 needs httpx: pip install httpx (or install your distro's python3-httpx)")
+    sys.exit("cntrl needs httpx: pip install httpx (or install your distro's python3-httpx)")
 
 PROMPT = "Paste the line from Settings → Add computer: "
-RELOGIN = ("not logged in (token missing, revoked or expired) — run: jav3 login --password "
-           "(full access) or jav3 login (chat only)")
-RELOGIN_SESSION = "your login expired or was revoked — run: jav3 login --password"
+RELOGIN = ("not logged in (token missing, revoked or expired) — run: cntrl login --password "
+           "(full access) or cntrl login (chat only)")
+RELOGIN_SESSION = "your login expired or was revoked — run: cntrl login --password"
 
 
 def relogin() -> str:
@@ -69,9 +69,48 @@ class NotLoggedIn(CliError):
 
 # --- credentials --------------------------------------------------------------------
 
+CLIENT_VERSION = "0.1.0"       # the release this file belongs to (tests keep it equal to the server's)
+
+
+def _config_base() -> Path:
+    return Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
+
+
 def config_dir() -> Path:
-    base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(base) / "jav3"
+    return _config_base() / "cntrl"
+
+
+def migrate_old_config() -> bool:
+    """Before CNTRL the config dir was ~/.config/jav3. When only that one exists, move
+    it over (rename: credentials.json keeps its 0600 in the 0700 dir). The new dir can
+    already exist without the client's files: the server's upgrade moves its own
+    config (env, secrets.json) into ~/.config/cntrl too. Then each old entry moves in
+    by name, a name already there wins (its old copy stays behind), and the old dir
+    goes once empty. A symlinked dir on either side is left alone. True when
+    anything moved."""
+    new, old = config_dir(), _config_base() / "jav3"
+    try:
+        if old.is_symlink() or not old.is_dir() or new.is_symlink():
+            return False
+        if not os.path.lexists(new):
+            os.rename(old, new)
+            return True
+        if not new.is_dir():
+            return False
+        moved = False
+        for entry in old.iterdir():
+            dest = new / entry.name
+            if os.path.lexists(dest):
+                continue
+            os.rename(entry, dest)
+            moved = True
+        try:
+            old.rmdir()
+        except OSError:
+            pass                                    # names the new dir already had
+        return moved
+    except OSError:
+        return False
 
 
 def cred_path() -> Path:
@@ -83,9 +122,9 @@ def save_credentials(address: str, token: str | None = None, *,
     """Write atomically, 0600 from the first byte, in a 0700 directory.
 
     Every step goes through a descriptor for the config dir itself, opened
-    with O_NOFOLLOW: a `jav3` dir that is a symlink (or is swapped for one
+    with O_NOFOLLOW: a `cntrl` dir that is a symlink (or is swapped for one
     mid-write) is refused rather than followed and re-moded. The temp file has
-    a random name and is created O_EXCL, so two concurrent `jav3 login`s each
+    a random name and is created O_EXCL, so two concurrent `cntrl login`s each
     write their own file and the rename leaves one whole credentials.json —
     never a torn mix of both.
     """
@@ -222,7 +261,7 @@ def pick_login_address(address: str, alts: list[str]) -> str:
               f"using {alts[0]}", file=sys.stderr)
         return alts[0]
     raise CliError(f"{address} does not resolve on this machine — a .local name "
-                   "needs mDNS here. Use the server's IP instead: jav3 login "
+                   "needs mDNS here. Use the server's IP instead: cntrl login "
                    "--server <ip>:<port>")
 
 
@@ -270,7 +309,7 @@ def base_url(address: str) -> str:
 # --- HTTP -------------------------------------------------------------------------------
 
 def _client(base: str, token: str | None = None, timeout: float | None = 30.0) -> httpx.Client:
-    headers = {"User-Agent": "jav3-cli", **auth_headers(token)}
+    headers = {"User-Agent": "cntrl-cli", **auth_headers(token)}
     # no redirects: a bearer token is never replayed to wherever a 3xx points
     return httpx.Client(base_url=base, headers=headers, timeout=timeout,
                         follow_redirects=False)
@@ -324,7 +363,7 @@ def redirect_hint(base: str, location: str) -> str:
     if "cloudflareaccess.com" in location:
         return (f"{base} is behind Cloudflare Access, which sends the CLI to a browser "
                 "login it cannot complete. Use the server's LAN address instead — "
-                "jav3 --server <lan-ip>:8000 (the same login line still works; its code "
+                "cntrl --server <lan-ip>:8000 (the same login line still works; its code "
                 "was not used) — or add an Access Bypass policy for /api/devices/*, "
                 "/api/chat* and /api/conversations*")
     return f"{base} redirected to {location or '(nowhere)'} — pass the right address with --server"
@@ -348,7 +387,7 @@ def upgrade_to_https(base: str) -> str:
 
 
 def cmd_login_password(args, out=sys.stdout, ask=input, secret=getpass.getpass) -> int:
-    """`jav3 login --password`: the web app's own login, from the terminal (full
+    """`cntrl login --password`: the web app's own login, from the terminal (full
     access). Address, username, then the password without echo."""
     creds = load_credentials() or {}
     default = args.server or creds.get("address") or ""
@@ -399,7 +438,7 @@ def cmd_login(args, out=sys.stdout, read=_read_login_line) -> int:
         try:
             token = _check(r).json()["token"]
         except (ValueError, KeyError, TypeError):
-            raise CliError(f"{base} did not answer like a Jav3 server "
+            raise CliError(f"{base} did not answer like a CNTRL server "
                            f"(HTTP {r.status_code}, {r.headers.get('content-type', '?')})")
     try:
         path = save_credentials(address, token)
@@ -412,7 +451,7 @@ def cmd_login(args, out=sys.stdout, read=_read_login_line) -> int:
         except httpx.HTTPError:
             pass
         raise CliError(f"could not save credentials: {e}. The new token was "
-                       "revoked; fix that, then run jav3 login again with a new code")
+                       "revoked; fix that, then run cntrl login again with a new code")
     print(f"logged in to {base} — credentials in {path}", file=out)
     with _client(base, token) as c:
         who = _check(c.get("/api/devices/whoami")).json()
@@ -434,7 +473,7 @@ def cmd_whoami(args, out=sys.stdout) -> int:
 REVOKE_HINT = ("the server did not confirm the revoke ({why}) — the token may "
                "still be live. Revoke this computer in Settings → Devices; the "
                "local copy is kept at {path} until then (delete it by hand, or "
-               "run jav3 logout again)")
+               "run cntrl logout again)")
 
 
 def cmd_logout(args, out=sys.stdout) -> int:
@@ -521,7 +560,7 @@ def login_with_password(address: str, username: str, password: str,
     _check(r)
     jwt = _session_cookie(r)
     if not jwt:
-        raise CliError(f"{base} did not answer like a Jav3 server (no session cookie)")
+        raise CliError(f"{base} did not answer like a CNTRL server (no session cookie)")
     try:
         who = r.json().get("username") or username
     except (ValueError, AttributeError):
@@ -576,7 +615,7 @@ def _daemon_executor():
                     fut.set_result(fn(*args, **kwargs))
                 except BaseException as e:  # noqa: BLE001 — handed to the awaiting side
                     fut.set_exception(e)
-            threading.Thread(target=run, name="jav3-bg", daemon=True).start()
+            threading.Thread(target=run, name="cntrl-bg", daemon=True).start()
             return fut
 
         def shutdown(self, wait=True, *, cancel_futures=False) -> None:
@@ -637,7 +676,7 @@ def classify_net_error(e: Exception, base: str = "", route: str | None = None) -
         if "unreachable" in msg or "no route" in msg or "name or service" in msg \
                 or "nodename" in msg or "getaddrinfo" in msg:
             return "client", f"your network is down (no route to {host})"
-        return "server", (f"{host} refuses connections on :{port} — the jav3 server is "
+        return "server", (f"{host} refuses connections on :{port} — the cntrl server is "
                           "down or restarting")
     if isinstance(e, httpx.ReadTimeout):
         return "server", (f"no heartbeat from the server for {STREAM_READ_S:.0f} s; "
@@ -650,7 +689,7 @@ def classify_net_error(e: Exception, base: str = "", route: str | None = None) -
 def classify_status(code: int, message: str = "") -> tuple[str, str]:
     """(where, words) for an HTTP error status on a chat request."""
     if code in (502, 503, 504):
-        return "server", f"the proxy answers but the jav3 server behind it doesn't ({code})"
+        return "server", f"the proxy answers but the cntrl server behind it doesn't ({code})"
     return classify_message(message or f"HTTP {code}")
 
 
@@ -842,7 +881,7 @@ def cmd_chat(args, out=sys.stdout, read=input) -> int:
 # sidebar on the right (title, context and cost, model, modified files, todos) that
 # folds away on narrow terminals, and the prompt at the bottom with a status row
 # under it. Pickers (sessions, models, agents, projects, themes) open from slash
-# commands, the ctrl+x leader key or the ctrl+p palette. Without Textual, `jav3`
+# commands, the ctrl+x leader key or the ctrl+p palette. Without Textual, `cntrl`
 # falls back to the plain REPL above.
 
 TUI_DEPS = ("textual",)
@@ -877,6 +916,7 @@ NEW_PROJECT = "+new"               # the /project picker's "+ New project" row
 DIALOG_GRACE = 0.6                 # seconds a dialog that opens by itself takes no keys,
                                    # and how long the operator must pause typing after
 DIALOG_MAX_INERT = 3.0             # ... but never longer than this in all
+LEADER_TIMEOUT = 2.0               # seconds ctrl+x waits for the key that follows it
 
 
 def tui_available() -> bool:
@@ -1800,21 +1840,26 @@ def tool_body(name: str, args, ok: bool | None, result: str | None,
 
 
 LOGO_GLYPHS = {
-    "J": ["  ███", "   █ ", "   █ ", "█  █ ", " ██  "],
-    "A": [" ███ ", "█   █", "█████", "█   █", "█   █"],
-    "V": ["█   █", "█   █", "█   █", " █ █ ", "  █  "],
-    "3": ["████ ", "    █", " ███ ", "    █", "████ "],
+    "C": [" ████", "█    ", "█    ", "█    ", " ████"],
+    "N": ["█   █", "██  █", "█ █ █", "█  ██", "█   █"],
+    "T": ["█████", "  █  ", "  █  ", "  █  ", "  █  "],
+    "R": ["████ ", "█   █", "████ ", "█  █ ", "█   █"],
+    "L": ["█    ", "█    ", "█    ", "█    ", "█████"],
 }
 
 
-def logo_markup() -> str:
+def logo_markup(narrow: bool = False) -> str:
+    """The pixel word on the home screen. Each pixel is two cells wide (58 columns);
+    `narrow` draws one cell per pixel (29 columns) for terminals under 64 wide."""
     rows = []
     for r in range(5):
         parts = []
-        for ch in "JAV3":
-            px = LOGO_GLYPHS[ch][r].replace("█", "██").replace(" ", "  ")
-            parts.append(f"[$primary]{px}[/]" if ch == "3" else f"[$text-muted]{px}[/]")
-        rows.append("  ".join(parts))
+        for ch in "CNTRL":
+            px = LOGO_GLYPHS[ch][r]
+            if not narrow:
+                px = px.replace("█", "██").replace(" ", "  ")
+            parts.append(f"[$primary]{px}[/]" if ch == "C" else f"[$text-muted]{px}[/]")
+        rows.append(" ".join(parts) if narrow else "  ".join(parts))
     return "\n".join(rows)
 
 
@@ -2649,7 +2694,7 @@ def ask_view(ev: dict, question: str) -> tuple[str, str]:
 #
 # `/local` makes the next new chat a local session: the model still runs through
 # the server (which keeps the key), but its local_* tools come back to THIS client
-# as `local_tool` events on the turn's stream, run here in the directory `jav3`
+# as `local_tool` events on the turn's stream, run here in the directory `cntrl`
 # was launched from, and are answered with POST /api/chat/<id>/local_result.
 # Reads inside that directory run at once; a read, list or search outside it, and
 # writes, edits and shell commands, ask the operator first (y once, a for the rest
@@ -2675,7 +2720,7 @@ LOCAL_SKIP_DIRS = frozenset({".git", ".hg", ".svn", "node_modules", "__pycache__
 # Places a local tool never reads, lists, searches or writes, whatever the operator
 # answers: keys, tokens, browser profiles, this client's own login. Under the home
 # directory, and a few absolute paths. `.env` files outside the working directory too.
-LOCAL_DENY_HOME = (".ssh", ".gnupg", ".aws", ".azure", ".kube", ".config/jav3", ".config/gcloud",
+LOCAL_DENY_HOME = (".ssh", ".gnupg", ".aws", ".azure", ".kube", ".config/cntrl", ".config/jav3", ".config/gcloud",
                    ".config/gh", ".docker/config.json", ".netrc", ".npmrc", ".pypirc",
                    ".git-credentials", ".password-store", ".mozilla", ".config/google-chrome",
                    ".config/chromium", ".config/BraveSoftware", "Library/Keychains",
@@ -3370,6 +3415,13 @@ def build_tui(base: str, token: str, **kw):
         def compose(self) -> ComposeResult:
             yield Static(logo_markup(), id="logo")
             yield Static("", id="home-hints")
+
+        def on_resize(self, event) -> None:
+            # the big pixel word needs 58 columns; a narrower panel gets the small one
+            narrow = event.size.width < 60
+            if narrow != getattr(self, "_logo_narrow", False):
+                self._logo_narrow = narrow
+                self.query_one("#logo", Static).update(logo_markup(narrow))
 
     class ToolView(Vertical):
         """One tool call on one line: state, title, what came back, how long.
@@ -4096,6 +4148,10 @@ def build_tui(base: str, token: str, **kw):
         MAX_INERT = DIALOG_MAX_INERT
 
         def _opened(self) -> None:
+            """Start the pause. Called when the dialog is made and again from its
+            on_mount: the pause counts from when it is on screen, not from when it
+            was built, and on a busy terminal those can be further apart than the
+            pause itself."""
             self.opened = self._last_key = time.monotonic()
             self.ate = False
 
@@ -4170,6 +4226,9 @@ def build_tui(base: str, token: str, **kw):
         def __init__(self, kind: str, summary: str, panel: int | None = None) -> None:
             super().__init__()
             self.kind, self.summary, self.panel = kind, summary, panel
+            self._opened()
+
+        def on_mount(self) -> None:
             self._opened()
 
         def compose(self) -> ComposeResult:
@@ -4265,6 +4324,7 @@ def build_tui(base: str, token: str, **kw):
             if not self.qs:
                 self.dismiss(None)
                 return
+            self._opened()
             self._draw()
             self.set_focus(None)
             self.call_after_refresh(self.set_focus, None)
@@ -8698,7 +8758,7 @@ def build_tui(base: str, token: str, **kw):
                 q = f"Commit in {slug}: “{_short(r.get('message') or '', 60)}”?"
                 detail = (f"Runs git add on {', '.join(paths) if paths else 'ALL changes'} "
                           f"and commits them to {slug}'s repository with that message, as "
-                          "Jav3. Nothing is pushed. If the commit fails the request stays "
+                          "CNTRL. Nothing is pushed. If the commit fails the request stays "
                           "pending with the error.")
             else:
                 q = f"Reject {'remote' if remote else 'commit'} request #{rid} in {slug}?"
@@ -10103,7 +10163,7 @@ def build_tui(base: str, token: str, **kw):
             if not await self._confirm(
                     f"Clean {n} leftover{'s' * (n != 1)}?",
                     f"Removes {names}{more}. Only what this server identifies as its own "
-                    "(Jav3's container label and its own box directories); each is checked "
+                    "(CNTRL's container label and its own box directories); each is checked "
                     "again first. Network interfaces are listed, never removed."):
                 return
             if await self._send("POST", "/api/vm/leftovers/clean", "cleaned",
@@ -10197,7 +10257,7 @@ def build_tui(base: str, token: str, **kw):
     # -- the app ---------------------------------------------------------------------------
 
     class Jav3App(App):
-        TITLE = "Jav3"
+        TITLE = "CNTRL"
         COMMANDS = App.COMMANDS | {Palette}
         CSS = """
         Screen { background: $background; }
@@ -10515,7 +10575,7 @@ def build_tui(base: str, token: str, **kw):
                 if name not in kept:
                     self.unregister_theme(name)
             self.add_theme(dict(
-                name="jav3", primary="#5fd7af", secondary="#af87ff", accent="#ffaf5f",
+                name="cntrl", primary="#5fd7af", secondary="#af87ff", accent="#ffaf5f",
                 foreground="#e4e4e4",
                 background="#0e1014" if truecolor else "#121212",
                 surface="#161a20" if truecolor else "#262626",
@@ -10534,8 +10594,10 @@ def build_tui(base: str, token: str, **kw):
             for e in errors:
                 self.push_notice(e, "warn")
             settings = self._load_settings()
-            self.theme = settings.get("theme") if settings.get("theme") in \
-                self.available_themes else "jav3"
+            saved = settings.get("theme")
+            if isinstance(saved, str) and (saved == "jav3" or saved.startswith("jav3-")):
+                saved = "cntrl" + saved[4:]         # themes saved before the rename
+            self.theme = saved if saved in self.available_themes else "cntrl"
             self.watch_theme(self.theme)         # set even when the theme did not change
             self.sidebar_pref = settings.get("sidebar")
             self._load_history()
@@ -10571,8 +10633,8 @@ def build_tui(base: str, token: str, **kw):
             try:
                 if state:
                     await self._restore_layout(state.get("layout"), state.get("tiles"))
-                    self.notify("jav3 updated and restarted" if state.get("why") == "update"
-                                else "jav3 restarted")
+                    self.notify("cntrl updated and restarted" if state.get("why") == "update"
+                                else "cntrl restarted")
                 elif cont and self.convs:
                     await self.open_conversation(self.convs[0]["id"])
                 elif resume is not None:
@@ -11013,7 +11075,7 @@ def build_tui(base: str, token: str, **kw):
         def _new_client(self):
             return httpx.AsyncClient(
                 base_url=self.base, follow_redirects=False, transport=self.transport,
-                headers={"User-Agent": "jav3-cli", **auth_headers(self.token)},
+                headers={"User-Agent": "cntrl-cli", **auth_headers(self.token)},
                 timeout=httpx.Timeout(30.0, read=None))
 
         async def api(self, method: str, path: str, **kw):
@@ -11210,7 +11272,7 @@ def build_tui(base: str, token: str, **kw):
             bottom.set_class(multi, "multi")
             prompt.set_class(multi and chat is not self.focused_chat, "-idle")
             self.editor.placeholder = self._placeholder()
-            who = f"[$secondary b]{_esc(self.agent)}[/]" if self.agent else "[$primary b]Jav3[/]"
+            who = f"[$secondary b]{_esc(self.agent)}[/]" if self.agent else "[$primary b]CNTRL[/]"
             model = self._model_label()
             bits = [who, f"[$text]{_esc(model.split('/')[-1])}[/]"]
             if self.orchestrator:
@@ -12732,7 +12794,7 @@ def build_tui(base: str, token: str, **kw):
                 self.log_view.close_fold()
 
         def _footer_markup(self, turn: TurnState) -> str:
-            who = self.agent or "Jav3"
+            who = self.agent or "CNTRL"
             model = (turn.model or self._model_label()).split("/")[-1]
             stats = turn.stats()
             tin, tout, toks = turn.tokens()
@@ -13187,7 +13249,7 @@ def build_tui(base: str, token: str, **kw):
             self.leader = True
             if self._leader_timer is not None:
                 self._leader_timer.stop()
-            self._leader_timer = self.set_timer(2, self._leader_off)
+            self._leader_timer = self.set_timer(LEADER_TIMEOUT, self._leader_off)
             self._refresh_status()
 
         def _leader_off(self) -> None:
@@ -13499,7 +13561,7 @@ def build_tui(base: str, token: str, **kw):
                 "pull": Command(self.c_pull, "the git commands that bring this chat's "
                                 "project onto this machine (the first one copied)",
                                 "[project]", takes_arg=True, busy_ok=True),
-                "helper": Command(self.c_helper, "ask about Jav3 itself: the next message "
+                "helper": Command(self.c_helper, "ask about CNTRL itself: the next message "
                                   "carries its manual (pulling code, logins and tokens, keys, "
                                   "boxes, approvals)", "[question]", takes_arg=True),
                 "history": Command(self.c_history, "what agents wrote in this project "
@@ -13511,7 +13573,7 @@ def build_tui(base: str, token: str, **kw):
                                   "default (default <location> sets where)", "[location|default <location>]",
                                   takes_arg=True, busy_ok=True, leader="x"),
                 "screenshot": Command(self.c_screenshot, "save a picture of this screen into "
-                                      "Pictures/jav3 (svg, txt, png); help · default "
+                                      "Pictures/cntrl (svg, txt, png); help · default "
                                       "<format> [dir]",
                                       "[name] [format] [location]", takes_arg=True,
                                       busy_ok=True),
@@ -13534,9 +13596,9 @@ def build_tui(base: str, token: str, **kw):
                                  "or your password (full access)", "[line|password]"),
                 "logout": Command(self.c_logout, "log out: /logout says who, /logout yes does it "
                                  "(a device token is revoked)", "[yes]", takes_arg=True),
-                "update": Command(self.c_update, "replace this jav3 with the server's newer one, "
+                "update": Command(self.c_update, "replace this cntrl with the server's newer one, "
                                   "then restart into it", busy_ok=True),
-                "restart": Command(self.c_restart, "start jav3 again: tabs, chats and drafts "
+                "restart": Command(self.c_restart, "start cntrl again: tabs, chats and drafts "
                                    "come back, turns keep running", busy_ok=True),
                 "pages": Command(self.c_pages, "the pages you have published: enter copies a "
                                  "link, u unpublishes"),
@@ -13583,7 +13645,7 @@ def build_tui(base: str, token: str, **kw):
             if fn == self.c_logout:
                 return [("yes", "sign out (a device token is revoked)")]
             if fn == self.c_agent:
-                return [("none", "plain Jav3")] + [(a["slug"], a.get("name", ""))
+                return [("none", "plain CNTRL")] + [(a["slug"], a.get("name", ""))
                                                   for a in o.get("agents", [])]
             if fn == self.c_project:
                 return ([("none", "no project: files go to the chat's artifacts"),
@@ -13788,7 +13850,7 @@ def build_tui(base: str, token: str, **kw):
                     await self.log_view.mount(Reply(m["content"]))
                 if m.get("model"):
                     self.shown_model = m["model"]
-                who = self.agent or "Jav3"
+                who = self.agent or "CNTRL"
                 mname = (m.get("model") or "").split("/")[-1]
                 await self.log_view.mount(Footer(
                     f"[$primary]▣[/] {_esc(who)}" + (f" · {_esc(mname)}" if mname else "")))
@@ -13842,7 +13904,7 @@ def build_tui(base: str, token: str, **kw):
                     return
             self.agent = None if arg == "none" else arg
             await self.c_new()
-            self.notify(f"new chat as {self.agent or 'Jav3'}")
+            self.notify(f"new chat as {self.agent or 'CNTRL'}")
 
         async def c_project(self, arg: str) -> None:
             if not arg:
@@ -13900,9 +13962,9 @@ def build_tui(base: str, token: str, **kw):
             return sorted(t for t in self.available_themes if t != THEME_PREVIEW)
 
         def theme_rows(self) -> list[tuple[str, str, str]]:
-            """The picker's rows: Jav3's own themes, then Textual's, then yours."""
+            """The picker's rows: CNTRL's own themes, then Textual's, then yours."""
             def order(t):
-                return (0 if t == "jav3" or t in JAV3_THEMES else
+                return (0 if t == "cntrl" or t in JAV3_THEMES else
                         2 if t not in self.builtin_themes else 1, t)
             return [(t, t, ("light" if not self.available_themes[t].dark else "dark")
                      + (" · yours" if t not in self.builtin_themes else ""))
@@ -14122,7 +14184,7 @@ def build_tui(base: str, token: str, **kw):
                                       if info.get("last_commit") else ""),
                      f"  {clone}" + ("" if here else "      ← copied"),
                      f"  {pull}" + ("      ← copied (it is already here)" if here else ""),
-                     "git asks for your Jav3 username and password. To keep it: "
+                     "git asks for your CNTRL username and password. To keep it: "
                      + ("git config --global credential.helper osxkeychain"
                         if sys.platform == "darwin" else
                         "git config --global credential.helper cache")]
@@ -14182,12 +14244,12 @@ def build_tui(base: str, token: str, **kw):
 
         async def c_helper(self, arg: str) -> None:
             """/helper [question]: the next message (this one, with a question) carries
-            Jav3's own manual, so the agent can help with Jav3 itself."""
+            CNTRL's own manual, so the agent can help with CNTRL itself."""
             self.helper_next = True
             if arg.strip():
                 self.send(arg.strip())
                 return
-            await self.say("helper on for your next message: ask about Jav3 itself "
+            await self.say("helper on for your next message: ask about CNTRL itself "
                            "(getting your code, logins and tokens, keys, boxes, approvals)")
 
         async def c_history(self, arg: str) -> None:
@@ -14260,7 +14322,7 @@ def build_tui(base: str, token: str, **kw):
                 raise CliError("no chat to copy yet")
             r = await self.api("GET", f"/api/conversations/{self.cid}/messages")
             msgs = [m for m in r.get("messages", []) if m.get("role") in ("user", "assistant")]
-            text = transcript_markdown(self.title_text or f"Jav3 chat #{self.cid}", msgs)
+            text = transcript_markdown(self.title_text or f"CNTRL chat #{self.cid}", msgs)
             how = copy_to_clipboard(text, osc52=self.copy_to_clipboard)
             self.notify(f"copied the transcript: {len(msgs)} messages, "
                         f"{len(text):,} characters ({how})")
@@ -14281,13 +14343,13 @@ def build_tui(base: str, token: str, **kw):
                 return
             if self.cid is None:
                 raise CliError("no chat to export")
-            loc, stem = arg.strip() or self._export_default(), f"jav3-{self.cid}"
+            loc, stem = arg.strip() or self._export_default(), f"cntrl-{self.cid}"
             if loc.lower().endswith(".md"):
                 stem = safe_stem(Path(loc).name[:-3], stem)
                 loc = str(Path(loc).parent)
             directory = safe_output_dir(loc)
             r = await self.api("GET", f"/api/conversations/{self.cid}/messages")
-            text = transcript_markdown(self.title_text or f"Jav3 chat #{self.cid}",
+            text = transcript_markdown(self.title_text or f"CNTRL chat #{self.cid}",
                                        r.get("messages", []))
             path = write_new(directory, stem, "md", text.encode("utf-8"))
             await self.note(f"saved {path}")         # in the log: a toast wraps and goes
@@ -14339,9 +14401,9 @@ def build_tui(base: str, token: str, **kw):
             if fmt == "txt":
                 data = self.screen_text().encode("utf-8")
             else:
-                svg = self.export_screenshot(title="Jav3")
+                svg = self.export_screenshot(title="CNTRL")
                 data = svg_to_png(svg) if fmt == "png" else svg.encode("utf-8")
-            path = write_new(directory, safe_stem(name, time.strftime("jav3-%Y%m%d-%H%M%S")),
+            path = write_new(directory, safe_stem(name, time.strftime("cntrl-%Y%m%d-%H%M%S")),
                              fmt, data)
             await self.note(f"saved {path}")
 
@@ -14366,7 +14428,7 @@ def build_tui(base: str, token: str, **kw):
 
         async def c_update(self, arg: str) -> None:
             """/update: swap this client file for the one the server serves (the old one
-            is kept as jav3.bak-<date>), then offer to restart into it (restart)."""
+            is kept as cntrl.bak-<date>), then offer to restart into it (restart)."""
             if not self.base:
                 raise CliError(NOT_LOGGED_IN)
 
@@ -14383,16 +14445,16 @@ def build_tui(base: str, token: str, **kw):
                 return
             await self.note(msg.removesuffix(" " + UPDATE_RESTART))
             # it opens on its own after the download: keys typed meanwhile must not answer
-            if await self.push_screen_wait(Confirm("Restart jav3 now?", self._restart_detail(),
+            if await self.push_screen_wait(Confirm("Restart cntrl now?", self._restart_detail(),
                                                    grace=0.4)):
                 await self.restart("update")
             else:
-                await self.note("the running jav3 is still the old one: /restart when you're "
+                await self.note("the running cntrl is still the old one: /restart when you're "
                                 "ready, and everything you have open comes back")
 
         async def c_status(self, arg: str) -> None:
             info = self.info or {}
-            rows = [("server", self.base or "(none)"), ("signed in as", self.whoami),
+            rows = [("version", CLIENT_VERSION), ("server", self.base or "(none)"), ("signed in as", self.whoami),
                     ("access", self._access_label()),
                     ("chat", f"#{self.cid} {self.title_text or ''}" if self.cid else "(new)"),
                     ("model", self._model_label()),
@@ -15068,7 +15130,7 @@ def build_tui(base: str, token: str, **kw):
                 self.focus_panel(self.focus_no)
             self.refresh_chrome()
 
-        # -- restarting: /restart, and yes to "Restart jav3 now?" after /update ----------------
+        # -- restarting: /restart, and yes to "Restart cntrl now?" after /update ----------------
         #
         # The client keeps what is open in restart.json (_restart_state), leaves the
         # terminal, and cmd_tui starts the file on disk again in the same process
@@ -15214,7 +15276,7 @@ def build_tui(base: str, token: str, **kw):
         async def c_restart(self, arg: str = "") -> None:
             lost = self._restart_losses()
             if lost and not await self.push_screen_wait(
-                    Confirm("Restart jav3?", self._restart_detail())):
+                    Confirm("Restart cntrl?", self._restart_detail())):
                 return
             await self.restart()
 
@@ -15314,7 +15376,7 @@ def transcript_markdown(title: str, messages: list[dict]) -> str:
     for m in messages:
         if m.get("role") not in ("user", "assistant"):
             continue
-        parts.append(f"## {'You' if m['role'] == 'user' else 'Jav3'}\n")
+        parts.append(f"## {'You' if m['role'] == 'user' else 'CNTRL'}\n")
         for a in m.get("activity") or []:
             icon, title_ = tool_title(a["name"], a.get("args"))
             parts.append(f"- {icon} {title_}" + ("" if a.get("ok") else " (failed)"))
@@ -15335,7 +15397,7 @@ _UNSAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
 def default_shot_dir() -> Path:
     home = Path.home()
-    return home / "Pictures" / "jav3" if (home / "Pictures").is_dir() else home / "Downloads"
+    return home / "Pictures" / "cntrl" if (home / "Pictures").is_dir() else home / "Downloads"
 
 
 def safe_output_dir(loc: str, cwd: Path | None = None) -> Path:
@@ -15395,7 +15457,7 @@ def svg_to_png(svg: str) -> bytes:
     try:
         import cairosvg
     except ImportError:
-        raise CliError("png needs cairosvg (pip install cairosvg into jav3's Python) — "
+        raise CliError("png needs cairosvg (pip install cairosvg into cntrl's Python) — "
                        "svg and txt work without it")
     return cairosvg.svg2png(bytestring=svg.encode("utf-8"))
 
@@ -15425,9 +15487,9 @@ def parse_shot_args(toks: list[str]) -> tuple[str | None, str | None, str | None
 
 # --- themes -----------------------------------------------------------------------------
 #
-# The built-in list is cut to themes that look clearly different; Jav3 adds a
+# The built-in list is cut to themes that look clearly different; CNTRL adds a
 # few of its own, each with a 256-colour variant for Terminal.app. Custom
-# themes are JSON files under ~/.config/jav3/themes/, written only by jav3
+# themes are JSON files under ~/.config/cntrl/themes/, written only by cntrl
 # itself (/theme create, /theme import) and re-validated on every start.
 # A theme file is data from somewhere else: it is read with O_NOFOLLOW, capped
 # at 16 KB, parsed with json.loads only, and must match a strict schema; the
@@ -15453,20 +15515,20 @@ NAMED_COLOURS = {"black": "#000000", "white": "#ffffff", "red": "#ff0000",
 # name -> colours; a (truecolor, 256-colour) pair where the near-blacks would
 # otherwise round to the same black. 256-colour values sit on the xterm cube.
 JAV3_THEMES = {
-    "jav3-light": dict(primary="#005faf", secondary="#870087", accent="#af5f00",
+    "cntrl-light": dict(primary="#005faf", secondary="#870087", accent="#af5f00",
                        foreground="#000000", background="#ffffff", surface="#eeeeee",
                        panel="#d0d0d0", warning="#875f00", error="#d70000",
                        success="#005f00", dark=False),
-    "jav3-amber": dict(primary="#ffaf00", secondary="#d78700", accent="#ffd787",
+    "cntrl-amber": dict(primary="#ffaf00", secondary="#d78700", accent="#ffd787",
                        foreground="#ffaf00", background=("#0c0900", "#121212"),
                        surface=("#1a1406", "#262626"), panel=("#2a200a", "#3a3a3a"),
                        warning="#ffff5f", error="#ff5f5f", success="#afd75f", dark=True),
-    "jav3-solarized": dict(primary="#5fafd7", secondary="#8787d7", accent="#00afaf",
+    "cntrl-solarized": dict(primary="#5fafd7", secondary="#8787d7", accent="#00afaf",
                            foreground="#a8a8a8", background=("#002b36", "#1c1c1c"),
                            surface=("#073642", "#262626"), panel=("#0b4250", "#3a3a3a"),
                            warning="#af8700", error="#d75f5f", success="#87af00",
                            dark=True),
-    "jav3-forest": dict(primary="#87af5f", secondary="#5f8787", accent="#d7af5f",
+    "cntrl-forest": dict(primary="#87af5f", secondary="#5f8787", accent="#d7af5f",
                         foreground="#d7d7af", background=("#0f1a12", "#121212"),
                         surface=("#16241a", "#262626"), panel=("#1f3324", "#3a3a3a"),
                         warning="#d7af00", error="#d75f5f", success="#87d75f", dark=True),
@@ -15928,7 +15990,7 @@ def copy_to_clipboard(text: str, osc52=None) -> str:
 
 
 def login_with_line(line: str, server: str | None) -> tuple[str, str, str]:
-    """Run `jav3 login` with an already-read line; (base, token, username)."""
+    """Run `cntrl login` with an already-read line; (base, token, username)."""
     ns = argparse.Namespace(server=server)
     out = io.StringIO()
     cmd_login(ns, out, read=lambda: line)
@@ -15942,10 +16004,10 @@ def login_with_line(line: str, server: str | None) -> tuple[str, str, str]:
 
 def cmd_tui(args) -> int:
     if not sys.stdin.isatty() or not sys.stdout.isatty():
-        raise CliError("the interactive TUI needs a terminal — use jav3 -p <message> "
+        raise CliError("the interactive TUI needs a terminal — use cntrl -p <message> "
                        "for one-shot output")
     if not tui_available():
-        print(f"jav3: {TUI_HINT}; using the plain REPL", file=sys.stderr)
+        print(f"cntrl: {TUI_HINT}; using the plain REPL", file=sys.stderr)
         args.message = []
         return cmd_chat(args)
     # no login prompt before the TUI: with no (or a dead) credential it starts
@@ -15966,14 +16028,14 @@ def cmd_tui(args) -> int:
         return restart_client(args.server)
     for chat in app.all_chats() if hasattr(app, "all_chats") else [app]:   # every tab's tiles
         if chat.busy and chat.cid:
-            print(f"the turn keeps running on the server — `jav3 -r {chat.cid}` re-attaches")
+            print(f"the turn keeps running on the server — `cntrl -r {chat.cid}` re-attaches")
     if getattr(app, "return_code", 0):
         return app.return_code
     return 0
 
 
 def cmd_print(args, out=sys.stdout) -> int:
-    """`jav3 -p message` (or a pipe): one turn, plain text, for scripts."""
+    """`cntrl -p message` (or a pipe): one turn, plain text, for scripts."""
     msg = " ".join(args.prompt or [])
     if not sys.stdin.isatty():
         piped = sys.stdin.read()
@@ -15990,13 +16052,13 @@ def cmd_print(args, out=sys.stdout) -> int:
 
 
 # --- updating this client from its server -------------------------------------------------
-# The server serves the client it holds at /cli/jav3 and says which one that is at
+# The server serves the client it holds at /cli/cntrl (/cli/jav3 on an older server) and says which one that is at
 # /cli/version (both unauthenticated, like the installer). Only this file is replaced:
 # the launcher and the venv belong to install.sh.
 
 UPDATE_CHECK_EVERY = 3600          # seconds between asking the server (a stamp in the config dir)
-UPDATE_NOTICE = "a newer jav3 is on the server: /update"
-UPDATE_RESTART = "Restart jav3 to use it."
+UPDATE_NOTICE = "a newer cntrl is on the server: /update"
+UPDATE_RESTART = "Restart cntrl to use it."
 
 
 def _client_file() -> Path:
@@ -16004,10 +16066,10 @@ def _client_file() -> Path:
 
 
 def _in_checkout(path: Path) -> bool:
-    """clients/jav3cli/jav3 inside a git checkout of the repo: a developer running from
+    """clients/cntrl/cntrl inside a git checkout of the repo: a developer running from
     source, who updates with git (a dotfiles repo around ~ does not count)."""
     d = path.parent
-    return d.name == "jav3cli" and d.parent.name == "clients" and (d.parent.parent / ".git").exists()
+    return d.name == "cntrl" and d.parent.name == "clients" and (d.parent.parent / ".git").exists()
 
 
 def _sha256(data: bytes) -> str:
@@ -16054,7 +16116,7 @@ def _lib_problems(requires) -> list[str]:
 
 def _http_pull(base: str, path: str, transport=None):
     with httpx.Client(base_url=base, timeout=30.0, follow_redirects=False, transport=transport,
-                      headers={"User-Agent": "jav3-cli"}) as c:
+                      headers={"User-Agent": "cntrl-cli"}) as c:
         try:
             return c.get(path)
         except httpx.HTTPError as e:
@@ -16064,7 +16126,7 @@ def _http_pull(base: str, path: str, transport=None):
 def update_client(base: str, path: Path | None = None, transport=None,
                   today: str | None = None) -> str:
     """Replace this client file with the server's, keeping the old one as
-    jav3.bak-<date>. Returns what to tell the user; a CliError says why it did not."""
+    cntrl.bak-<date>. Returns what to tell the user; a CliError says why it did not."""
     import ast
     import shutil
     path = path or _client_file()
@@ -16072,24 +16134,26 @@ def update_client(base: str, path: Path | None = None, transport=None,
     if _in_checkout(path):
         raise CliError(f"you are running from a checkout ({path}); git pull instead")
     if not (os.access(path, os.W_OK) and os.access(path.parent, os.W_OK)):
-        raise CliError(f"{path} is not writable by you, so jav3 cannot update itself there; "
+        raise CliError(f"{path} is not writable by you, so cntrl cannot update itself there; "
                        f"re-run the installer: {install}")
-    r = _http_pull(base, "/cli/jav3", transport)
+    r = _http_pull(base, "/cli/cntrl", transport)
+    if r.status_code == 404:                    # an older server only has the old name
+        r = _http_pull(base, "/cli/jav3", transport)
     if r.is_redirect:
         raise CliError(redirect_hint(base, r.headers.get("location", "")))
     if r.status_code != 200:
-        raise CliError(f"server said {r.status_code} for /cli/jav3: no client to update to")
+        raise CliError(f"server said {r.status_code} for /cli/cntrl (and /cli/jav3): no client to update to")
     data = r.content
     try:
         ast.parse(data.decode("utf-8"))
     except (SyntaxError, ValueError):          # UnicodeDecodeError is a ValueError
-        raise CliError(f"what {base} sent is not valid Python; your jav3 is untouched")
+        raise CliError(f"what {base} sent is not valid Python; your cntrl is untouched")
     if _sha256(data) == _sha256(path.read_bytes()):
-        return "jav3 is up to date: this file is the one the server serves"
+        return "cntrl is up to date: this file is the one the server serves"
     v = _http_pull(base, "/cli/version", transport)
     problems = _lib_problems(v.json().get("requires") if v.status_code == 200 else None)
     if problems:
-        raise CliError("the newer jav3 needs newer libraries than this one runs on: "
+        raise CliError("the newer cntrl needs newer libraries than this one runs on: "
                        + "; ".join(problems) + f". Run the installer, which updates them "
                        f"too: {install}")
     day = today or time.strftime("%Y-%m-%d")
@@ -16109,7 +16173,7 @@ def update_client(base: str, path: Path | None = None, transport=None,
         raise CliError(f"could not write the update next to {path}: {e}")
     finally:
         tmp.unlink(missing_ok=True)
-    return f"jav3 updated ({path}); the old one is kept as {bak.name}. {UPDATE_RESTART}"
+    return f"cntrl updated ({path}); the old one is kept as {bak.name}. {UPDATE_RESTART}"
 
 
 async def _server_client_sha(base: str, transport=None, now: float | None = None) -> str | None:
@@ -16128,7 +16192,7 @@ async def _server_client_sha(base: str, transport=None, now: float | None = None
         return last.get("sha256")
     async with httpx.AsyncClient(base_url=base, timeout=10.0, follow_redirects=False,
                                  transport=transport,
-                                 headers={"User-Agent": "jav3-cli"}) as c:
+                                 headers={"User-Agent": "cntrl-cli"}) as c:
         r = await c.get("/cli/version")
     sha = None
     if r.status_code == 200:
@@ -16216,7 +16280,7 @@ def restart_client(server: str | None, path: Path | None = None, execv=None) -> 
     same terminal and directory, told to pick up restart.json."""
     path = path or _client_file()
     if not sys.executable:
-        raise CliError("could not find this Python to start jav3 again: run jav3 (your tabs "
+        raise CliError("could not find this Python to start cntrl again: run cntrl (your tabs "
                        "and chats come back)")
     argv = [sys.executable, str(path), "--restored"] + (["--server", server] if server else [])
     for f in (sys.stdout, sys.stderr):
@@ -16226,17 +16290,17 @@ def restart_client(server: str | None, path: Path | None = None, execv=None) -> 
         (execv or os.execv)(sys.executable, argv)
     except OSError as e:
         _restart_path().unlink(missing_ok=True)
-        raise CliError(f"could not start jav3 again ({e}): run jav3 (your tabs and chats "
+        raise CliError(f"could not start cntrl again ({e}): run cntrl (your tabs and chats "
                        "come back)")
     return 0
 
 
 def cmd_update(args, out=sys.stdout, transport=None) -> int:
-    """`jav3 update`: replace this client with the one the server serves."""
+    """`cntrl update`: replace this client with the one the server serves."""
     creds = load_credentials()
     address = args.server or (creds or {}).get("address")
     if not address:
-        raise CliError("no server to update from: log in first, or jav3 --server host:port update")
+        raise CliError("no server to update from: log in first, or cntrl --server host:port update")
     print(update_client(base_url(address), transport=transport), file=out)
     return 0
 
@@ -16249,9 +16313,10 @@ SUBCOMMANDS = ("login", "chat", "whoami", "logout", "update")
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="jav3", description="Terminal client for a Jav3 server. With no command, "
+        prog="cntrl", description="Terminal client for a CNTRL server. With no command, "
         "starts the interactive TUI (optionally with a first message).",
-        usage="jav3 [options] [message ...]\n       jav3 {login,chat,whoami,logout,update} ...")
+        usage="cntrl [options] [message ...]\n       cntrl {login,chat,whoami,logout,update} ...")
+    p.add_argument("--version", action="version", version=f"cntrl {CLIENT_VERSION}")
     p.add_argument("--server", help="server address (host:port or URL), overriding the saved one")
     p.add_argument("-p", "--print", dest="print_mode", action="store_true",
                    help="send the message (or stdin), print the reply, exit")
@@ -16276,13 +16341,13 @@ def build_parser() -> argparse.ArgumentParser:
     ch.add_argument("--project", help="pin a new conversation to this project slug")
     sub.add_parser("whoami", help="show who the saved token authenticates as")
     sub.add_parser("logout", help="revoke this computer's token and forget it")
-    sub.add_parser("update", help="replace this jav3 with the newer one on the server")
+    sub.add_parser("update", help="replace this cntrl with the newer one on the server")
     return p
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     """Subcommands as before; anything else is the TUI, and free words are its
-    first message (`jav3 fix the tests`)."""
+    first message (`cntrl fix the tests`)."""
     parser = build_parser()
     takes_value = {"--server", "-r", "--resume", "--model", "--agent", "--project"}
     i = 0
@@ -16308,6 +16373,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
+    migrate_old_config()
     try:
         args = parse_args(argv)
         cmds = {"login": cmd_login, "chat": cmd_chat, "whoami": cmd_whoami,
@@ -16318,7 +16384,7 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_print(args)
         return cmd_tui(args)
     except CliError as e:
-        print(f"jav3: {e}", file=sys.stderr)
+        print(f"cntrl: {e}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         return 130

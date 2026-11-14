@@ -382,7 +382,7 @@ def _notify(slug: str, rel: str) -> None:
         from .memory import flat_line
         bus.publish(NOTICE_CHAN, {
             "type": "memory_pending",
-            "title": "Jav3 wrote to a file that rides every prompt; held for you",
+            "title": "CNTRL wrote to a file that rides every prompt; held for you",
             "summary": flat_line(f"{slug}: {rel}", 80), "to": "/memory"})
     except Exception:  # noqa: BLE001
         pass

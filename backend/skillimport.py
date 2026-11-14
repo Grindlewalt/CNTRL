@@ -3,7 +3,9 @@
 Sources (all fetched HOST-side; the guest never fetches a skill):
   a local folder         /path/to/skill            (the folder holding SKILL.md)
   a git URL              https://host/owner/repo.git[#sub/dir]   shallow clone
-  ClawHub                clawhub:<slug>[@version]  only with JARVIS_SKILL_IMPORT_CLAWHUB
+  a GitHub link          https://github.com/owner/repo[/tree/<ref>/<dir>]  (also /blob/.../SKILL.md)
+  an upload              a dropped folder or .zip (import_upload; recorded as upload:<name>)
+  ClawHub                clawhub:<slug>[@version]  only with CNTRL_SKILL_IMPORT_CLAWHUB
 
 The copy lands in skills/oc-<name>/ with a .pin.json (source, ref, sha256 of
 every file, import time). What the importer never does: run an install hint,
@@ -63,7 +65,7 @@ def _check_url(url: str) -> None:
         return
     if p.scheme != "https":
         raise SkillImportError("git URLs must be https:// (or a host listed in "
-                               "JARVIS_SKILL_IMPORT_ALLOW_HOSTS)")
+                               "CNTRL_SKILL_IMPORT_ALLOW_HOSTS)")
     try:
         websec.is_safe_url(url)
     except websec.UnsafeURL as e:
@@ -86,11 +88,49 @@ def _git(args: list[str], cwd: Path | None = None) -> str:
     return r.stdout.strip()
 
 
-def _clone(url: str, subdir: str, dest: Path) -> str:
-    """Shallow-clone url into dest (sparse to `subdir` when given); returns
-    the commit id."""
+_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,100}$")
+_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$", re.I)
+
+
+def parse_github(link: str) -> tuple[str, str, str] | None:
+    """A github.com link as (clone url, ref, subdir), or None when it is not
+    one. Forms: owner/repo, owner/repo.git, .../tree/<ref>/<dir>, and
+    .../blob/<ref>/<dir>/SKILL.md (the file's folder is the skill). The ref is
+    the FIRST segment after tree/blob: a branch name with a slash is not
+    guessed (use a tag, or the URL#subdir form with a clone URL)."""
+    p = urlparse(link.strip())
+    if p.scheme != "https" or (p.hostname or "").lower() not in ("github.com", "www.github.com"):
+        return None
+    parts = [x for x in p.path.split("/") if x]
+    if len(parts) < 2:
+        return None
+    owner, repo = parts[0], parts[1].removesuffix(".git")
+    clone = f"https://github.com/{owner}/{repo}.git"
+    if len(parts) == 2:
+        return clone, "", ""
+    if parts[2] not in ("tree", "blob") or len(parts) < 4:
+        raise SkillImportError("that GitHub link points at something else; give the "
+                               "repo or a folder of it (.../tree/<branch>/<folder>)")
+    ref, rest = parts[3], parts[4:]
+    if parts[2] == "blob":
+        if not rest or rest[-1].lower() != "skill.md":
+            raise SkillImportError("a GitHub file link must end in SKILL.md")
+        rest = rest[:-1]
+    return clone, ref, "/".join(rest)
+
+
+def _clone(url: str, subdir: str, dest: Path, ref: str = "") -> str:
+    """Shallow-clone url into dest (sparse to `subdir` when given, at the
+    branch or tag `ref` when given); returns the commit id."""
     args = ["clone", "--depth", "1", "--no-tags", "--single-branch",
             "--no-recurse-submodules"]
+    if ref:
+        if _COMMIT_RE.match(ref):
+            raise SkillImportError("a commit id cannot be shallow-cloned: link a "
+                                   "branch or a tag instead")
+        if not _REF_RE.match(ref) or ".." in ref:
+            raise SkillImportError(f"bad branch or tag '{ref}'")
+        args += ["--branch", ref]
     if subdir:
         args += ["--filter=blob:none", "--sparse"]
     _git(args + ["--", url, str(dest)])
@@ -102,13 +142,17 @@ def _clone(url: str, subdir: str, dest: Path) -> str:
 def _fetch_git(source: str, tmp: Path) -> tuple[Path, dict]:
     url, _, subdir = source.partition("#")
     subdir = subdir.strip("/")
+    ref = ""
+    gh = parse_github(url) if not subdir else None
+    if gh:
+        url, ref, subdir = gh
     if subdir and (not _SUBDIR_RE.match(subdir) or ".." in subdir.split("/")):
         raise SkillImportError(f"bad sub-directory '{subdir}'")
     _check_url(url)
     dest = tmp / "repo"
-    ref = _clone(url, subdir, dest)
+    commit = _clone(url, subdir, dest, ref) if ref else _clone(url, subdir, dest)
     shutil.rmtree(dest / ".git", ignore_errors=True)
-    return (dest / subdir if subdir else dest), {"source": source, "ref": ref}
+    return (dest / subdir if subdir else dest), {"source": source, "ref": commit}
 
 
 def _safe_client() -> httpx.Client:
@@ -146,7 +190,7 @@ def _extract_zip(data: bytes, dest: Path) -> None:
 
 def _fetch_clawhub(spec: str, tmp: Path) -> tuple[Path, dict]:
     if not settings.skill_import_clawhub:
-        raise SkillImportError("ClawHub import is off (JARVIS_SKILL_IMPORT_CLAWHUB). "
+        raise SkillImportError("ClawHub import is off (CNTRL_SKILL_IMPORT_CLAWHUB). "
                                "Prefer a vetted git repo or folder.")
     m = _CLAWHUB_RE.match(spec)
     if not m:
@@ -318,3 +362,90 @@ def import_skill(source: str, name: str | None = None, replace: bool = False) ->
         if not src.is_dir():
             raise SkillImportError("that source has no such folder")
         return vendor(src, prov, name=name, replace=replace)
+
+
+# ---------------------------------------------------------------------------
+# Upload (a dropped folder or .zip from the operator's own computer)
+# ---------------------------------------------------------------------------
+def _upload_path(name: str) -> Path:
+    """A relative path from an upload, or a refusal. Names come from the
+    browser, so nothing in them is trusted."""
+    n = name.replace("\\", "/")
+    parts = n.split("/")
+    if (not n or n.startswith("/") or ":" in n or "\x00" in n
+            or any(x in ("", ".", "..") for x in parts[:-1]) or parts[-1] in ("", ".", "..")):
+        raise SkillImportError(f"unsafe path in upload: {name[:80]}")
+    return Path(*parts)
+
+
+def _write_entries(entries: list[tuple[str, bytes]], dest: Path) -> None:
+    if len(entries) > MAX_FILES:
+        raise SkillImportError(f"more than {MAX_FILES} files")
+    total = 0
+    for name, data in entries:
+        rel = _upload_path(name)
+        total += len(data)
+        if total > MAX_TOTAL_BYTES:
+            raise SkillImportError(f"larger than {MAX_TOTAL_BYTES // 1024} KiB")
+        out = dest / rel
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(data)
+
+
+def _zip_entries(data: bytes) -> list[tuple[str, bytes]]:
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile:
+        raise SkillImportError("that is not a readable .zip") from None
+    infos = [i for i in zf.infolist() if not i.is_dir()]
+    out: list[tuple[str, bytes]] = []
+    total = 0
+    for info in zf.infolist():
+        mode = (info.external_attr >> 16) & 0o170000
+        if mode not in (0, 0o100000, 0o040000):
+            raise SkillImportError(f"symlink or special entry in zip: {info.filename[:80]}")
+    if len(infos) > MAX_FILES:
+        raise SkillImportError(f"more than {MAX_FILES} files")
+    for info in infos:
+        _upload_path(info.filename)
+        if info.filename.startswith("__MACOSX/") or info.filename.endswith(".DS_Store"):
+            continue
+        total += info.file_size
+        if total > MAX_TOTAL_BYTES:
+            raise SkillImportError(f"larger than {MAX_TOTAL_BYTES // 1024} KiB")
+        with zf.open(info) as f:               # the header's size can lie: cap the read too
+            body = f.read(MAX_TOTAL_BYTES + 1)
+        if len(body) > MAX_TOTAL_BYTES:
+            raise SkillImportError(f"larger than {MAX_TOTAL_BYTES // 1024} KiB")
+        out.append((info.filename, body))
+    return out
+
+
+def import_upload(files: list[tuple[str, bytes]], name: str | None = None,
+                  replace: bool = False) -> dict:
+    """Import what the operator dropped: a single .zip, or the files of a
+    folder as (relative path, bytes). SKILL.md may sit at the root or inside
+    one top folder. The pin records upload:<folder or zip name>, never a path."""
+    if not files:
+        raise SkillImportError("nothing was uploaded")
+    if len(files) == 1 and files[0][0].lower().endswith(".zip"):
+        label = files[0][0].replace("\\", "/").rsplit("/", 1)[-1]
+        entries = _zip_entries(files[0][1])
+    else:
+        entries = list(files)
+        tops = {e[0].replace("\\", "/").split("/")[0] for e in entries if "/" in e[0]}
+        label = tops.pop() if len(tops) == 1 and all("/" in e[0] for e in entries) else "files"
+    label = re.sub(r"[^\w .@+-]", "_", label)[:80] or "files"
+    with tempfile.TemporaryDirectory(prefix="jav3-skill-") as tmp:
+        root = Path(tmp) / "up"
+        root.mkdir()
+        _write_entries(entries, root)
+        src = root
+        if not (root / "SKILL.md").is_file():
+            tops = [p for p in root.iterdir() if p.is_dir() and not p.is_symlink()
+                    and (p / "SKILL.md").is_file()]
+            if len(tops) != 1:
+                raise SkillImportError("no SKILL.md at the top of the upload")
+            src = tops[0]
+        return vendor(src, {"source": f"upload:{label}", "ref": ""}, name=name,
+                      replace=replace)

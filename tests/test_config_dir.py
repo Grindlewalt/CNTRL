@@ -1,5 +1,5 @@
 """A second instance with its own JARVIS_CONFIG_DIR reads its OWN env file and
-secrets (not the live ~/.config/jarvis ones), and JARVIS_DEEPSEEK_BASE_URL
+secrets (not the live ~/.config/cntrl ones), and JARVIS_DEEPSEEK_BASE_URL
 routes the default model (e2e BUG-2)."""
 import json
 import os
@@ -14,7 +14,8 @@ def test_config_dir_moves_env_file_and_secrets(tmp_path):
     cfg = tmp_path / "cfg"
     cfg.mkdir()
     (cfg / "env").write_text("JARVIS_DEEPSEEK_API_KEY=sk-from-instance\n")
-    env = {k: v for k, v in os.environ.items() if not k.startswith("JARVIS_")}
+    # the old names still work; any CNTRL_ one in the environment would win over them
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("JARVIS_", "CNTRL_"))}
     env["JARVIS_CONFIG_DIR"] = str(cfg)
     code = ("import json; from backend.config import settings, ENV_FILE; "
             "print(json.dumps([str(ENV_FILE), str(settings.secrets_path), "

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the versioned golden guest image for Jav3's sandbox VM.
+# Build the versioned golden guest image for CNTRL's sandbox VM.
 #
 # Flow (proven on this Pi in the pre-prune sandbox layer, trimmed for vsock):
 #   download Debian 13 genericcloud arm64 cloud image -> verify SHA512
@@ -12,13 +12,13 @@
 # script refuses to clobber an existing base image.
 set -euo pipefail
 
-VERSION="${JARVIS_VM_IMAGE_VERSION:-v1}"
+VERSION="${CNTRL_VM_IMAGE_VERSION:-${JARVIS_VM_IMAGE_VERSION:-v1}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Callers pass VM_DIR; by hand, ask the app where the images live (the state
 # dir, or the old in-checkout layout on a not-yet-migrated box).
 if [ -z "${VM_DIR:-}" ]; then
   VM_DIR="$(cd "$SCRIPT_DIR/.." && .venv/bin/python -m backend.cli paths vm_dir 2>/dev/null)" \
-    || VM_DIR="${JARVIS_STATE_DIR:-$HOME/.local/share/jarvis}/data/vm"
+    || VM_DIR="${CNTRL_STATE_DIR:-${JARVIS_STATE_DIR:-$HOME/.local/share/cntrl}}/data/vm"
 fi
 
 # Before a 350 MB download: the provisioning boot is -accel kvm, so without a
@@ -133,7 +133,7 @@ ${pkg_yaml}write_files:
   - path: /etc/systemd/system/jarvis-guest.service
     content: |
       [Unit]
-      Description=Jav3 guest runtime bootstrap (fetch package over vsock, run loop)
+      Description=CNTRL guest runtime bootstrap (fetch package over vsock, run loop)
       After=multi-user.target
       [Service]
       Type=simple
@@ -152,7 +152,7 @@ ${pkg_yaml}write_files:
   - path: /etc/systemd/system/jav3-finish-purge.service
     content: |
       [Unit]
-      Description=Jav3: purge cloud-init at the provisioning poweroff
+      Description=CNTRL: purge cloud-init at the provisioning poweroff
       Before=cloud-final.service
       [Service]
       Type=oneshot

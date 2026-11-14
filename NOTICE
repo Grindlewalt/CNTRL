@@ -1,7 +1,12 @@
+CNTRL
+Copyright 2026 The CNTRL Authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
 Third-party software
 ====================
 
-Jav3 invokes the following tools as separate programs. They are not
+CNTRL invokes the following tools as separate programs. They are not
 vendored or linked; each is installed from the host's package manager.
 
 rclone — https://rclone.org
@@ -21,3 +26,18 @@ models.dev — https://models.dev
   Copyright (c) 2025 models.dev
   Licensed under the MIT License:
   https://github.com/sst/models.dev/blob/dev/LICENSE
+
+Fonts
+=====
+
+The web app ships these font files, unmodified.
+
+Schibsted Grotesk — https://github.com/schibsted/schibsted-grotesk
+  Copyright 2022 The Schibsted Grotesk Project Authors
+  Licensed under the SIL Open Font License, Version 1.1:
+  https://openfontlicense.org
+
+Martian Mono — https://github.com/evilmartians/mono
+  Copyright 2022 The Martian Mono Project Authors
+  Licensed under the SIL Open Font License, Version 1.1:
+  https://openfontlicense.org

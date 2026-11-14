@@ -3,8 +3,9 @@ import { api } from '../api.js'
 import Md from '../Md.jsx'
 import { notify } from '../notify.js'
 import { useAsk } from '../ask.jsx'
+import './runtime.css'
 
-// Everything Jav3 made in project-less chats, grouped by chat: view/edit,
+// Everything CNTRL made in project-less chats, grouped by chat: view/edit,
 // turn a store into a real project, or merge its files into an existing one.
 export default function Artifacts() {
   const [artifacts, setArtifacts] = useState([])
@@ -68,17 +69,17 @@ export default function Artifacts() {
     <div className="split-layout">
       <aside>
         <div className="side-title">Artifacts</div>
-        <input placeholder="search name or content…" value={q}
+        <input placeholder="Search names and contents" value={q}
                onChange={(e) => { setQ(e.target.value); refresh(e.target.value) }} />
         {artifacts.length === 0 && (
-          <p className="dim small">nothing yet — files Jav3 creates in a chat
-            with no project loaded land here</p>
+          <p className="dim small">No artifacts yet. Files CNTRL creates in a chat
+            with no project loaded land here.</p>
         )}
         {artifacts.map((a) => (
           <div key={a.slug} className="artifact-group">
             <div className="side-title row">
               <span className="grow ellipsis" title={a.title}>{a.title}</span>
-              <button className="win-btn" title="delete store" onClick={() => del(a)}>×</button>
+              <button className="link art-del" title="Delete this store" onClick={() => del(a)}>Delete</button>
             </div>
             <ul className="file-list">
               {a.files.map((f) => (
@@ -86,14 +87,14 @@ export default function Artifacts() {
                     className={sel?.slug === a.slug && sel?.path === f.path ? 'active' : ''}
                     onClick={() => setSel({ slug: a.slug, path: f.path })}>
                   <span className="grow ellipsis">{f.path}</span>
-                  <span className="dim small">{f.size}B</span>
+                  <span className="dim small mono">{f.size} B</span>
                 </li>
               ))}
             </ul>
             <div className="row">
-              <button className="ghost" onClick={() => convert(a)}>→ project</button>
+              <button className="ghost" onClick={() => convert(a)}>Make a project</button>
               <select defaultValue="" onChange={(e) => { merge(a, e.target.value); e.target.value = '' }}>
-                <option value="" disabled>merge into…</option>
+                <option value="" disabled>Merge into project</option>
                 {projects.map((p) => <option key={p.slug} value={p.slug}>{p.name}</option>)}
               </select>
             </div>
@@ -102,14 +103,14 @@ export default function Artifacts() {
       </aside>
       <main className="editor-pane">
         {!sel ? (
-          <p className="dim center-pad">pick a file to view or edit</p>
+          <p className="dim center-pad">Pick a file to view or edit it.</p>
         ) : (
           <>
             <div className="pane-head">
               <h3>{sel.path}</h3>
               {isMd && (
                 <button className="ghost" onClick={() => setPreview((v) => !v)}>
-                  {preview ? '✎ edit' : '👁 preview'}</button>
+                  {preview ? 'Edit' : 'Preview'}</button>
               )}
               <button onClick={save} disabled={!dirty}>{dirty ? 'Save' : 'Saved'}</button>
             </div>

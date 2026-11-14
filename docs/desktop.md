@@ -19,7 +19,7 @@ Docker image of it, and a Docker box says so.
 
     agent  desk(action=..., computer="sandbox")  -> backend/desk.py act()
       -- backend/vm/boxdesk.py   a shim `ws`: JSON lines over vsock :5559 {"mode":"desk"}
-      -- guest/backend/display.py  -> child: guest/backend/deskbox.py  (jav3-desk's Session)
+      -- guest/backend/display.py  -> child: guest/backend/deskbox.py  (cntrl-desk's Session)
       -- xdotool / maim on DISPLAY :100
 
 - **Start is explicit.** `GET /api/vm/boxes/{id}/display` only reads (supported?,
@@ -72,7 +72,7 @@ events, and the taint (a screen is untrusted text).
          "(no elements: the box's desktop has no accessibility tree — click by coordinates)"
     desk(action="open", app="terminal", computer="sandbox")   # an xterm on tmux `desk`
     desk(action="click", x=400, y=300, computer="sandbox")    # coordinates of the latest frame
-    desk(action="type", text="jav3 --server 127.0.0.1:8099", computer="sandbox")
+    desk(action="type", text="cntrl --server 127.0.0.1:8099", computer="sandbox")
     desk(action="key", combo="Return", computer="sandbox")
       -> "key done", changed: yes, the new screenshot
 
@@ -101,7 +101,7 @@ events, and the taint (a screen is untrusted text).
 - **Guest.** `display._handle` mode `desk` needs the screen up (it never starts it),
   spawns `python3 -m backend.deskbox` as a child under `memguard.confine` with
   `DISPLAY=:100`, and pipes the host's connection to its stdin/stdout. The child is
-  the operator's `clients/jav3-desk/jav3-desk` (shipped as `backend/jav3_desk.py`) running
+  the operator's `clients/cntrl-desk/cntrl-desk` (shipped as `backend/jav3_desk.py`) running
   its own `Session.pump` over those pipes on an X11 backend (xdotool for input, maim
   for screenshots, Pillow for the settle check). Its apps are the ones in
   `/run/jav3-desk-apps.json` (`terminal`, `browser`); `open url=` goes to the box's
@@ -115,19 +115,19 @@ events, and the taint (a screen is untrusted text).
   `run_code` the agent can type with `tmux send-keys -t desk '...' Enter` and read the
   screen exactly with `tmux capture-pane -p -t desk` (no OCR). The desk playbook says so.
 
-### Trying the jav3 terminal client inside the box
+### Trying the cntrl terminal client inside the box
 
-The box cannot reach the real Jav3 server, on purpose and for good. The agent runs the
-client against the test server in the pushed project workspace (the Jav3 repo as the
+The box cannot reach the real CNTRL server, on purpose and for good. The agent runs the
+client against the test server in the pushed project workspace (the CNTRL repo as the
 project), both baked into the desktop image's `/opt/jav3/py` venv (`httpx`, `textual`):
 
     # run_code, from the workspace root; in the background, output redirected
     python tests/tui_fake_http.py 8099 > /tmp/fake.log 2>&1 &
-    cat /tmp/fake.log     # prints  XDG_CONFIG_HOME=/tmp/tui-fake-... python clients/jav3cli/jav3
+    cat /tmp/fake.log     # prints  XDG_CONFIG_HOME=/tmp/tui-fake-... python clients/cntrl/cntrl
     # then, in the desktop terminal (desk type + key Return, or tmux send-keys -t desk):
-    XDG_CONFIG_HOME=/tmp/tui-fake-... python clients/jav3cli/jav3
+    XDG_CONFIG_HOME=/tmp/tui-fake-... python clients/cntrl/cntrl
 
-The fake serves seeded chats, a running turn, boxes and security rows; `jav3 --server
+The fake serves seeded chats, a running turn, boxes and security rows; `cntrl --server
 127.0.0.1:8099` names it too. The screenshot shows the TUI; `tmux capture-pane` reads it.
 
 ## The operator takes over (P3)
@@ -195,7 +195,7 @@ live desktop use `desk(action="screenshot", computer="sandbox")`.
 ## Building the image
 
 The layer adds tigervnc, openbox, xterm, tmux, xdotool, maim, and (in the
-`/opt/jav3/py` venv) `httpx` and `textual`, so the jav3 terminal client can be tried
+`/opt/jav3/py` venv) `httpx` and `textual`, so the cntrl terminal client can be tried
 in the box without PyPI egress. Guest code needs no image rebuild (it is pushed at
 boot); only the packages do:
 

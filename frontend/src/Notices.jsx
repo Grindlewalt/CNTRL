@@ -22,7 +22,7 @@ import { countsInBadge, isCrit, wantsPing } from './secPing.js'
 // Agent notices cover DEDICATED agents the operator started and then left: the
 // run is detached server-side, so it finishes either way, and this is how they
 // hear about it. A run whose panel is on screen in a visible tab is skipped
-// (agentWatch) — they are already watching it — and the agents Jav3 spawns
+// (agentWatch) — they are already watching it — and the agents CNTRL spawns
 // mid-turn never reach this stream at all.
 //
 // Every string shown here (summaries, commit messages, schedule names) is
@@ -106,19 +106,19 @@ export function useNotices(enabled) {
       })
       const oldGit = new Set((p.git || []).map((g) => g.id))
       ;(d.git || []).filter((g) => !oldGit.has(g.id)).forEach((g) => push({
-        title: `commit request · ${g.project}`, body: g.message,
+        title: `Commit request for ${g.project}`, body: g.message,
       }))
       // a turn is blocked on these for a minute at most: the card goes
       // straight to the ask in Settings → Access → Computer use
       const oldShell = new Set((p.desk_shell || []).map((s) => s.id))
       ;(d.desk_shell || []).filter((s) => !oldShell.has(s.id)).forEach((s) => push({
-        title: `shell on ${s.name} · waiting for you`, body: s.command,
+        title: `shell on ${s.name}, waiting for you`, body: s.command,
         to: '/settings/access#desk', life: 60,
       }))
       const oldSched = new Set((p.schedules || []).map((s) => s.id))
       ;(d.schedules || []).filter((s) => !oldSched.has(s.id)).forEach((s) => push({
-        title: `proposed schedule · ${s.name}`,
-        body: s.kind === 'agent' ? s.agent_slug : 'jav3',
+        title: `proposed schedule, ${s.name}`,
+        body: s.kind === 'agent' ? s.agent_slug : 'cntrl',
       }))
     }
     load()
@@ -150,12 +150,12 @@ export function useNotices(enabled) {
       if (countsInBadge(ev)) setCount((c) => c + 1)  // the next poll re-syncs the real total
       if (!wantsPing(ev)) return
       const crit = isCrit(ev)
-      const n = ev.count > 1 ? ` · ×${ev.count}` : ''
+      const n = ev.count > 1 ? `, ×${ev.count}` : ''
       // eventId deep-links the card to that alert's evidence board, so the one
       // click a draining toast gets lands on the detail rather than the queue
       push({ sev: crit ? 'crit' : 'warn', sticky: crit, eventId: ev.id,
-             title: `security · ${ev.kind || 'alert'}`
-                    + (ev.project_slug || ev.project ? ` · ${ev.project_slug || ev.project}` : '')
+             title: `security, ${ev.kind || 'alert'}`
+                    + (ev.project_slug || ev.project ? `, ${ev.project_slug || ev.project}` : '')
                     + n,
              body: ev.summary || '' })
     })
@@ -199,7 +199,7 @@ export function useNotices(enabled) {
         sev: ev.ok ? 'ok' : 'crit',
         project: ev.project,
         title: `${ev.agent || 'agent'} ${ev.ok ? 'finished' : 'failed'}`
-               + (ev.took ? ` · ${ev.took}` : ''),
+               + (ev.took ? `, ${ev.took}` : ''),
         body: ev.ok ? (ev.summary || 'no output') : (ev.error || 'run failed'),
         life: 14,   // longer than an approval card: this is a result to read
       })

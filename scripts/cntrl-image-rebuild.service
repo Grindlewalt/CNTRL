@@ -1,5 +1,5 @@
 [Unit]
-Description=Jav3 golden-image monthly rebuild (patched kernel)
+Description=CNTRL golden-image monthly rebuild (patched kernel)
 After=network-online.target
 Wants=network-online.target
 
@@ -7,4 +7,4 @@ Wants=network-online.target
 Type=oneshot
 # ~20 min build; give it generous headroom
 TimeoutStartSec=3600
-ExecStart=%h/jarvis/scripts/rebuild_image.sh
+ExecStart=%h/cntrl/scripts/rebuild_image.sh

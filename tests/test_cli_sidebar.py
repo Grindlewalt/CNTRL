@@ -125,9 +125,13 @@ async def test_git_falls_back_to_the_chats_own_modified_files():
     async with app.run_test(size=(130, 40)) as pilot:
         await show(pilot, app)
         app.info = srv.info
-        for _ in range(8):
+        # until the fetches land (up to 5 s), not a fixed count: under a full-suite
+        # load eight ticks were sometimes too few
+        for _ in range(50):
             app._sidebar_tick()
             await pilot.pause(0.1)
+            if "a.py" in text(app, "sb-files"):
+                break
         assert "Modified Files" in text(app, "sb-files") and "a.py" in text(app, "sb-files")
 
 

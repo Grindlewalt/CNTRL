@@ -1,9 +1,9 @@
-/* Settings → Computer use: one row per computer logged in with `jav3-desk`
+/* Settings → Computer use: one row per computer logged in with `cntrl-desk`
  * (backend/desk.py, desk_api.py).
  *
  * The grants are the server's half of the gate: Screen, Input, Shell, set
  * here and nowhere else. The computer's own ceiling is the other half — shell
- * reads "off until enabled at the computer" while `jav3-desk allow-shell` has
+ * reads "off until enabled at the computer" while `cntrl-desk allow-shell` has
  * not been run there, whatever this switch says. Shell commands a turn is
  * waiting on appear at the top with Allow once / Always / Deny (an in-page
  * ask: iOS standalone suppresses window.confirm). Stop turns every grant off
@@ -72,13 +72,13 @@ export default function DeskPanel() {
           {data.pending.map((p) => (
             <li key={p.id} className="desk-ask">
               <div className="desk-ask-main">
-                <span className="dim small">{p.name} · {p.reason}</span>
+                <span className="dim small">{p.name}: {p.reason}</span>
                 <code className="desk-cmd">{p.command}</code>
               </div>
               <div className="settings-actions">
+                <Button variant="ghost" onClick={() => decide(p.id, 'deny')}>Deny</Button>
+                <Button variant="ghost" onClick={() => decide(p.id, 'always')}>Always allow</Button>
                 <Button onClick={() => decide(p.id, 'once')}>Allow once</Button>
-                <Button variant="ghost" onClick={() => decide(p.id, 'always')}>Always</Button>
-                <Button variant="ghost" danger onClick={() => decide(p.id, 'deny')}>Deny</Button>
               </div>
             </li>
           ))}
@@ -86,7 +86,7 @@ export default function DeskPanel() {
       )}
       {data === null ? <EmptyState>loading…</EmptyState>
         : data.desks.length === 0 ? (
-          <EmptyState>No computers. Log one in with <code>jav3-desk login</code>.</EmptyState>
+          <EmptyState>No computers. Log one in with <code>cntrl-desk login</code>.</EmptyState>
         ) : (
           <ul className="device-list desk-list">
             {data.desks.map((d) => (
@@ -142,7 +142,7 @@ function DeskRow({ d, minutes, put, stop }) {
           <Select aria-label={`Shell mode on ${d.name}`} value={g.shell}
                   onChange={(e) => put({ shell: e.target.value })}
                   options={[{ value: 'ask', label: 'Ask' },
-                            { value: 'trusted', label: `Trusted · ${minutes} min` }]} />
+                            { value: 'trusted', label: `Trusted for ${minutes} min` }]} />
         )}
         {g.shell !== 'off' && localShell === false && (
           <span className="warn small">off until enabled at the computer</span>

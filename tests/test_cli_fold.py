@@ -1,4 +1,4 @@
-"""Tool steps fold into one line (clients/jav3cli/jav3): a live line with step,
+"""Tool steps fold into one line (clients/cntrl/cntrl): a live line with step,
 time and tokens while the turn runs, a summary after, ctrl+o to open every step,
 and the ▣ footer with ↑ ↓ and tok/s from the server's `usage` events."""
 import pytest
@@ -9,7 +9,7 @@ from test_cli_running import Feed, _plain, _start, _until, jav3
 @pytest.fixture
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 # --- the text -----------------------------------------------------------------------------

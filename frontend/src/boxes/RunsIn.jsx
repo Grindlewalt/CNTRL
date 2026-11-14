@@ -90,7 +90,7 @@ export default function RunsIn({ slug }) {
                   onClick={() => send({ mode: 'profile' })}>Use profile default</Button>)}
       </div>
       <div className="small">Now: <b>{effectiveText(eff, data.profile?.name)}</b>
-        {!data.enabled && <span className="dim"> · boxes are off on this server: every
+        {!data.enabled && <span className="dim">, boxes are off on this server: every
           project runs in the shared box until they are on</span>}</div>
       {warnings.map((w) => <div key={w} className="error small">{w}</div>)}
 
@@ -101,8 +101,8 @@ export default function RunsIn({ slug }) {
             <span className={`bx-dot ${b.state === 'running' ? 'on' : ''}`}>●</span>
             <span className="grow">
               <span className="mono">{b.id}</span>
-              {' '}<span className="dim small">{b.image} · {runtimeLabel(b.runtime)} · {b.state}
-                {b.used_by?.length ? ` · ${b.used_by.join(', ')}` : ''}</span>
+              {' '}<span className="dim small">{b.image}, {runtimeLabel(b.runtime)}, {b.state}
+                {b.used_by?.length ? `, ${b.used_by.join(', ')}` : ''}</span>
             </span>
             {b.id === eff.box_id ? <Tag>current</Tag> : (
               <Button variant="ghost" disabled={busy} onClick={() => chooseBox(b)}>Use this</Button>)}
@@ -123,7 +123,7 @@ export default function RunsIn({ slug }) {
           {items.map((it) => (it.type === 'box' ? (
             <li key={it.key}>
               <span className="grow"><span className="mono">{it.box.id}</span>
-                {' '}<span className="dim small">{it.box.image} · {runtimeLabel(it.box.runtime)} · {it.box.state}
+                {' '}<span className="dim small">{it.box.image}, {runtimeLabel(it.box.runtime)}, {it.box.state}
                   {it.box.used_by?.length ? ` (in use: ${it.box.used_by.join(', ')})` : ''}</span></span>
               {it.box.id === eff.box_id ? <Tag>current</Tag> : (
                 <Button variant="ghost" disabled={busy} onClick={() => chooseBox(it.box)}>Pick</Button>)}

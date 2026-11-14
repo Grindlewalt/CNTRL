@@ -141,7 +141,7 @@ def test_rclone_absent_status_says_so(tmp_env, monkeypatch):
 
 
 def test_next_scheduled_is_iso_utc(monkeypatch):
-    out = '[{"next":1790212426795078,"unit":"jarvis-backup.timer"}]'
+    out = '[{"next":1790212426795078,"unit":"cntrl-backup.timer"}]'
     monkeypatch.setattr(backup.subprocess, "run", lambda argv, **kw:
                         subprocess.CompletedProcess(argv, 0, stdout=out, stderr=""))
     assert backup.next_scheduled() == "2026-09-24T01:13:46+00:00"

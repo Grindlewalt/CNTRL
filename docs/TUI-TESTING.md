@@ -1,16 +1,16 @@
 # Testing the terminal client
 
-The client is `clients/jav3cli/jav3` (one file, Textual). The operator's terminal is macOS
+The client is `clients/cntrl/cntrl` (one file, Textual). The operator's terminal is macOS
 Terminal.app: **256 colours** (a blended colour rounds to grey, so accents are solid theme
 colours) and **no shift+arrows** (every key route needs a plain key).
 
 ## For the operator
 
-- Install: `curl -fsSL http://10.0.0.82:8000/cli/install.sh | sh`, then `jav3 login` (paste the
-  line from Settings → Add computer; chat only) or `jav3 login --password` (full access: /vms,
-  /security). `jav3 --server 10.0.0.82:8000` points one run at another server with the saved login.
-  An installed copy updates itself: `/update` (or `jav3 update`) after the notice
-  "a newer jav3 is on the server"; a checkout says `git pull` instead.
+- Install: `curl -fsSL http://10.0.0.82:8000/cli/install.sh | sh`, then `cntrl login` (paste the
+  line from Settings → Add computer; chat only) or `cntrl login --password` (full access: /vms,
+  /security). `cntrl --server 10.0.0.82:8000` points one run at another server with the saved login.
+  An installed copy updates itself: `/update` (or `cntrl update`) after the notice
+  "a newer cntrl is on the server"; a checkout says `git pull` instead.
 - Pages (jav3.2): `/agents [finished]`, `/security [tab]`, `/vms [tab]` open over the chat with the
   prompt left as one line under them. On a page `/` jumps to that line (type `/vms images`, enter),
   `esc` goes back to the page before (the chat first), `ctrl+c` or `/work` straight to the chat,
@@ -36,7 +36,7 @@ colours) and **no shift+arrows** (every key route needs a plain key).
     in the agents drawer `→` / `←` go into / out of an entry's sub-agents (`←` at the top, `→` in
     the sessions drawer, closes). Each lists what runs or needs you first, then a few recent.
   - Chat: send a message; tool rows show on one line, enter on a picked row opens it; `ctrl+c`
-    stops the turn; `shift+tab` cycles permissions; `ctrl+x l` lists chats, `jav3 -c` resumes.
+    stops the turn; `shift+tab` cycles permissions; `ctrl+x l` lists chats, `cntrl -c` resumes.
   - `/vms`: tabs Boxes, Images, Catalogue (`tab`, `1`-`3`); up/down picks a box, `enter` shows its
     history, `s` `r` `x` `d` `c` ask before they act; the rows refresh by themselves.
   - `/security`: Queue first (y approve, n deny, a acknowledge); `1`-`8` jump to Network, Logs,

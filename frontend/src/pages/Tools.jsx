@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api.js'
 import { notify, notifyError } from '../notify.js'
 import Page from '../components/Page.jsx'
@@ -8,7 +8,9 @@ import Tag, { Badge } from '../components/Tag.jsx'
 import Toggle from '../components/Toggle.jsx'
 import EmptyState from '../components/EmptyState.jsx'
 import { IMPORT_TIP, TOOLS_LEDE, builtinState } from '../securityCopy.js'
-import { groupTools, heading, oneLine } from '../toolGroups.js'
+import { describeUpload, fromDrop, fromFileList } from '../skillDrop.js'
+import { groupTools, oneLine } from '../toolGroups.js'
+import './manage.css'
 
 // Three groups (GET /api/tools `group`): the operator's own skills, open;
 // imported OpenClaw skills, each a card with its requirements and a grant
@@ -77,8 +79,8 @@ function ImportedCard({ t, onChanged }) {
       {reason && <div className="tool-meta tool-lock">{reason}</div>}
       {/* one line: a URL broken anywhere read as "skills/weat / her" */}
       <div className="tool-meta tool-src"
-           title={[t.pin?.source, t.pin?.ref].filter(Boolean).join(' · ') || undefined}>
-        {t.pin?.source}{ref && ` · ${ref}`}
+           title={[t.pin?.source, t.pin?.ref].filter(Boolean).join(', ') || undefined}>
+        {t.pin?.source}{ref && `, ${ref}`}
       </div>
       <details className="output-fold tool-text">
         <summary>View text</summary>
@@ -89,22 +91,52 @@ function ImportedCard({ t, onChanged }) {
 }
 
 function ImportBar({ onDone, onClose }) {
-  const [source, setSource] = useState('')
+  const [picked, setPicked] = useState([])      // [{ path, file }] from a drop or a picker
+  const [link, setLink] = useState('')
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [over, setOver] = useState(false)
+  const [err, setErr] = useState('')
+  const zipInput = useRef(null)
+  const dirInput = useRef(null)
+
+  const what = picked.length ? describeUpload(picked) : link.trim()
+
+  function take(items) {
+    setErr('')
+    setLink('')
+    setPicked(items)
+    if (items.length) setConfirming(true)
+    else setErr('Nothing to import there.')
+  }
 
   async function run() {
     setBusy(true)
+    setErr('')
     try {
-      const r = await api('/api/skills/import', {
-        method: 'POST', body: JSON.stringify({ source: source.trim() }),
-      })
-      const flags = r.flags?.length ? ` · ${r.flags.length} flagged` : ''
+      let r
+      if (picked.length) {
+        // each file's name is its relative path; the server unpacks under it
+        const form = new FormData()
+        for (const { path, file } of picked) form.append('files', file, path)
+        const res = await fetch('/api/skills/import/upload', { method: 'POST', body: form })
+        if (!res.ok) {
+          let detail = res.statusText
+          try { detail = (await res.json()).detail || detail } catch { /* not json */ }
+          throw new Error(detail)
+        }
+        r = await res.json()
+      } else {
+        r = await api('/api/skills/import', {
+          method: 'POST', body: JSON.stringify({ source: link.trim() }),
+        })
+      }
+      const flags = r.flags?.length ? `, ${r.flags.length} flagged` : ''
       notify(`Imported ${r.name} — not granted${flags}`,
              r.flags?.length ? { sev: 'warn' } : {})
       onDone()
     } catch (e) {
-      notifyError(e)
+      setErr(e.message || 'Import failed')       // shown in place, not just a toast
       setConfirming(false)
     } finally { setBusy(false) }
   }
@@ -114,7 +146,7 @@ function ImportBar({ onDone, onClose }) {
       {confirming ? (
         <>
           <span className="grow tool-import-ask">
-            Import <code>{source.trim()}</code>? It lands ungranted.
+            Import <code>{what}</code>? It lands switched off until you grant it.
           </span>
           <Button onClick={run} disabled={busy}>{busy ? 'Importing…' : 'Import'}</Button>
           <Button variant="ghost" onClick={() => setConfirming(false)} disabled={busy}>
@@ -123,25 +155,46 @@ function ImportBar({ onDone, onClose }) {
         </>
       ) : (
         <>
-          <Input autoFocus value={source} aria-label="Skill folder or git URL"
-                 placeholder="folder path or https git URL#subdir"
-                 onChange={(e) => setSource(e.target.value)}
+          <div className={`tool-drop${over ? ' over' : ''}`}
+               onDragOver={(e) => { e.preventDefault(); setOver(true) }}
+               onDragLeave={() => setOver(false)}
+               onDrop={async (e) => {
+                 e.preventDefault()
+                 setOver(false)
+                 try { take(await fromDrop(e.dataTransfer)) } catch (x) { setErr(x.message) }
+               }}>
+            <span className="grow">Drop a skill folder or .zip here</span>
+            <Button variant="ghost" onClick={() => zipInput.current?.click()}>Choose a .zip</Button>
+            <Button variant="ghost" onClick={() => dirInput.current?.click()}>Choose a folder</Button>
+            <input ref={zipInput} type="file" accept=".zip,application/zip" hidden
+                   onChange={(e) => { take(fromFileList(e.target.files)); e.target.value = '' }} />
+            <input ref={dirInput} type="file" webkitdirectory="" hidden
+                   onChange={(e) => { take(fromFileList(e.target.files)); e.target.value = '' }} />
+          </div>
+          <Input autoFocus value={link} aria-label="GitHub link"
+                 placeholder="Paste a GitHub link"
+                 onChange={(e) => { setLink(e.target.value); setPicked([]) }}
                  onKeyDown={(e) => {
-                   if (e.key === 'Enter' && source.trim()) setConfirming(true)
+                   if (e.key === 'Enter' && link.trim()) setConfirming(true)
                    if (e.key === 'Escape') onClose()
                  }} />
-          <Button onClick={() => setConfirming(true)} disabled={!source.trim()}>
+          <Button onClick={() => setConfirming(true)} disabled={!link.trim()}>
             Next
           </Button>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
         </>
       )}
+      {err && <p className="tool-import-err" role="alert">{err}</p>}
     </div>
   )
 }
 
-function GateTags({ labels }) {
-  return labels.map((g) => <Tag key={g} className="tool-gate" title="when the model is offered it">{g}</Tag>)
+// What a tool needs, as one quiet line instead of a tag each
+function Needs({ core, labels }) {
+  const bits = [core && 'Always offered', ...labels].filter(Boolean)
+  if (!bits.length) return null
+  const text = bits.join(', ')
+  return <div className="tool-meta">{text}</div>
 }
 
 // One action of a merged tool (or the one action of a standalone tool): its
@@ -157,11 +210,11 @@ function ActionRow({ row, gating, shared }) {
         <span className="dim small tool-old" title="the tool folder: the old name, and the name a transcript shows">
           {row.name}</span>
         <span className="grow" />
-        <GateTags labels={gating} />
-        {row.internal && <Tag title="the harness uses it; the model is not offered it on a normal turn">internal</Tag>}
-        <Tag tone={st.tone || undefined}>{st.word}</Tag>
+        {row.internal && <span className="dim small" title="the harness uses it; the model is not offered it on a normal turn">internal</span>}
+        <span className={`small tool-state ${st.tone || ''}`}>{st.word}</span>
       </div>
       <div className="dim small builtin-desc">{oneLine(row.description)}</div>
+      <Needs labels={gating} />
       {row.reason && row.reason !== shared && <div className="small builtin-why">{row.reason}</div>}
       {(more || row.when_to_use) && (
         <details className="output-fold tool-text">
@@ -181,12 +234,11 @@ function ToolCard({ t }) {
       <article className="tool-card tool-merged">
         <div className="tool-card-head">
           <code>{t.name}</code>
-          {t.core && <Tag title="in every turn's tool list">core</Tag>}
-          <GateTags labels={t.gating} />
-          <Tag tone={t.offered === n ? 'done' : t.offered ? 'pending' : undefined}>
-            {t.offered === n ? `${n} on` : `${t.offered} of ${n} on`}</Tag>
+          <span className={`small tool-state ${t.offered === n ? 'done' : t.offered ? 'pending' : ''}`}>
+            {t.offered === n ? `${n} on` : `${t.offered} of ${n} on`}</span>
         </div>
         {t.about && <p>{t.about}</p>}
+        <Needs core={t.core} labels={t.gating} />
         {t.reason && <div className="small builtin-why">{t.reason}</div>}
         <ul className="tool-actions">
           {t.actions.map((a) => (
@@ -203,12 +255,11 @@ function ToolCard({ t }) {
     <article className="tool-card">
       <div className="tool-card-head">
         <code>{t.name}</code>
-        {t.core && <Tag title="in every turn's tool list">core</Tag>}
-        {row.internal && <Tag title="the harness uses it; the model is not offered it on a normal turn">internal</Tag>}
-        <Tag tone={st.tone || undefined}>{st.word}</Tag>
+        {row.internal && <span className="dim small" title="the harness uses it; the model is not offered it on a normal turn">internal</span>}
+        <span className={`small tool-state ${st.tone || ''}`}>{st.word}</span>
       </div>
-      {t.gating.length > 0 && <div className="tool-reqs"><GateTags labels={t.gating} /></div>}
       <p>{t.about}</p>
+      <Needs core={t.core} labels={t.gating} />
       {row.reason && <div className="small builtin-why">{row.reason}</div>}
       {(more || row.when_to_use) && (
         <details className="output-fold tool-text">
@@ -229,13 +280,14 @@ export function BuiltinTools({ rows, sections }) {
   return (
     <>
       <h2 className="section-h">
-        Built-in · {heading(g)}
-        {searching && <span className="dim"> · {g.shownActions} match</span>}
+        Built-in tools
+        <span className="dim"> {g.tools} tools, {g.actions} actions
+          {searching && `, ${g.shownActions} match`}</span>
       </h2>
       <p className="dim small tools-help">{BUILTIN_HELP}</p>
       <div className="tools-bar">
         <Input value={query} aria-label="Search built-in tools"
-               placeholder="search by tool, action or old name"
+               placeholder="Search by tool, action or old name"
                onChange={(e) => setQuery(e.target.value)} />
         {(internal || g.internalActions > 0) && (
           <Toggle checked={internal} onChange={setInternal} label="Show internal tools"
@@ -243,7 +295,7 @@ export function BuiltinTools({ rows, sections }) {
                   offText={`Show internal (${g.internalActions})`} />
         )}
       </div>
-      {g.sections.length === 0 && <EmptyState>No built-in tool matches</EmptyState>}
+      {g.sections.length === 0 && <EmptyState>No built-in tool matches that search.</EmptyState>}
       {g.sections.map((sec) => (
         <section key={sec.name}>
           <h3 className="tools-sec">{sec.name}
@@ -276,7 +328,7 @@ export default function Tools() {
   const builtin = list.filter((t) => t.group === 'builtin')
 
   return (
-    <Page title="Tools" lede={TOOLS_LEDE}
+    <Page title="Tools" className="tools-page" lede={TOOLS_LEDE}
           actions={!importing && (
             <Button variant="ghost" title={IMPORT_TIP} onClick={() => setImporting(true)}>
               Import a skill</Button>

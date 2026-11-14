@@ -102,8 +102,8 @@ export function groupTools(rows, sections = [], opts = {}) {
   }
 }
 
-// "26 tools · 81 actions"
+// "26 tools, 81 actions"
 export function heading(g) {
   const n = (k, one, many) => `${k} ${k === 1 ? one : many}`
-  return `${n(g.tools, 'tool', 'tools')} · ${n(g.actions, 'action', 'actions')}`
+  return `${n(g.tools, 'tool', 'tools')}, ${n(g.actions, 'action', 'actions')}`
 }

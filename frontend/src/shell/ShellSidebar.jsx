@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api.js'
 import ChatGroups, { listTitle } from '../ChatGroups.jsx'
+import { UiGlyph } from './glyphs.jsx'
 
 // The shell's left column, top to bottom:
 //
 //   Needs you   chats whose scope has something waiting on the operator — a
 //               git commit request, a network host, a plan item that stopped
 //               to ask (GET /api/sidebar `needs`)
-//   Working     every other chat with a live turn, any project, Jav3 or agent
+//   Working     every other chat with a live turn, any project, CNTRL or agent
 //   …           ChatGroups: Projects, Starred, folders, Recent — the same
 //               component the Chat page mounts, fed from the same response
 //   foot        the sandbox line
@@ -21,7 +22,7 @@ function what(n) {
   if (n.egress) bits.push(`${n.egress} site${n.egress > 1 ? 's' : ''}`)
   if (n.git) bits.push(`${n.git} commit${n.git > 1 ? 's' : ''}`)
   if (n.plan) bits.push(`${n.plan} plan question${n.plan > 1 ? 's' : ''}`)
-  return bits.join(' · ')
+  return bits.join(', ')
 }
 
 function LiveSection({ label, children }) {
@@ -60,9 +61,9 @@ export default function ShellSidebar({
       <div className="sh-side-head">
         <span className="sh-side-title">Chats</span>
         <button type="button" className="icon-btn" title="new chat" aria-label="new chat"
-                onClick={onNew}>＋</button>
+                onClick={onNew}><UiGlyph name="plus" /></button>
         <button type="button" className="icon-btn sh-side-close" title="close"
-                aria-label="close chats" onClick={onClose}>✕</button>
+                aria-label="close chats" onClick={onClose}><UiGlyph name="close" /></button>
       </div>
       <div className="sh-side-scroll">
         {needs.length > 0 && (
@@ -100,7 +101,7 @@ export default function ShellSidebar({
                 </button>
                 <button type="button" className="win-btn sh-stop" title="stop this turn"
                         aria-label={`stop ${listTitle(c)}`} disabled={stopping === c.id}
-                        onClick={(e) => stop(e, c.id)}>◼</button>
+                        onClick={(e) => stop(e, c.id)}><UiGlyph name="stop" size={12} /></button>
               </li>
             ))}
           </LiveSection>
@@ -114,7 +115,7 @@ export default function ShellSidebar({
         )}
       </div>
       {/* the sandbox line lived here; the boxes are on the VMs page now */}
-      <div className="sh-side-foot"><Link className="sh-side-vms small dim" to="/vms">VMs →</Link></div>
+      <div className="sh-side-foot"><Link className="sh-side-vms small dim" to="/vms">VMs</Link></div>
     </aside>
   )
 }

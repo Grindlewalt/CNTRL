@@ -105,7 +105,7 @@ async def _session(client_recv, client_send, slug: str | None):
     from .vm.lifecycle import vm, VMError
     if not settings.guest_shell_enabled:
         await client_send(json.dumps({"type": "o",
-            "data": _b64("guest shell is disabled (JARVIS_GUEST_SHELL_ENABLED)\r\n")}))
+            "data": _b64("guest shell is disabled (CNTRL_GUEST_SHELL_ENABLED)\r\n")}))
         return
     try:
         await vm.acquire()                          # boots if needed + pins

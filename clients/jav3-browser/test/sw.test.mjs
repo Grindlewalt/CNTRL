@@ -190,12 +190,12 @@ test('a different site in the iframe asks the operator first, and a denial stops
   store.local.sites = { 'deltamath.com': 'allow', 'accounts.google.com': 'deny' };
   const res = await ask('click', { tab: 7, x: 1280, y: 974 });
   assert.deepEqual([res.ok, res.code], [false, 'failed']);
-  assert.match(res.err, /the operator blocked Jav3 on accounts\.google\.com/);
+  assert.match(res.err, /the operator blocked CNTRL on accounts\.google\.com/);
   assert.deepEqual(dbg.calls, []);
   store.local.sites = { 'deltamath.com': 'allow', 'accounts.google.com': 'allow' };
 });
 
-test('the debugger is never attached to a tab Jav3 did not open', async () => {
+test('the debugger is never attached to a tab CNTRL did not open', async () => {
   gsiPages(); reset();
   tabsState[99] = { id: 99, url: 'https://deltamath.com/', status: 'complete', active: true, windowId: 1 };
   const res = await ask('click', { tab: 99, element: 'f0:1' });

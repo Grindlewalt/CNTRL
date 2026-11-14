@@ -4,6 +4,8 @@ import json
 import httpx
 import pytest
 
+from cli_fake import mounted_name
+
 from test_cli import _open_security, _posts, _rows, _security_server, _text, _until, cfg, jav3  # noqa: F401
 
 ENV = {"id": 4, "project_slug": "frc-sim", "name": "sim-gl", "from_variant": "desktop",
@@ -83,7 +85,7 @@ async def test_skill_fetch_then_install(cfg):
         _sel(scr, "sk")
         assert "fetch" in scr.foot_keys()
         await pilot.press("y")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         await pilot.press("y")
         assert await _until(pilot, lambda: ("POST", "/api/skill-requests/2/fetch", None)
                             in _posts(seen))
@@ -94,7 +96,7 @@ async def test_skill_fetch_then_install(cfg):
         assert "UNMET" in d and "\\[b]bold" in d and "ab12" in d
         assert "install & grant" in scr.foot_keys()
         await pilot.press("y")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         await pilot.press("y")
         assert await _until(pilot, lambda: (
             "POST", "/api/skill-requests/2/approve",
@@ -110,7 +112,7 @@ async def test_env_approve_sends_build(cfg):
         scr = await _queue(pilot, app)
         _sel(scr, "ev")
         await pilot.press("y")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         await pilot.press("y")
         assert await _until(pilot, lambda: (
             "POST", "/api/environments/4/approve",

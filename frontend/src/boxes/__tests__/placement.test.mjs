@@ -70,7 +70,7 @@ t('effectiveText', () => {
   assert.equal(effectiveText({ mode: 'join', box_id: 'p-mc', owner: 'mc', source: 'project' }),
     "p-mc, mc's box (shared with it)")
   assert.match(effectiveText({ mode: 'own', box_id: 'p-a', runtime: 'docker', image: 'dev',
-    mem_mb: 600, source: 'project' }), /own container p-a · image dev · 600 MB$/)
+    mem_mb: 600, source: 'project' }), /own container p-a, image dev, 600 MB$/)
 })
 
 console.log(`${n} placement tests passed`)

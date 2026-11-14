@@ -14,10 +14,10 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .config import settings
+from .config import env_get, settings
 from .db import get_db
 
-log = logging.getLogger("jav3.gitgate")
+log = logging.getLogger("cntrl.gitgate")
 
 GIT_TIMEOUT = 30
 NET_TIMEOUT = 120       # push / fetch / ls-remote cross the internet on a Pi
@@ -41,13 +41,18 @@ HARNESS_PATHSPECS = (".staging", ".workspace.json", ".context.json", ".todo.md",
                      ".todo-archive.md", ".plan.json", f":(glob){ROLLUP_GLOB}")
 # The managed block of a project's .gitignore. Everything between the markers is
 # rewritten by ensure_gitignore, so a project's own rules go outside it.
-MANAGED_BEGIN = ("# >>> Jav3 harness files: managed by Jav3 (rewritten on load); "
+MANAGED_BEGIN = ("# >>> CNTRL harness files: managed by CNTRL (rewritten on load); "
                  "your own rules go outside this block")
-MANAGED_END = "# <<< Jav3 harness files"
+MANAGED_END = "# <<< CNTRL harness files"
+# A project from before the rename to CNTRL has the same block under "Jav3"
+# markers: it is still the managed block, and left as is while its lines are
+# current (rewriting it would only change a tracked file in every project).
+_BEGIN_MARKS = ("# >>> CNTRL harness files", "# >>> Jav3 harness files")
+_END_MARKS = ("# <<< CNTRL harness files", "# <<< Jav3 harness files")
 GITIGNORE = "\n".join([
     MANAGED_BEGIN, ".staging/", ".workspace.json", ".context.json", ".todo.md",
     ".todo-archive.md", "/.plan.json", f"/{ROLLUP_GLOB}", "data/", MANAGED_END]) + "\n"
-_EXCLUDE = "# Jav3 runtime files (written by the host)\n" + "".join(
+_EXCLUDE = "# CNTRL runtime files (written by the host)\n" + "".join(
     f"{p}\n" for p in _EXCLUDE_PATTERNS)
 
 
@@ -115,13 +120,13 @@ def ensure_gitignore(slug: str) -> bool:
             return False
         have = path.read_text() if path.exists() else ""
         lines = have.splitlines()
-        begin = next((i for i, l in enumerate(lines)
-                      if l.startswith("# >>> Jav3 harness files")), None)
+        begin = next((i for i, l in enumerate(lines) if l.startswith(_BEGIN_MARKS)), None)
         end = next((i for i, l in enumerate(lines)
-                    if begin is not None and i > begin
-                    and l.startswith("# <<< Jav3 harness files")), None)
+                    if begin is not None and i > begin and l.startswith(_END_MARKS)), None)
         block = GITIGNORE.splitlines()
         if begin is not None and end is not None:
+            if lines[begin + 1:end] == block[1:-1]:
+                return False
             new = lines[:begin] + block + lines[end + 1:]
         else:
             # none, or a damaged one (an end marker lost): add a whole block at
@@ -171,7 +176,7 @@ async def harness_notice(slug: str) -> list[str]:
     except OSError:
         fresh = tracked
     return [f"{t} is tracked; run `git rm --cached {t}` to stop committing it "
-            "(Jav3 leaves it out of every commit meanwhile)" for t in fresh]
+            "(CNTRL leaves it out of every commit meanwhile)" for t in fresh]
 
 
 # per-slug init lock: git_status/git_diff are read_only-flagged, so the loop
@@ -185,7 +190,7 @@ async def ensure_repo(slug: str) -> None:
         d = _project_dir(slug)
         if not (d / ".git").exists():
             await run_git(slug, "init", "-q", check=True)
-            await run_git(slug, "config", "user.name", "Jav3", check=True)
+            await run_git(slug, "config", "user.name", "CNTRL", check=True)
             await run_git(slug, "config", "user.email", settings.git_author_email,
                           check=True)
         ensure_gitignore(slug)
@@ -211,7 +216,7 @@ async def ensure_repo(slug: str) -> None:
 def github_token() -> str | None:
     from . import secrets as secrets_store
     return (secrets_store.load().get("GITHUB_TOKEN")
-            or os.environ.get("JARVIS_GITHUB_TOKEN") or None)
+            or env_get("GITHUB_TOKEN") or None)
 
 
 def valid_remote(url: str) -> bool:
@@ -772,19 +777,6 @@ async def _approve_merge(db, rid: int, row: dict) -> dict:
         error = f"{error}; {note}" if error else note
     async with db.execute("SELECT github_remote FROM projects WHERE slug = ?", (slug,)) as cur:
         prow = await cur.fetchone()
-    if prow and prow["github_remote"]:
-        try:
-            await push_to_remote(slug)
-        except (RuntimeError, ValueError) as e:
-            error = f"push failed: {e}"
-    if gitea.enabled():
-        try:
-            await gitea.ensure_remote_repo(slug)
-            gerr = await gitea.push_main(slug)
-        except (RuntimeError, ValueError) as e:
-            gerr = f"committed; main not pushed to Gitea: {gitea.scrub(str(e))}"
-        if gerr:
-            error = f"{error}; {gerr}" if error else gerr
     try:
         from . import edithistory
         await edithistory.after_apply(slug, None, {"applied": applied, "deleted": deleted},
@@ -792,11 +784,13 @@ async def _approve_merge(db, rid: int, row: dict) -> dict:
     except Exception as e:                          # noqa: BLE001
         log.warning("edit history after merge: %s", e)
     await _cleanup_merge(slug, pl)
-    if gitea.enabled():
-        await gitea.close_merge_mirror(slug, pl, merged=True)
     await db.execute("UPDATE git_requests SET status = 'approved', commit_sha = ?, error = ?, "
                      "decided_at = datetime('now') WHERE id = ?", (new, error, rid))
     await db.commit()
+    # the pushes, then the Gitea mirror PR closed (Gitea marks it merged once main
+    # holds its head), after the answer: see _mirror
+    after = (lambda: gitea.close_merge_mirror(slug, pl, merged=True)) if gitea.enabled() else None
+    _mirror_later(slug, rid, github=bool(prow and prow["github_remote"]), after=after)
     return await _fetch_request(db, rid)
 
 
@@ -945,7 +939,7 @@ async def approve_request(rid: int, slug: str | None = None) -> dict:
             await db.commit()
             return await _fetch_request(db, rid)
         try:
-            await run_git(slug, "-c", "user.name=Jav3",
+            await run_git(slug, "-c", "user.name=CNTRL",
                           "-c", f"user.email={settings.git_author_email}",
                           "commit", "-m", message, check=True)
         except RuntimeError as e:
@@ -955,31 +949,86 @@ async def approve_request(rid: int, slug: str | None = None) -> dict:
             await db.commit()
             raise
         _, sha, _ = await run_git(slug, "rev-parse", "HEAD", check=True)
-        error = None
         async with db.execute("SELECT github_remote FROM projects WHERE slug = ?",
                               (slug,)) as cur:
             prow = await cur.fetchone()
-        if prow and prow["github_remote"]:
-            try:
-                await push_to_remote(slug)
-            except (RuntimeError, ValueError) as e:
-                error = f"push failed: {e}"  # commit stands
-        if gitea.enabled():
-            # main mirrors to Gitea as the operator (protected against the bot)
-            try:
-                await gitea.ensure_remote_repo(slug)
-                gerr = await gitea.push_main(slug)
-            except (RuntimeError, ValueError) as e:
-                gerr = f"committed; main not pushed to Gitea: {gitea.scrub(str(e))}"
-            if gerr:
-                error = f"{error}; {gerr}" if error else gerr
         await db.execute(
-            "UPDATE git_requests SET status = 'approved', commit_sha = ?, error = ?, "
-            "decided_at = datetime('now') WHERE id = ?", (sha.strip(), error, rid))
+            "UPDATE git_requests SET status = 'approved', commit_sha = ?, error = NULL, "
+            "decided_at = datetime('now') WHERE id = ?", (sha.strip(), rid))
         await db.commit()
+        _mirror_later(slug, rid, github=bool(prow and prow["github_remote"]))
         return await _fetch_request(db, rid)
     finally:
         await db.close()
+
+
+# --- after a commit: the pushes, in the background ---------------------------------
+# The commit is the approval; pushing main to the project's GitHub remote and to its
+# Gitea mirror follows it. Inline they held the operator's click for two seconds on
+# the Pi (2026-11-10: the push to Gitea ~1 s, the repo checks ~0.8 s, the commit
+# 70 ms). One push at a time per project (the next one carries every commit since);
+# a failure goes onto the request's error and into the Queue as git_mirror_failed.
+
+_mirror_locks: dict[str, asyncio.Lock] = {}
+_mirror_tasks: set[asyncio.Task] = set()
+
+
+def _mirror_later(slug: str, rid: int, *, github: bool, after=None) -> None:
+    task = asyncio.create_task(_mirror(slug, rid, github, after))
+    _mirror_tasks.add(task)
+    task.add_done_callback(_mirror_tasks.discard)
+
+
+async def _mirror(slug: str, rid: int, github: bool, after=None) -> None:
+    """`after`: a coroutine function run once the pushes are done (a merge's mirror
+    PR is closed only after main holds its head); it must not raise."""
+    from . import gitea
+    async with _mirror_locks.setdefault(slug, asyncio.Lock()):
+        error = None
+        try:
+            if github:
+                try:
+                    await push_to_remote(slug)
+                except (RuntimeError, ValueError) as e:
+                    error = f"committed; push failed: {e}"
+            if gitea.enabled():
+                # main mirrors to Gitea as the operator (protected against the bot)
+                try:
+                    await gitea.ensure_remote_repo(slug)
+                    gerr = await gitea.push_main(slug)
+                except (RuntimeError, ValueError) as e:
+                    gerr = f"committed; main not pushed to Gitea: {gitea.scrub(str(e))}"
+                if gerr:
+                    error = f"{error}; {gerr}" if error else gerr
+        except Exception as e:      # noqa: BLE001 - a background push must not vanish silently
+            error = f"committed; the push after it failed: {type(e).__name__}: {e}"
+        if after is not None:
+            try:
+                await after()
+            except Exception as e:  # noqa: BLE001
+                log.warning("after the push for request #%s: %s", rid, e)
+        if not error:
+            return
+        db = await get_db()
+        try:
+            # added to what the approval wrote (a merge's held or skipped files)
+            await db.execute("UPDATE git_requests SET error = CASE WHEN error IS NULL OR "
+                             "error = '' THEN ? ELSE error || '; ' || ? END WHERE id = ?",
+                             (error, error, rid))
+            await db.commit()
+            from . import security
+            await security.raise_event(
+                db, kind="git_mirror_failed", severity="warn", project=slug,
+                summary=f"commit #{rid} in {slug} landed, but the push after it failed",
+                detail={"request_id": rid, "error": error[:500]})
+        finally:
+            await db.close()
+
+
+async def mirror_idle() -> None:
+    """Wait until the background pushes are done (tests; a clean shutdown)."""
+    while _mirror_tasks:
+        await asyncio.gather(*list(_mirror_tasks), return_exceptions=True)
 
 
 async def reject_request(rid: int, slug: str | None = None) -> dict:

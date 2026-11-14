@@ -123,7 +123,7 @@ async def test_items_reaches_every_running_or_waiting_item_once_each(client):
         sorted(cids.values())                         # one stored row per live item
     assert len(rows) == 2                             # the todo item took a note instead
     assert all(r["body"] == "PRE-FLIGHT: use the shared schema" for r in rows)
-    assert all(r["from_label"] == "jav3" for r in rows)
+    assert all(r["from_label"] == "cntrl" for r in rows)
     notes = plan_mod.load(SLUG)["items"][2]["notes"]
     assert [n["body"] for n in notes] == ["PRE-FLIGHT: use the shared schema"]
 
@@ -222,4 +222,4 @@ async def test_a_guest_call_with_a_list_goes_through_the_gateway(client):
     assert [(r["to_conversation_id"], r["body"]) for r in rows] == [
         (cids["i1"], "both of you"), (cids["i2"], "both of you"),
         (cids["i1"], "all of you"), (cids["i2"], "all of you")]
-    assert {r["from_label"] for r in rows} == {"jav3"}
+    assert {r["from_label"] for r in rows} == {"cntrl"}

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Drive the real jav3 terminal client in a pty and read its screen, in ONE command.
 
-The client (clients/jav3cli/jav3) runs unmodified under pexpect with TERM=xterm-256color
+The client (clients/cntrl/cntrl) runs unmodified under pexpect with TERM=xterm-256color
 and no COLORTERM (what macOS Terminal.app gives it); pyte renders the bytes it writes.
 Steps are joined with "|" (a literal pipe is "\\|"):
 
@@ -51,7 +51,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
-CLI = REPO / "clients" / "jav3cli" / "jav3"
+CLI = REPO / "clients" / "cntrl" / "cntrl"
 PI = "10.0.0.82:8000"
 TERM = "xterm-256color"
 
@@ -698,7 +698,7 @@ def driven(*, fake: bool = False, server: str | None = None, size=(120, 40),
         if fake:
             sys.path.insert(0, str(REPO / "tests"))
             import tui_fake_http as tf
-            srv = tf.SeededServer()
+            srv = tf.SeededServer(client=Path(cli))
             http = tf.HttpFake(srv.handle)      # bound; served after the client has forked
             config = str(Path(tmp) / "config")
             cdir = Path(config) / "jav3"

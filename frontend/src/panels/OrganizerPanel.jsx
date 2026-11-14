@@ -44,7 +44,7 @@ export default function OrganizerPanel({ slug }) {
     const path = await ask.prompt('New directory', '',
       { placeholder: 'e.g. images, docs/refs', confirmLabel: 'Next' })
     if (!path) return
-    const mark = await ask.prompt('Mark for Jav3 — what belongs here?', '',
+    const mark = await ask.prompt('Mark for CNTRL — what belongs here?', '',
       { body: 'Optional.', confirmLabel: 'Create directory' }) || ''
     await api(`/api/projects/${slug}/mkdir`, {
       method: 'POST', body: JSON.stringify({ path, mark }) })
@@ -54,7 +54,7 @@ export default function OrganizerPanel({ slug }) {
   async function editMark(dir) {
     const mark = await ask.prompt(
       `Mark for ${dir.path || 'project root'}`, dir.mark,
-      { body: 'Tell Jav3 what goes here.', confirmLabel: 'Save' })
+      { body: 'Tell CNTRL what goes here.', confirmLabel: 'Save' })
     if (mark === null) return
     await api(`/api/projects/${slug}/dirs/mark`, {
       method: 'PUT', body: JSON.stringify({ path: dir.path, mark }) })
@@ -95,7 +95,7 @@ export default function OrganizerPanel({ slug }) {
   return (
     <div className="pane-col">
       <div className="row">
-        <span className="dim grow">drag files between directories · marks tell Jav3
+        <span className="dim grow">drag files between directories, marks tell CNTRL
           what belongs where</span>
         <button className="ghost" onClick={newDir}>+ dir</button>
       </div>
@@ -110,7 +110,7 @@ export default function OrganizerPanel({ slug }) {
             <div className="dir-head">
               <span className="dir-name">{d.path ? `${d.path}/` : 'project root'}</span>
               <button type="button" className={d.mark ? 'dir-mark' : 'dir-mark unset'}
-                      onClick={() => editMark(d)} title="edit the mark Jav3 reads">
+                      onClick={() => editMark(d)} title="edit the mark CNTRL reads">
                 {d.mark || 'add a mark'}
               </button>
               <button className="win-btn" title="upload here"

@@ -1,4 +1,4 @@
-"""The permission dialog (clients/jav3cli/jav3, AskUser): it names the agent that asks,
+"""The permission dialog (clients/cntrl/cntrl, AskUser): it names the agent that asks,
 says a command or a path once, numbers what the keys pick, and keeps its options and
 key line on screen at 80x24 whatever the command is (TUI-06)."""
 import pytest
@@ -11,7 +11,7 @@ jav3 = load_client("jav3cli_permdlg")
 @pytest.fixture(autouse=True)
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 def perm(tool, question, detail, aid="ask_p", agent="Write c.txt", cid=601):

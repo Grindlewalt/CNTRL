@@ -14,6 +14,8 @@ import Composer from './Composer.jsx'
 import ScopeChip from './ScopeChip.jsx'
 import { useApprovals } from './approvals.js'
 import Dock, { tabsFor } from './Dock.jsx'
+import { UiGlyph } from './glyphs.jsx'
+import '../pages/work.css'
 
 // The terminal-style shell: sidebar · transcript · (dock, M2).
 //
@@ -284,7 +286,7 @@ export default function Shell() {
         <header className="sh-head">
           {phone && (
             <button type="button" className="icon-btn" aria-label="chats"
-                    title="chats" onClick={() => setDrawer(true)}>☰</button>
+                    title="chats" onClick={() => setDrawer(true)}><UiGlyph name="menu" /></button>
           )}
           <span className="sh-title ellipsis" title={convo?.summary || title}>{title}</span>
           <div className="sh-head-meta">
@@ -306,7 +308,7 @@ export default function Shell() {
           </div>
         </header>
         <Transcript cid={cid} messages={messages} expandAll={expandAll} fresh={fresh}
-                    slug={slug} side={side} agentName={agentSlug ? agentName(agentSlug) : 'Jav3'}
+                    slug={slug} side={side} agentName={agentSlug ? agentName(agentSlug) : 'CNTRL'}
                     temporary={temporary} onOpen={open} approvals={approvals}
                     onReview={() => openDock('git')} />
         <div className="sh-ask"><AskPanel asks={asks} cid={cid ?? liveId.current} /></div>

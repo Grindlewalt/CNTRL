@@ -94,6 +94,6 @@ export function effectiveText(eff, profileName) {
     : profileName ? ` (default of the ${profileName} profile)` : ' (profile default)'
   if (eff.mode === 'shared') return `the shared box${from}`
   if (eff.mode === 'join') return `${eff.box_id}, ${eff.owner}'s box (shared with it)`
-  return `its own ${runtimeLabel(eff.runtime)} ${eff.box_id} · image ${eff.image || 'main'}`
-    + `${eff.mem_mb ? ` · ${eff.mem_mb} MB` : ''}${from}`
+  return `its own ${runtimeLabel(eff.runtime)} ${eff.box_id}, image ${eff.image || 'main'}`
+    + `${eff.mem_mb ? `, ${eff.mem_mb} MB` : ''}${from}`
 }

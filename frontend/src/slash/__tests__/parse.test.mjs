@@ -75,5 +75,5 @@ test('transcriptMarkdown', () => {
     { role: 'error', content: 'x' },
     { role: 'assistant', content: 'yo', activity: [{ name: 'web_read', ok: false }] },
   ])
-  assert.equal(md, '# T\n\n## You\n\nhi\n\n## Jav3\n\n- web_read (failed)\nyo\n')
+  assert.equal(md, '# T\n\n## You\n\nhi\n\n## CNTRL\n\n- web_read (failed)\nyo\n')
 })

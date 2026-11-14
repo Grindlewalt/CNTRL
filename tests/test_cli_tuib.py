@@ -10,7 +10,7 @@ import time
 import httpx
 import pytest
 
-from cli_fake import load_client, pin_zone, wait_for
+from cli_fake import load_client, mounted_name, pin_zone, until, wait_for
 
 jav3 = load_client("jav3cli_tuib")
 
@@ -68,15 +68,11 @@ def _srv(routes=None, seen=None):
 
 
 async def _until(pilot, cond, tries=80):
-    for _ in range(tries):
-        if cond():
-            return True
-        await pilot.pause(0.05)
-    return cond()
+    return await until(cond, lambda: pilot.pause(0.05), tries * 0.05)
 
 
 def _top(app) -> str:
-    return type(app.top).__name__
+    return mounted_name(app.top)
 
 
 def _rows(scr):
@@ -484,7 +480,7 @@ async def test_a_text_screenshot_leaves_out_the_completion_popup_TUI14(tmp_path,
         assert app.popup_open()
         await app.c_screenshot("snap txt")
         assert not app.popup_open()
-        shot = (home / "Pictures" / "jav3" / "snap.txt").read_text()
+        shot = (home / "Pictures" / "cntrl" / "snap.txt").read_text()
         assert "plain text" not in shot and "txt  " not in shot
         assert "saved " in " ".join(str(w.render()) for w in app.query("Static"))   # in the log
 
@@ -613,7 +609,7 @@ def test_jav3_login_password_asks_for_address_user_and_password_TUIB16(monkeypat
 
 def test_the_not_logged_in_hint_names_both_logins_and_a_lapsed_session_the_password_TUIB16(
         monkeypatch):
-    assert "jav3 login --password" in jav3.RELOGIN and "chat only" in jav3.RELOGIN
+    assert "cntrl login --password" in jav3.RELOGIN and "chat only" in jav3.RELOGIN
     monkeypatch.setattr(jav3, "load_credentials", lambda: {"address": "h", "session": "x"})
     assert jav3.relogin() == jav3.RELOGIN_SESSION and "--password" in jav3.relogin()
     monkeypatch.setattr(jav3, "load_credentials", lambda: {"address": "h", "token": "jvd_x"})

@@ -42,7 +42,7 @@ const rows = [
 // the default view: no internal tools, one card per tool the model sees
 let g = groupTools(rows, sections)
 assert.deepEqual(g.sections.map((s) => s.name), ['files', 'browser', 'system'])
-assert.equal(heading(g), '3 tools · 5 actions')            // read_file, browser(3), ask_user
+assert.equal(heading(g), '3 tools, 5 actions')            // read_file, browser(3), ask_user
 assert.equal(g.internalTools, 2)                            // plans, inbox_fetch
 assert.equal(g.internalActions, 3)
 const browser = g.sections[1].tools[0]
@@ -69,7 +69,7 @@ assert.equal(g.sections[1].tools[0].reason, '')              // they differ: eac
 
 // show internal: plans comes back as one merged tool with two actions
 g = groupTools(rows, sections, { internal: true })
-assert.equal(heading(g), '5 tools · 8 actions')
+assert.equal(heading(g), '5 tools, 8 actions')
 assert.deepEqual(g.sections.map((s) => s.name), ['files', 'browser', 'plans', 'system'])
 assert.equal(g.sections[2].tools[0].actions.length, 2)
 assert.deepEqual(g.sections[2].tools[0].gating, ['plan items only'])
@@ -80,7 +80,7 @@ g = groupTools(rows, sections, { query: 'browser_click' })
 assert.equal(g.shownActions, 1)
 assert.equal(g.sections[0].tools[0].name, 'browser')
 assert.equal(g.sections[0].tools[0].actions[0].row.name, 'browser_click')
-assert.equal(heading(g), '3 tools · 5 actions')              // the heading is the catalogue's
+assert.equal(heading(g), '3 tools, 5 actions')              // the heading is the catalogue's
 assert.equal(groupTools(rows, sections, { query: 'browser click' }).shownActions, 1)
 assert.equal(groupTools(rows, sections, { query: 'browser' }).shownActions, 3)
 assert.equal(groupTools(rows, sections, { query: 'needs extension' }).shownActions, 3)
@@ -92,9 +92,9 @@ assert.equal(groupTools(rows, sections, { query: 'plan_status', internal: true }
 assert.equal(rowMatches(rows[0], ''), true)
 
 // empty and missing data
-assert.equal(heading(groupTools([], [])), '0 tools · 0 actions')
-assert.equal(heading(groupTools(null)), '0 tools · 0 actions')
-assert.equal(heading({ tools: 1, actions: 1 }), '1 tool · 1 action')
+assert.equal(heading(groupTools([], [])), '0 tools, 0 actions')
+assert.equal(heading(groupTools(null)), '0 tools, 0 actions')
+assert.equal(heading({ tools: 1, actions: 1 }), '1 tool, 1 action')
 // a section the API did not describe still shows, and a row with none is "other"
 g = groupTools([row('x', { section: 'zzz' }), row('y', { section: undefined })], [])
 assert.deepEqual(g.sections.map((s) => s.name), ['zzz', 'other'])

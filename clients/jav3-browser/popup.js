@@ -23,13 +23,13 @@ async function render() {
   $('dot').className = 'dot ' + status;
   $('status').textContent = status === 'connected' ? `connected as ${l.name}` : status;
   $('err').textContent = s.error || '';
-  $('pause').textContent = l.paused ? 'Resume Jav3' : 'Pause Jav3';
+  $('pause').textContent = l.paused ? 'Resume CNTRL' : 'Pause CNTRL';
   $('pause').classList.toggle('paused', l.paused);
   $('pause').disabled = !l.token;
-  $('pausedNote').textContent = l.paused ? 'Paused: Jav3 cannot use this browser until you resume.' : '';
+  $('pausedNote').textContent = l.paused ? 'Paused: CNTRL cannot use this browser until you resume.' : '';
   $('disconnect').disabled = !l.token;
   $('asksBox').hidden = !s.asks.length;
-  $('asks').replaceChildren(...s.asks.map(site => li(`Allow Jav3 on ${site}?`, [
+  $('asks').replaceChildren(...s.asks.map(site => li(`Allow CNTRL on ${site}?`, [
     ['Allow', () => cmd({ cmd: 'answer', site, allow: true }), 'primary'],
     ['Deny', () => cmd({ cmd: 'answer', site, allow: false })]])));
   const entries = Object.entries(l.sites);
@@ -38,7 +38,7 @@ async function render() {
       const cur = (await chrome.storage.local.get({ sites: {} })).sites;
       delete cur[site];
       await chrome.storage.local.set({ sites: cur });
-    }]])) : [li('none yet; Jav3 asks on its first visit to each site', [])]));
+    }]])) : [li('none yet; CNTRL asks on its first visit to each site', [])]));
 }
 
 $('pause').onclick = async () => {
@@ -46,7 +46,7 @@ $('pause').onclick = async () => {
   await cmd({ cmd: paused ? 'resume' : 'pause' });
 };
 $('disconnect').onclick = async () => {
-  if (confirm('Disconnect this browser from Jav3? Its token is revoked; you will need a new code to pair again.')) {
+  if (confirm('Disconnect this browser from CNTRL? Its token is revoked; you will need a new code to pair again.')) {
     await cmd({ cmd: 'disconnect' });
   }
 };

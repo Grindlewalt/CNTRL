@@ -77,8 +77,8 @@ SECTIONS: dict[str, dict] = {
                   "fetches and sanitizes them for you.",
         "lead": ["search", "summarize", "read", "research"], "notes_max": 450},
     "browser": {
-        "about": "operate web pages in Jav3's own tabs in the operator's browser",
-        "merged": "Operate web pages in Jav3's own tabs in the operator's browser: read a "
+        "about": "operate web pages in CNTRL's own tabs in the operator's browser",
+        "merged": "Operate web pages in CNTRL's own tabs in the operator's browser: read a "
                   "page's text and element ids, then act on those ids; open, list, "
                   "navigate and close tabs.",
         "triggers": r"\b(browser|tabs?|web ?page|website|site|log ?in|sign ?in|click|"
@@ -146,7 +146,7 @@ SECTIONS: dict[str, dict] = {
     "system": {
         "about": "your own manual, reporting a harness fault",
         "merged": "Your own technical manual, and a report that the harness itself misbehaved.",
-        "triggers": r"\b(jav3|jarvis|harness|your (own )?(docs|manual|architecture|tools)|"
+        "triggers": r"\b(cntrl|jav3|jarvis|harness|your (own )?(docs|manual|architecture|tools)|"
                     r"how do you work)\b"},
     "skills": {"about": "installed skills (calling one loads its instructions), and "
                         "asking the operator to install another"},

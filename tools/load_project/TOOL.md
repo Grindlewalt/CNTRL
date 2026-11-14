@@ -10,7 +10,7 @@ parameters:
   properties:
     slug:
       type: string
-      description: The project's slug (shown in your all-projects context, e.g. "jav3").
+      description: The project's slug (shown in your all-projects context, e.g. "cntrl").
   required: [slug]
 ---
 The result carries the new project.md (first 4000 chars) and your context

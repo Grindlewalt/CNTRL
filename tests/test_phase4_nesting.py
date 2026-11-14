@@ -18,6 +18,7 @@ import tarfile
 import tempfile
 
 from backend.vm.guest_pkg import build_package_tar
+from tests.platform_caps import GUEST_SOCKET_SHIM
 
 
 def _extract_pkg():
@@ -57,7 +58,7 @@ def test_guest_turn_state_is_task_local():
         "        turn('guest:9', 'projB', [{'b': 2}], '', 8))\n"
         "    print('OUT:' + ','.join(res))\n"
         "asyncio.run(main())\n")
-    r = subprocess.run([sys.executable, "-S", "-c", script], cwd=d,
+    r = subprocess.run([sys.executable, "-S", "-c", GUEST_SOCKET_SHIM + script], cwd=d,
                        env={"PYTHONPATH": d, "PATH": os.environ.get("PATH", "")},
                        capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr

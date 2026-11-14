@@ -6,7 +6,7 @@ import { TERMINAL_ONLY, terminalAnswer, terminalCommandNames } from '../terminal
 import { findCommand, matchCommands, parseInput } from '../parse.js'
 
 const here = (p) => new URL(p, import.meta.url)
-const terminalSource = readFileSync(here('../../../../clients/jav3cli/jav3'), 'utf8')
+const terminalSource = readFileSync(here('../../../../clients/cntrl/cntrl'), 'utf8')
 const commandsSource = readFileSync(here('../commands.js'), 'utf8')
 
 // The web registry read from its source: commands.js imports browser modules

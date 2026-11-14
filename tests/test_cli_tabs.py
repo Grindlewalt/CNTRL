@@ -127,7 +127,9 @@ async def test_ctrl_w_in_the_prompt_closes_the_tile_instead_of_deleting_a_word()
         await pilot.press("ctrl+w")
         assert await wait_for(lambda: len(app.chats) == 1)
         assert closing.text == "hello brave world"   # nothing was deleted from the prompt
-        # the other way to delete a word still works
+        # the other way to delete a word still works, in the tile that is left once
+        # its prompt has the keyboard
+        assert await wait_for(lambda: app.editor is not closing and app.editor.has_focus)
         app.editor.text = "hello brave world"
         app.editor.move_cursor(app.editor.document.end)
         await pilot.press("alt+backspace")

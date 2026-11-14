@@ -1,4 +1,4 @@
-"""The terminal client while a turn runs (clients/jav3cli/jav3): one line per
+"""The terminal client while a turn runs (clients/cntrl/cntrl): one line per
 tool call, what came back in a few words, the steady status line and the ▣
 footer, rows that stop when the turn fails, picking and opening a row, and the
 "↓ n new" hint when the operator has scrolled up."""
@@ -11,7 +11,9 @@ from pathlib import Path
 import httpx
 import pytest
 
-CLI = Path(__file__).resolve().parent.parent / "clients" / "jav3cli" / "jav3"
+from cli_fake import until
+
+CLI = Path(__file__).resolve().parent.parent / "clients" / "cntrl" / "cntrl"
 
 
 def _load():
@@ -28,7 +30,7 @@ jav3 = _load()
 @pytest.fixture
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 # --- pure helpers ----------------------------------------------------------------------
@@ -183,11 +185,7 @@ class Feed:
 
 
 async def _until(pilot, cond, n=80):
-    for _ in range(n):
-        if cond():
-            return True
-        await pilot.pause(0.05)
-    return cond()
+    return await until(cond, lambda: pilot.pause(0.05), n * 0.05)
 
 
 def _plain(widget) -> str:
@@ -231,7 +229,7 @@ async def test_parallel_calls_are_one_line_each_and_keep_their_own_results(cfg):
                   {"type": "final", "content": "All read.", "conversation_id": 9})
         assert await _until(pilot, lambda: not app.busy)
         foot = _plain(list(app.query("Footer"))[-1])
-        assert foot.startswith("▣ Jav3 · deepseek-flash · ") and "3 tools" in foot
+        assert foot.startswith("▣ CNTRL · deepseek-flash · ") and "3 tools" in foot
         assert "$0.01" in foot or "$0.00" in foot
 
 
@@ -243,7 +241,9 @@ async def test_a_failed_turn_stops_its_rows_and_hands_messages_back(cfg):
         await _start(pilot, app, feed)
         feed.send({"type": "tool", "id": "c1", "name": "run_code",
                    "args": {"command": "npm test"}})
-        assert await _until(pilot, lambda: len(app.query("ToolView")) == 1)
+        # in the DOM first, mounted (and so ticking) after
+        assert await _until(pilot, lambda: len(app.query("ToolView")) == 1
+                            and app.query_one("ToolView").is_mounted)
         tv = app.query_one("ToolView")
         assert tv in app.live_tools                # its timer is ticking
         feed.send({"type": "error", "message": "the VM stopped responding",

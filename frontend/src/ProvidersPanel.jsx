@@ -31,8 +31,8 @@ import Button from './components/Button.jsx'
 import Card from './components/Card.jsx'
 import EmptyState from './components/EmptyState.jsx'
 import Input from './components/Input.jsx'
-import Tag from './components/Tag.jsx'
 import Toggle from './components/Toggle.jsx'
+import './pages/manage.css'
 
 // models.dev ids, in the order OpenCode shows them
 const POPULAR = ['openai', 'anthropic', 'google', 'deepseek', 'openrouter', 'groq',
@@ -170,7 +170,7 @@ export default function ProvidersPanel() {
       <div className="stack">
         <p className="dim small settings-note">
           Keys are stored on this server and never enter the sandbox VM.
-          {data.source && <> Prices: {sourceText(data.source)}.</>}</p>
+          {data.source && <> Prices: <span className="nowrap">{sourceText(data.source)}</span>.</>}</p>
         <Input type="search" aria-label="Search providers" placeholder="Search providers"
                value={q} onChange={(e) => setQ(e.target.value)} />
         {none && <EmptyState>No provider matches “{q.trim()}”.</EmptyState>}
@@ -238,11 +238,10 @@ function ProviderRow({
           <strong className="ellipsis">{nameOf(p)}</strong>
         </button>
         <div className="prov-facts">
-          {p.kind && <Tag>{p.kind}</Tag>}
           {needsKey(p) && (
             <span className={`small prov-key ${key === 'not set' ? '' : 'ok'}`}
                   title={key === 'env' ? 'key comes from the server environment' : undefined}>
-              key {key}</span>
+              {key === 'not set' ? 'No key' : key === 'env' ? 'Key from environment' : 'Key set'}</span>
           )}
           {blocked && <span className="small prov-key warn">needs base URL</span>}
           {p.enabled && on !== null && (
@@ -251,7 +250,7 @@ function ProviderRow({
           )}
           {p.docs && (
             <a className="prov-docs" href={p.docs} target="_blank" rel="noreferrer noopener"
-               aria-label={`${nameOf(p)} docs`} title="docs">↗</a>
+               aria-label={`${nameOf(p)} docs`}>Docs</a>
           )}
         </div>
         <Toggle label={`${nameOf(p)} enabled`} checked={!!p.enabled}
@@ -341,7 +340,7 @@ function TestLine({ p, onTested }) {
     try {
       const r = await api(`/api/providers/${enc(p.id)}/test`, { method: 'POST' })
       const n = r.models_found?.length ?? 0
-      setRes(r.ok ? { ok: true, text: `ok · ${n} model${n === 1 ? '' : 's'}` }
+      setRes(r.ok ? { ok: true, text: `ok, ${n} model${n === 1 ? '' : 's'}` }
         : { ok: false, text: r.detail || 'failed' })
       if (r.ok && n) onTested()          // found models join the list
     } catch (e) {
@@ -400,7 +399,7 @@ function ModelList({ p, models: all, putModel }) {
             <li key={m.id} className="prov-model">
               <div className="prov-model-main">
                 <span className="ellipsis" title={m.id}>{m.label || m.id}</span>
-                {meta.length > 0 && <span className="dim small">{meta.join(' · ')}</span>}
+                {meta.length > 0 && <span className="dim small">{meta.join(', ')}</span>}
               </div>
               <label className={canDefault ? 'prov-default' : 'prov-default off'}
                      title={canDefault ? 'the model new turns use'

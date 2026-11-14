@@ -40,7 +40,7 @@ _COPY_MODULES = {
     "backend/headless.py": "backend/headless.py",
     # the operator's computer-use client, as it is: the box desktop's agent seat
     # (guest/backend/deskbox.py) runs its Session on display :100
-    "backend/jav3_desk.py": "clients/jav3-desk/jav3-desk",
+    "backend/jav3_desk.py": "clients/cntrl-desk/cntrl-desk",
 }
 
 # IN_GUEST_TOOLS and BOX_ONLY_TOOLS live in backend/agent/tools/inguest.py (imported

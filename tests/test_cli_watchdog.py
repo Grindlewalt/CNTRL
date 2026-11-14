@@ -1,4 +1,4 @@
-"""Never silently frozen (clients/jav3cli/jav3): whose fault a failure is, a dead stream
+"""Never silently frozen (clients/cntrl/cntrl): whose fault a failure is, a dead stream
 that times out into the reattach loop, the quiet-turn lines, and the pulse that settles
 a turn the server finished without telling us."""
 import time
@@ -39,7 +39,7 @@ def test_refused_is_the_servers():
     where, text = jav3.classify_net_error(
         httpx.ConnectError("All connection attempts failed"), BASE)
     assert where == "server"
-    assert text == ("10.0.0.82 refuses connections on :8000 — the jav3 server is down "
+    assert text == ("10.0.0.82 refuses connections on :8000 — the cntrl server is down "
                     "or restarting")
 
 
@@ -54,7 +54,7 @@ def test_timeouts_and_resets():
 
 def test_statuses_and_server_messages():
     assert jav3.classify_status(502) == (
-        "server", "the proxy answers but the jav3 server behind it doesn't (502)")
+        "server", "the proxy answers but the cntrl server behind it doesn't (502)")
     assert jav3.classify_status(500, "boom") == ("server", "server error: boom")
     assert jav3.classify_message("model API 429: slow down") == (
         "provider", "the model provider failed: model API 429: slow down")

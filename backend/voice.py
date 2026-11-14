@@ -29,7 +29,7 @@ a false alarm loses nothing.
 
 **The verdict is evidence, not word count.** It used to be "the transcript came
 back non-empty", and that is why someone playing guitar in the same room could
-stop Jav3 mid-sentence: the browser's RMS gate trips on any loud sound,
+stop CNTRL mid-sentence: the browser's RMS gate trips on any loud sound,
 whisper is handed music and returns fluent invented words, and non-empty text
 read as the operator talking. The sidecar now sends what it actually knows —
 silero's speech ratio for the clip and whisper's own confidence — and
@@ -134,7 +134,7 @@ BARGE_MIN_SPEECH_RATIO = 0.30
 
 # Double clap = music, no model in the loop: the browser detects the gesture
 # and this dispatches music_play directly (an algorithm, not a conversation).
-# The agent can still control the result — it's the same Jav3 player.
+# The agent can still control the result — it's the same CNTRL player.
 # The live list is in session_state, edited by the clap_tracks tool; the
 # tuple is only the never-configured default.
 CLAP_TRACKS = ("Kickstart My Heart", "Should I Stay or Should I Go")
@@ -510,7 +510,7 @@ class VoiceSession:
         if kind == "ready":
             self.wake_enabled = bool(ev.get("wake"))
             await self._send_json({"type": "ready", "wake": ev.get("wake")})
-            # The sidecar holds no Jav3 state, so the names the operator
+            # The sidecar holds no CNTRL state, so the names the operator
             # actually says have to be pushed to it on every connect.
             asyncio.create_task(self._push_vocab())
             if self.wake_enabled and self.state == LISTENING:
@@ -562,7 +562,7 @@ class VoiceSession:
         actually says. Track titles and artists are the words whisper gets
         wrong most, and they are exactly the ones a wrong guess acts on (the
         wrong song plays). Best-effort: no vocabulary just means no bias."""
-        words: list[str] = ["Jav3"]
+        words: list[str] = ["Jav3"]      # the spoken name (wake words: voice_text)
         try:
             from .tarmac import cached_library
             tracks = await cached_library(settings.voice_library_max_tracks,
@@ -1156,7 +1156,7 @@ class VoiceSession:
         token = runtime.gui_tab.set(self.tab or None)
         try:
             result = await tool_dispatch(
-                "music_play", {"query": title, "where": "jav3"})
+                "music_play", {"query": title, "where": "page"})
         finally:
             runtime.gui_tab.reset(token)
         await self._send_json({"type": "clap", "title": title,

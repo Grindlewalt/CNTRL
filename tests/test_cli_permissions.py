@@ -14,7 +14,7 @@ jav3 = load_client("jav3cli_permissions")
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     monkeypatch.setenv("HOME", str(tmp_path))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 def notes(app) -> list[str]:
@@ -121,4 +121,4 @@ async def test_someone_who_already_changed_the_mode_is_not_told():
 def cfg_dir():
     import os
     from pathlib import Path
-    return Path(os.environ["XDG_CONFIG_HOME"]) / "jav3"
+    return Path(os.environ["XDG_CONFIG_HOME"]) / "cntrl"

@@ -4,7 +4,7 @@ unpublishes one after a confirm, and a server without the routes shows nothing."
 import httpx
 import pytest
 
-from cli_fake import FakeServer, load_client
+from cli_fake import FakeServer, load_client, mounted_name, until
 
 jav3 = load_client("jav3cli_pages")
 FULL = jav3.SESSION_PREFIX + "jwt"
@@ -43,16 +43,12 @@ class PagesServer(FakeServer):
 
 
 async def _until(pilot, cond, tries=80):
-    for _ in range(tries):
-        if cond():
-            return True
-        await pilot.pause(0.05)
-    return cond()
+    return await until(cond, lambda: pilot.pause(0.05), tries * 0.05)
 
 
 async def _open(pilot, app):
     app.dispatch("/security")
-    assert await _until(pilot, lambda: type(app.top).__name__ == "SecurityPage")
+    assert await _until(pilot, lambda: mounted_name(app.top) == "SecurityPage")
     scr = app.top
     assert await _until(pilot, lambda: scr.loaded["queue"])
     await pilot.pause(0.1)
@@ -72,12 +68,12 @@ async def test_queue_row_decides_after_a_confirm(key, verb):
         detail = scr.detail_markup(scr.entries["queue"][0])
         assert "index.html" in detail and "a.png" in detail
         await pilot.press(key)
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         await pilot.press("n")                              # cancelled: nothing sent
         assert await _until(pilot, lambda: type(app.top).__name__ != "Confirm")
         assert srv.writes == []
         await pilot.press(key)
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         await pilot.press("y")
         assert await _until(pilot, lambda: srv.writes)
         assert srv.writes == [("POST", f"/api/pages/requests/rq1/{verb}")]
@@ -102,16 +98,16 @@ async def test_pages_lists_live_pages_and_unpublishes_after_a_confirm():
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.pause(0.3)
         app.dispatch("/pages")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Picker")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Picker")
         assert [r[1] for r in app.top.rows] == ["site"]
         assert "http://h:8090/p/pg1/" in app.top.rows[0][2]
         await pilot.press("u")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         await pilot.press("n")                              # cancelled: nothing sent
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Picker")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Picker")
         assert srv.writes == []
         await pilot.press("u")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         await pilot.press("y")
         assert await _until(pilot, lambda: srv.writes)
         assert srv.writes == [("POST", "/api/pages/pg1/unpublish")]

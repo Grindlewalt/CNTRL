@@ -1,4 +1,4 @@
-"""The terminal client around a turn (clients/jav3cli/jav3): a server that goes away
+"""The terminal client around a turn (clients/cntrl/cntrl): a server that goes away
 reads as one clear line (TUI-10; a message the server never took returns to the
 prompt, one it took is followed: test_cli_reattach.py), a stopped
 turn never lends its stream or its stop to the next message (TUI-11), and an
@@ -15,7 +15,7 @@ jav3 = load_client("jav3cli_turns")
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     monkeypatch.setenv("HOME", str(tmp_path))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 def notes(app) -> list[str]:

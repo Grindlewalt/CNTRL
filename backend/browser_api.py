@@ -6,7 +6,7 @@
                Authorization header. The route is exempt from the cookie
                same-origin gate (auth._ORIGIN_EXEMPT_EXACT) because it never
                reads the cookie — the extension's socket carries the operator's
-               Jav3 cookie when they are logged in in that browser, from a
+               CNTRL cookie when they are logged in in that browser, from a
                chrome-extension:// origin.
 - `router`     cookie-only operator routes (Settings → Browser use): per-project
                grants, Stop, the audit tail. No device token reaches these.

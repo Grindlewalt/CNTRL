@@ -161,7 +161,7 @@ function ServiceList({ services, relays, onStop, onStart, onRevoke, onLogs }) {
               <span className={`run-dot ${s.state === 'running' ? 'done' : s.state === 'failed' ? 'error' : ''}`}
                     aria-hidden="true" />
               <b className="mono">{s.name}</b>
-              <span className="dim small">#{s.id} · {s.project_slug}{s.box_id ? ` · ${s.box_id}` : ''}</span>
+              <span className="dim small">#{s.id}, {s.project_slug}{s.box_id ? `, ${s.box_id}` : ''}</span>
               <PlacementTag placement={s.placement} />
               <Tag tone={SERVICE_STATE_TONE[s.state]}
                    title={s.last_reported_at ? `last reported ${s.last_reported_at}` : 'never reported'}>
@@ -172,7 +172,7 @@ function ServiceList({ services, relays, onStop, onStart, onRevoke, onLogs }) {
                 const bad = r && (r.error || !r.listening)
                 return (
                   <Tag key={p.port} tone={bad ? 'error' : undefined}
-                       title={r ? `${r.address || ''} · ${plural(r.conns, 'connection')} · ${bytes(r.bytes_out)}↑ ${bytes(r.bytes_in)}↓${r.error ? ` · ${r.error}` : ''}`
+                       title={r ? `${r.address || ''}, ${plural(r.conns, 'connection')}, ${bytes(r.bytes_out)}↑ ${bytes(r.bytes_in)}↓${r.error ? `, ${r.error}` : ''}`
                          : 'no relay open'}>
                     {p.port} → {p.bind === 'lan' ? 'LAN' : 'loopback'}</Tag>
                 )
@@ -226,7 +226,7 @@ function BoxTree({ b, services, onStop, onRevoke }) {
     <details className={`sbx-card bx-tree${boxIsOdd(b) ? ' odd' : ''}`} open>
       <summary className="bx-tree-head">
         <b className="mono">{b.box_id}</b>
-        <span className="dim small">{b.kind}{b.project ? ` · ${b.project}` : ''}</span>
+        <span className="dim small">{b.kind}{b.project ? `, ${b.project}` : ''}</span>
         {b.stale && <Tag tone="pending" title="the box has not reported lately, so this list may be out of date">stale</Tag>}
         {b.truncated && <Tag tone="pending" title="the box reported more than fits; totals count everything">truncated</Tag>}
         {b.baseline === 'builtin' && (
@@ -235,13 +235,13 @@ function BoxTree({ b, services, onStop, onRevoke }) {
         <span className="grow" />
         <span className="small bx-totals">
           {t.procs} proc{t.procs === 1 ? '' : 's'}
-          {t.service ? ` · ${t.service} service` : ''}
-          {t.run_code ? ` · ${t.run_code} run_code` : ''}
-          {t.unexpected ? <b className="bx-red"> · {t.unexpected} unexpected</b> : null}
-          {' · '}{t.out} out / {t.in} in
-          {' · '}guest {bytes(t.guest_out)}↑ {bytes(t.guest_in)}↓
-          {' · '}host {bytes(t.host_out)}↑ {bytes(t.host_in)}↓
-          {t.mismatches ? <b className="bx-red"> · {t.mismatches} mismatch</b> : null}
+          {t.service ? `, ${t.service} service` : ''}
+          {t.run_code ? `, ${t.run_code} run_code` : ''}
+          {t.unexpected ? <b className="bx-red">, {t.unexpected} unexpected</b> : null}
+          {', '}{t.out} out / {t.in} in
+          {', '}guest {bytes(t.guest_out)}↑ {bytes(t.guest_in)}↓
+          {', '}host {bytes(t.host_out)}↑ {bytes(t.host_in)}↓
+          {t.mismatches ? <b className="bx-red">, {t.mismatches} mismatch</b> : null}
         </span>
       </summary>
       {b.error && <div className="error small bx-row-err">{b.error}</div>}

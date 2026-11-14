@@ -35,6 +35,6 @@ whole; never append under a claim that is now false.
 
 Save preferences, corrections, decisions and durable facts, each as the rule,
 then **Why:**, then **How to apply:**. Convert relative dates to absolute. NOT
-things derivable from files, git or a search, and NOT how Jav3's own tools or
+things derivable from files, git or a search, and NOT how CNTRL's own tools or
 sandbox behave (a misbehaving tool is report_harness_fault; a note about it goes
 stale the day it is fixed).

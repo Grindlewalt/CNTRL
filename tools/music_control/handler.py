@@ -1,6 +1,6 @@
 """music_control: transport on whichever music player is actually playing.
 
-Two players, one vocabulary. The Jav3 in-page player accepts everything here
+Two players, one vocabulary. The CNTRL in-page player accepts everything here
 including volume and stop; TARMAC's own players have neither — its remote API is
 pause/resume/next/prev and nothing else. Rather than pretend, `auto` sends the
 action to the player that currently holds a track, and volume/stop say plainly
@@ -20,12 +20,12 @@ def _resolve_where(where: str) -> str:
     """`auto` follows the sound: if the in-page player is holding a track and
     its tab is still reporting, that is what the operator is listening to."""
     w = (where or "auto").strip().lower()
-    if w in ("jav3", "jarvis", "page", "here", "browser"):
-        return "jav3"
+    if w in ("page", "jav3", "jarvis", "cntrl", "here", "browser"):  # jav3: the old name
+        return "page"
     if w in ("app", "tarmac", "pwa", "phone"):
         return "app"
     s = gui.player_status()
-    return "jav3" if (s.get("track") and not s.get("stale")) else "app"
+    return "page" if (s.get("track") and not s.get("stale")) else "app"
 
 
 async def run(action: str = "", level: int | None = None,
@@ -40,10 +40,10 @@ async def run(action: str = "", level: int | None = None,
 
     if dest == "app" and action in IN_PAGE_ONLY:
         return (f"the music app has no {action} control — it only does pause, "
-                f"resume, next and prev. The Jav3 player does; move it there "
-                f"with music_play where='jav3' if they want {action}.")
+                f"resume, next and prev. The CNTRL player does; move it there "
+                f"with music_play where='page' if they want {action}.")
 
-    if dest == "jav3":
+    if dest == "page":
         fields = {}
         if action == "volume":
             fields["level"] = max(0, min(int(level), 100))
@@ -60,8 +60,8 @@ async def run(action: str = "", level: int | None = None,
         if not n:
             return f"'{where_name}' closed, so there was nothing to control."
         if action == "volume":
-            return f"set the Jav3 player on {where_name} to {fields['level']}%."
-        return f"{SAID[action]} in the Jav3 player on {where_name}."
+            return f"set the CNTRL player on {where_name} to {fields['level']}%."
+        return f"{SAID[action]} in the CNTRL player on {where_name}."
 
     try:
         r = await tarmac.remote(action)

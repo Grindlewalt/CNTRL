@@ -325,7 +325,7 @@ class LanBody(BaseModel):
 @router.get("/lan/{slug}")
 async def get_lan(slug: str):
     """{enabled, allow, host_ips}: OFF by default. host_ips are the addresses
-    that are never reachable (the Jav3 host), shown so a CIDR that covers the
+    that are never reachable (the CNTRL host), shown so a CIDR that covers the
     host reads as carved out."""
     db = await get_db()
     try:

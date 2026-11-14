@@ -1,10 +1,10 @@
 """A dialog that opens by itself while the operator is typing (an agent's ask, a
 /local approval) takes none of the keys aimed at the prompt: no answer, no skip.
-The keys it turns away go back to the prompt (clients/jav3cli/jav3, class Inert)."""
+The keys it turns away go back to the prompt (clients/cntrl/cntrl, class Inert)."""
 import pytest
 
 from cli_fake import (FakeServer, ask, composer, finish, load_client, open_chat, plain,
-                      top, wait_for)
+                      top, type_now, wait_for)
 
 jav3 = load_client("jav3cli_dialog_keys")
 
@@ -12,7 +12,7 @@ jav3 = load_client("jav3cli_dialog_keys")
 @pytest.fixture(autouse=True)
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    return tmp_path / "cfg" / "jav3"
+    return tmp_path / "cfg" / "cntrl"
 
 
 async def test_an_ask_that_just_opened_takes_no_keys_and_they_go_back_to_the_prompt():
@@ -24,9 +24,13 @@ async def test_an_ask_that_just_opened_takes_no_keys_and_they_go_back_to_the_pro
         assert await wait_for(lambda: top(app) == "AskUser")
         type(app.screen).GRACE = 1.2                  # a slow test machine must not decide this
         type(app.screen).MAX_INERT = 60
+        # ... nor the time it took to get here: the pause starts now, as if it just opened
+        app.screen._opened()
         # the operator was typing a mid-turn message: its tail, an enter and an esc
-        await pilot.press("s", "o", "o", "n", "1", "enter", "escape", "ctrl+c")
-        await pilot.pause(0.1)
+        # (typed in one go: Pilot.press would space them by its idle waits)
+        type_now(app, "s", "o", "o", "n", "1", "enter", "escape", "ctrl+c")
+        assert await wait_for(lambda: composer(app) == "soon1")   # back to the prompt
+        await pilot.pause(0.1)                                    # the enter, esc, ctrl+c
         assert top(app) == "AskUser" and srv.answers == []
         assert app.screen.answers == [] and app.screen._text() == ""
         assert composer(app) == "soon1"               # printable keys went back to the prompt
@@ -34,10 +38,11 @@ async def test_an_ask_that_just_opened_takes_no_keys_and_they_go_back_to_the_pro
         # a typist who keeps going keeps it shut (each key restarts the pause) ...
         for _ in range(3):
             await pilot.pause(0.6)
-            await pilot.press("x")
+            type_now(app, "x")
+        await pilot.pause(0.1)
         assert top(app) == "AskUser" and srv.answers == []
         # ... and once they pause it takes keys as usual
-        await pilot.pause(1.4)
+        await pilot.pause(2.0)
         await pilot.press("2", "enter")
         assert await wait_for(lambda: len(srv.answers) == 1)
         assert srv.answers[0]["answers"] == [{"selected": ["No"], "text": None}]

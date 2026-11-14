@@ -11,6 +11,7 @@ import EmptyState from '../components/EmptyState.jsx'
 import Menu, { MenuItem, MenuSep } from '../components/Menu.jsx'
 import { ts } from '../format.js'
 import { projectsChanged } from '../projectsChanged.js'
+import './manage.css'
 
 // A project is a card: its name is the way in (the Workspace), the slug and
 // the remote say what it is, and everything rarer — rename, load/unload,
@@ -114,19 +115,19 @@ export default function Projects() {
 
   const cloning = !!repoUrl.trim()
   return (
-    <Page title="Projects">
+    <Page title="Projects" className="projects-page">
       <Card as="form" className="create-project" onSubmit={create} noValidate>
-        <Input placeholder={cloning ? 'project name (optional)' : 'project name'}
+        <Input label={cloning ? 'Name (optional)' : 'Name'} placeholder="Harbor dashboard"
                value={name} onChange={(e) => setName(e.target.value)}
                required={!cloning} />
-        <Input placeholder="what are you building?" value={summary}
-               onChange={(e) => setSummary(e.target.value)} />
-        <Input className="gh-url" type="url"
-               placeholder="GitHub URL (optional)"
-               title="https://github.com/owner/repo — optional: the project starts as a clone of it"
+        <Input label="Summary (optional)" placeholder="One line on what it is for"
+               value={summary} onChange={(e) => setSummary(e.target.value)} />
+        <Input className="gh-url" type="url" label="Clone from GitHub (optional)"
+               placeholder="https://github.com/owner/repo"
+               title="The project starts as a clone of this repository"
                value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} />
         <Button type="submit" disabled={creating}>
-          {creating && cloning ? 'cloning…' : cloning ? 'Clone & create' : 'Create'}</Button>
+          {creating && cloning ? 'Cloning…' : cloning ? 'Clone and create' : 'Create project'}</Button>
         {error && <span className="error">{error}</span>}
       </Card>
 
@@ -141,7 +142,7 @@ export default function Projects() {
         ))}
         {projects.length === 0 && (
           <EmptyState pad className="project-grid-empty">
-            no projects yet — create one above</EmptyState>)}
+            No projects yet. Name one above to create it.</EmptyState>)}
       </div>
 
       {deleted.length > 0 && (
@@ -157,7 +158,6 @@ export default function Projects() {
                 <div className="project-card-head">
                   <span className="project-name">{p.name}</span>
                 </div>
-                <code className="project-slug">{p.slug}</code>
                 <span className="dim small project-when">deleted {ts(p.deleted_at)}</span>
                 <div className="project-card-foot">
                   <span className="grow" />
@@ -189,7 +189,7 @@ function ProjectCard({
         {inContext && (
           <Tag tone="running"
                title="New chats follow this project. It is one setting for the whole server.">
-            loaded</Tag>)}
+            Loaded</Tag>)}
         <Menu floating open={menuOpen} onClose={close} label={`${p.name} actions`} width={210}
               trigger={(
                 <Button variant="icon" aria-haspopup="menu" aria-expanded={menuOpen}
@@ -203,10 +203,10 @@ function ProjectCard({
           <MenuItem danger onClick={pick(onDelete)}>Delete</MenuItem>
         </Menu>
       </div>
-      <code className="project-slug">{p.slug}</code>
       {p.github_remote && (
         <span className="dim small ellipsis project-remote" title={p.github_remote}>
           {p.github_remote}</span>)}
+      {p.created_at && <span className="dim small">Created {ts(p.created_at)}</span>}
     </Card>
   )
 }

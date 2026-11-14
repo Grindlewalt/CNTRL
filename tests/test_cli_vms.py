@@ -11,7 +11,9 @@ from pathlib import Path
 import httpx
 import pytest
 
-CLI = Path(__file__).resolve().parent.parent / "clients" / "jav3cli" / "jav3"
+from cli_fake import mounted_name, until
+
+CLI = Path(__file__).resolve().parent.parent / "clients" / "cntrl" / "cntrl"
 
 
 def _load():
@@ -182,11 +184,7 @@ def _server(seen):
 
 
 async def _until(pilot, cond, n=80):
-    for _ in range(n):
-        if cond():
-            return True
-        await pilot.pause(0.05)
-    return cond()
+    return await until(cond, lambda: pilot.pause(0.05), n * 0.05)
 
 
 def _rows(scr):
@@ -210,7 +208,7 @@ async def test_tui_vms_rows_keys_and_live_refresh(tmp_path, monkeypatch):
     async with app.run_test(size=(170, 50)) as pilot:
         await pilot.pause(0.3)
         app.dispatch("/vms")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "VmsPage")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "VmsPage")
         scr = app.top
         assert await _until(pilot, lambda: scr.loaded["boxes"] and len(_rows(scr)) == 5)
         rows = _rows(scr)
@@ -224,7 +222,7 @@ async def test_tui_vms_rows_keys_and_live_refresh(tmp_path, monkeypatch):
         # x on the shared box: the BACKLOG's Confirm, then POST /api/vm/nuke
         scr.select_key("Xshared")
         await pilot.press("x")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         assert app.top.question == "Nuke the shared box?"
         assert app.top.detail == ("Its overlay disk is discarded and it reboots fresh "
                                      "from the golden image.")
@@ -242,7 +240,7 @@ async def test_tui_vms_rows_keys_and_live_refresh(tmp_path, monkeypatch):
 
         # r restarts after a Confirm
         await pilot.press("r")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         assert app.top.question == "Restart box p-alpha?" and "container" in app.top.detail
         await pilot.press("y")
         assert await _until(pilot, lambda: ("POST", "/api/vm/boxes/p-alpha/restart", None)
@@ -268,7 +266,7 @@ async def test_tui_vms_rows_keys_and_live_refresh(tmp_path, monkeypatch):
 
         # c cleans the leftovers after a Confirm naming them
         await pilot.press("c")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "Confirm")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "Confirm")
         assert app.top.question == "Clean 2 leftovers?"
         assert "jav3-p-ghost" in app.top.detail and "never removed" in app.top.detail
         await pilot.press("y")
@@ -282,13 +280,13 @@ async def test_tui_vms_rows_keys_and_live_refresh(tmp_path, monkeypatch):
         assert await _until(pilot, lambda: scr.loaded["images"] and len(_rows(scr)) == 2)
         assert "failed" in _text(scr.query_one("#sec-detail"))      # last build
         await pilot.press("l")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "View")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "View")
         assert "[b]not markup[/b]" in app.top.markup.replace("\\[", "[")
         assert "disk full" in app.top.markup and "untrusted" in app.top.markup
         await pilot.press("escape")
         assert await _until(pilot, lambda: app.top is scr)
         await pilot.press("down", "l")
-        assert await _until(pilot, lambda: type(app.top).__name__ == "View")
+        assert await _until(pilot, lambda: mounted_name(app.top) == "View")
         assert any(p == "/api/vm/images/dev/log" and q == {"version": "2"}
                    for _, p, q, _ in seen)
         await pilot.press("escape")

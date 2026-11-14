@@ -1,6 +1,6 @@
 ---
 name: browser_list_tabs
-description: List the tabs Jav3 has open in the operator's browser (only its own).
+description: List the tabs CNTRL has open in the operator's browser (only its own).
 when_to_use: To find a tab number again.
 enabled: true
 section: browser

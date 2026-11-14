@@ -40,21 +40,21 @@ async def test_login_and_project_flow(client):
     assert r.status_code == 200
 
     r = await client.post("/api/projects",
-                          json={"name": "Jav3", "summary": "The agent itself."})
+                          json={"name": "CNTRL", "summary": "The agent itself."})
     assert r.status_code == 200
-    assert r.json()["slug"] == "jav3"
+    assert r.json()["slug"] == "cntrl"
 
     # duplicate slug rejected
-    r = await client.post("/api/projects", json={"name": "Jav3"})
+    r = await client.post("/api/projects", json={"name": "CNTRL"})
     assert r.status_code == 409
 
-    r = await client.post("/api/projects/jav3/load")
+    r = await client.post("/api/projects/cntrl/load")
     assert r.status_code == 200
 
     r = await client.get("/api/debug/context")
     assert r.status_code == 200
     body = r.json()
-    assert body["active_project"] == "jav3"
+    assert body["active_project"] == "cntrl"
     assert "The agent itself." in body["system_prompt"]
 
     r = await client.post("/api/projects/unload")

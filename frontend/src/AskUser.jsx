@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api.js'
+import { useAsk } from './ask.jsx'
+import Menu, { MenuItem } from './components/Menu.jsx'
+import { UiGlyph } from './shell/glyphs.jsx'
 import {
   answerBody, foldAsks, freeLabel, initAsk, initialMode, keyToAction, MODE_HINT, MODE_LABEL, nextMode, shownMode, wireMode, YOLO_CONFIRM,
   PERMISSION_MODES, reduceAsk, settleAsks,
@@ -112,24 +115,25 @@ function AskCard({ ev, cid, compact, onDone }) {
          tabIndex={0} ref={box} onKeyDown={onKey}>
       <div className="ask-head">
         <b>{perm ? 'Permission' : 'The agent asks'}</b>
-        {perm && ev.reason && <span className="dim"> · {ev.reason}</span>}
-        {questions.length > 1 && <span className="dim"> · {st.i + 1}/{questions.length}</span>}
+        {perm && ev.reason && <span className="dim">{ev.reason}</span>}
         {ev.conversation_id != null && ev.conversation_id !== cid &&
-          <span className="dim"> · agent #{ev.conversation_id}</span>}
+          <span className="dim">from agent #{ev.conversation_id}</span>}
+        {questions.length > 1 && <span className="dim ask-count">{st.i + 1} of {questions.length}</span>}
       </div>
       <div className="ask-q">{q.question}</div>
       {ev.detail && <pre className="ask-detail">{ev.detail}</pre>}
       <ul className="ask-opts" role={multi ? 'group' : 'radiogroup'}>
         {options.map((o, j) => (
           <li key={o} className={j === st.cur ? 'cur' : ''}
+              role={multi ? 'checkbox' : 'radio'} aria-checked={st.sel.includes(j)}
               onClick={() => act({ type: 'pick', j })}>
-            <span className="ask-mark">{multi ? (st.sel.includes(j) ? '☑' : '☐')
-                                              : (st.sel.includes(j) ? '◉' : '○')}</span>
-            <span className="dim">{j + 1}.</span> {o}
+            <span className={`ask-mark${multi ? ' box' : ''}${st.sel.includes(j) ? ' on' : ''}`} aria-hidden="true" />
+            <span className="ask-n">{j + 1}</span>
+            <span className="ask-opt">{o}</span>
           </li>
         ))}
         <li className={st.cur === options.length ? 'cur' : ''}>
-          <span className="ask-mark">{st.text.trim() ? (multi ? '☑' : '◉') : (multi ? '☐' : '○')}</span>
+          <span className={`ask-mark${multi ? ' box' : ''}${st.text.trim() ? ' on' : ''}`} aria-hidden="true" />
           <input ref={text} className="grow" placeholder={freeLabel(ev)} value={st.text}
                  onKeyDown={onKey}
                  onChange={(e) => setSt((s) => reduceAsk(s, questions, { type: 'text', value: e.target.value }))} />
@@ -137,7 +141,8 @@ function AskCard({ ev, cid, compact, onDone }) {
       </ul>
       {err && <div className="error">{err}</div>}
       <div className="row ask-actions">
-        <span className="grow dim">↑↓ · 1-5 · {multi ? 'space toggles · ' : ''}enter · esc skips</span>
+        <span className="grow dim ask-keys">
+          Arrow keys move, a number picks{multi ? ', space toggles' : ''}, Enter answers, Esc skips</span>
         <button type="button" className="ghost" onClick={() => act('skip')}>Skip</button>
         <button type="button" onClick={() => act({ type: 'confirm' })}>
           {st.i + 1 < questions.length ? 'Next' : 'Answer'}</button>
@@ -148,12 +153,22 @@ function AskCard({ ev, cid, compact, onDone }) {
 
 const MODE_KEY = 'jav3.permission_mode'   // the last mode picked here: where a new chat starts
 
-// The chat toolbar's permission-mode selector, stored per conversation
+// the one-word name of each mode, for the control and the empty state; the
+// full label (MODE_LABEL) is the menu's line, the hint its sub-line
+export const MODE_SHORT = { 'safe-yolo': 'Safe yolo', auto: 'Auto', ask: 'Ask', yolo: 'Yolo' }
+
+// The chat toolbar's permission-mode control, stored per conversation
 // (PUT /api/chat/{cid}/permission_mode). Before the chat exists the choice is
-// held here and sent with the first message (`permission_mode`).
+// held here and sent with the first message (`permission_mode`). A pill that
+// names the mode, opening a menu of the four with what each one does; yolo
+// is in the danger colour wherever it shows, and switching to it confirms.
 export function PermissionModeSelect({ cid, value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ask = useAsk()
   async function set(mode) {
-    if (mode === 'yolo' && value !== 'yolo' && !window.confirm(YOLO_CONFIRM)) return
+    setOpen(false)
+    if (mode === 'yolo' && value !== 'yolo'
+        && !await ask.confirm('Switch to yolo?', { body: YOLO_CONFIRM, confirmLabel: 'Switch to yolo', danger: true })) return
     onChange(mode)
     try { localStorage.setItem(MODE_KEY, mode === 'yolo' ? 'safe-yolo' : mode) } catch { /* private mode */ }
     if (cid == null) return
@@ -163,11 +178,24 @@ export function PermissionModeSelect({ cid, value, onChange }) {
     } catch { /* the next open re-reads it */ }
   }
   return (
-    <select className={`perm-mode ${value}`} value={value} title={MODE_HINT[value]}
-            aria-label="permission mode" onChange={(e) => set(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Tab' && e.shiftKey) { e.preventDefault(); set(nextMode(value)) } }}>
-      {PERMISSION_MODES.map((m) => <option key={m} value={m}>{MODE_LABEL[m]}</option>)}
-    </select>
+    <Menu open={open} onClose={() => setOpen(false)} floating align="right" width={300}
+          label="permission mode"
+          trigger={(
+            <button type="button" className={`perm-mode ${value}`} title={MODE_HINT[value]}
+                    aria-haspopup="menu" aria-expanded={open} aria-label={`permission mode: ${MODE_SHORT[value] || value}`}
+                    onClick={() => setOpen((o) => !o)}
+                    onKeyDown={(e) => { if (e.key === 'Tab' && e.shiftKey) { e.preventDefault(); set(nextMode(value)) } }}>
+              <span className="perm-mode-k">Mode</span>
+              <span className="perm-mode-v">{MODE_SHORT[value] || value}</span>
+              <UiGlyph name="down" size={14} className="perm-mode-chev" />
+            </button>
+          )}>
+      {PERMISSION_MODES.map((m) => (
+        <MenuItem key={m} checked={m === value} danger={m === 'yolo'} sub={MODE_HINT[m]}
+                  onClick={() => set(m)}>
+          {MODE_LABEL[m].split(':')[0].replace(/^./, (c) => c.toUpperCase())}</MenuItem>
+      ))}
+    </Menu>
   )
 }
 

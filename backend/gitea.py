@@ -1,7 +1,7 @@
 """Gitea on the host: one private repo per project, and the agent's only way
 to put work up for review.
 
-Custody. Two API tokens live 0600 in Jav3's config dir: the operator's (admin)
+Custody. Two API tokens live 0600 in CNTRL's config dir: the operator's (admin)
 and the `jav3-agent` bot's. Both are read here, host-side, per call. Neither is
 ever written into a repo's .git/config, argv, the DB, a tool result or a box:
 git gets auth as a per-invocation `http.extraheader` through GIT_CONFIG_* env
@@ -24,6 +24,7 @@ import logging
 import os
 import re
 import secrets as pysecrets
+import time
 from pathlib import Path
 
 import httpx
@@ -32,7 +33,7 @@ from . import gitgate
 from .config import settings
 from .db import get_db
 
-log = logging.getLogger("jav3.gitea")
+log = logging.getLogger("cntrl.gitea")
 
 REMOTE = "gitea"                    # host repo remote name (origin stays GitHub's)
 BRANCH_PREFIX = "agent/"
@@ -63,7 +64,7 @@ class GiteaNotFound(GiteaError):
 
 class GiteaRefused(GiteaError):
     """Gitea answered and declined a merge (conflict, protection). The pull
-    request is untouched and the Jav3 request stays pending."""
+    request is untouched and the CNTRL request stays pending."""
 
 
 class GiteaOff(RuntimeError):
@@ -225,7 +226,7 @@ async def api(method: str, path: str, *, token: str | None = None, json_body=Non
 
 async def _all(path: str, params: dict | None = None, per: int = 50, cap: int = 8) -> list:
     """Every row of a paged list endpoint (Gitea answers 30 by default, 50 at
-    most). `cap` pages is a ceiling, not an expectation: a Jav3 host has a
+    most). `cap` pages is a ceiling, not an expectation: a CNTRL host has a
     handful of repos and accounts."""
     rows: list = []
     for page in range(1, cap + 1):
@@ -255,20 +256,40 @@ def _protection(o: str) -> dict:
             "enable_status_check": False, "block_on_rejected_reviews": False}
 
 
+ENSURED_TTL_S = 900          # how long one full check of a repo's setup is trusted
+_ensured: dict[tuple[str, str, str], tuple[float, dict]] = {}
+
+
+def forget_ensured() -> None:
+    """Drop the remembered checks (tests; after the operator changes Gitea)."""
+    _ensured.clear()
+
+
 async def ensure_remote_repo(slug: str) -> dict:
     """Idempotent: the private repo `<owner>/<slug>`, the bot as a write
     collaborator (branches only: main is protected against it), every other
     enabled account as a read collaborator (see grant_default_access), and
-    main's protection rule re-asserted every time."""
+    main's protection rule re-asserted. Six API calls, ~0.8 s on the Pi, and it
+    ran on every commit approval: a full check is now trusted for ENSURED_TTL_S."""
     if not _SLUG.match(slug or ""):
         raise ValueError(f"bad project slug {slug!r}")
+    key = (settings.gitea_url, owner(), slug)
+    hit = _ensured.get(key)
+    if hit and 0 <= time.monotonic() - hit[0] < ENSURED_TTL_S:
+        return hit[1]
+    repo = await _ensure_remote_repo(slug)
+    _ensured[key] = (time.monotonic(), repo)
+    return repo
+
+
+async def _ensure_remote_repo(slug: str) -> dict:
     o = owner()
     r = await api("GET", f"/repos/{o}/{slug}", allow=(404,))
     if r.status_code == 404:
         r = await api("POST", "/user/repos", json_body={
             "name": slug, "private": True, "auto_init": False,
             "default_branch": "main",
-            "description": f"Jav3 project {slug}"})
+            "description": f"CNTRL project {slug}"})
     repo = r.json()
     await api("PUT", f"/repos/{o}/{slug}/collaborators/{bot_user()}",
               json_body={"permission": "write"})
@@ -391,7 +412,7 @@ async def _snapshot_commit(slug: str, message: str) -> str:
     idx = d / ".git" / f"jav3-push-{pysecrets.token_hex(4)}.index"
     env = {"GIT_INDEX_FILE": str(idx),
            "GIT_AUTHOR_NAME": bot_user(), "GIT_AUTHOR_EMAIL": f"{bot_user()}@localhost",
-           "GIT_COMMITTER_NAME": "Jav3", "GIT_COMMITTER_EMAIL": settings.git_author_email}
+           "GIT_COMMITTER_NAME": "CNTRL", "GIT_COMMITTER_EMAIL": settings.git_author_email}
     try:
         await gitgate.run_git(slug, "read-tree", "HEAD", extra_env=env, check=True)
         # runtime files stay out even if the agent overwrote the host's .gitignore:
@@ -436,7 +457,7 @@ async def create_push_request(slug: str, title: str, description: str = "") -> d
     title = title.splitlines()[0][:200]
     description = (description or "").strip()[:8000]
     if not enabled():
-        raise GiteaOff("Gitea isn't set up on this Jav3")
+        raise GiteaOff("Gitea isn't set up on this CNTRL")
     await gitgate.ensure_repo(slug)
     await gitgate.flush_guest_writes(slug)      # this turn's writes are still in the VM
     if not await _has_head(slug):
@@ -464,7 +485,7 @@ async def create_push_request(slug: str, title: str, description: str = "") -> d
     await push_agent_branch(slug, sha, branch)
     try:
         body = (description + "\n\n" if description else "") + \
-            "Filed by the Jav3 agent with git_push_request.\n\n```\n" + stat + "\n```"
+            "Filed by the CNTRL agent with git_push_request.\n\n```\n" + stat + "\n```"
         r = await api("POST", f"/repos/{owner()}/{slug}/pulls", token=bot_token(),
                       json_body={"head": branch, "base": "main",
                                  "title": title, "body": body})
@@ -669,8 +690,8 @@ async def status() -> dict:
     else:
         # what stops it being on, so the panel can say more than "not set up"
         out["missing"] = [m for m, ok in (
-            ("JARVIS_GITEA_ENABLED is off", bool(settings.gitea_enabled)),
-            ("no owner (JARVIS_GITEA_OWNER)", bool(owner())),
+            ("CNTRL_GITEA_ENABLED is off", bool(settings.gitea_enabled)),
+            ("no owner (CNTRL_GITEA_OWNER)", bool(owner())),
             ("the operator's token file", admin_token() is not None),
             ("the agent bot's token file", bot_token() is not None)) if not ok]
     return out
@@ -706,7 +727,7 @@ async def create_user(login: str, email: str, password: str) -> dict:
 async def _edit_user(login: str, body: dict) -> None:
     _check_login(login)
     if login in (owner(), bot_user()):
-        raise ValueError(f"{login} is managed by Jav3 — change it in Gitea itself")
+        raise ValueError(f"{login} is managed by CNTRL — change it in Gitea itself")
     await api("PATCH", f"/admin/users/{login}", json_body={"login_name": login,
                                                            "source_id": 0, **body})
 
@@ -851,7 +872,7 @@ async def set_access(slug: str, login: str, level: str) -> dict:
     if level not in ACCESS_LEVELS:
         raise ValueError(f"access is one of: {', '.join(ACCESS_LEVELS)}")
     if login in (owner(), bot_user()):
-        raise ValueError(f"{login} is managed by Jav3: the owner owns the repo and "
+        raise ValueError(f"{login} is managed by CNTRL: the owner owns the repo and "
                          "the agent bot always writes to its own branches")
     if not any(u["login"] == login for u in await list_users()):
         raise GiteaNotFound(f"there is no Gitea account called {login}")
@@ -924,7 +945,7 @@ async def _pending_counts() -> dict[str, int]:
 
 async def list_repos() -> list[dict]:
     """The owner's repos with what the Git page's project list shows: default
-    branch, the last commit, how many agent pull requests wait (from Jav3's own
+    branch, the last commit, how many agent pull requests wait (from CNTRL's own
     rows: no per-PR Gitea call) and how many accounts besides the bot can open
     the repo. A repo Gitea will not describe still lists, with blanks."""
     rows = await _all(f"/users/{owner()}/repos")
@@ -1023,7 +1044,7 @@ def _pull_row(slug: str, r: dict) -> dict:
 
 async def agent_pulls(slug: str) -> dict:
     """The agent's pull requests for one repo: the ones waiting on the operator
-    and the last few decided. Only requests Jav3 itself filed (a `git_requests`
+    and the last few decided. Only requests CNTRL itself filed (a `git_requests`
     row of kind push), never an arbitrary pull request in Gitea. The totals are
     from the diff stat taken when it was filed. One reconcile first, so a PR
     merged or closed in Gitea is settled; that is a Gitea call per waiting PR,
@@ -1155,38 +1176,40 @@ def token_file_ok(p: Path) -> bool:
         return False
 
 
-# --- the orchestrator's PR mirror (nov2): read-only, failures never block Jav3 --------
+# --- the orchestrator's PR mirror (nov2): read-only, failures never block CNTRL --------
 
 async def mirror_merge_request(slug: str, branch: str, sha: str, summary: str) -> int | None:
     """Push the PR branch as the bot and open a Gitea PR with the summary. The number.
     Main goes up first, as the operator (as ensure_repo does): a project only the
     orchestrator had worked on was not on Gitea yet, the bot's branch became its only
     one (and its default), and the PR had no main to go into (Gitea: 404, on the Pi)."""
-    repo = await ensure_remote_repo(slug)
+    await ensure_remote_repo(slug)
     err = await push_main(slug)
     if err and not await _remote_main(slug):
         raise GiteaError(err)
+    # asked fresh: ensure_remote_repo's answer may be a remembered one
+    repo = (await api("GET", f"/repos/{owner()}/{slug}")).json()
     if repo.get("default_branch") not in (None, "main"):
         await api("PATCH", f"/repos/{owner()}/{slug}", json_body={"default_branch": "main"})
     await push_agent_branch(slug, sha, branch)
     title = (summary.strip().splitlines() or ["Orchestrator job"])[0][:200]
     r = await api("POST", f"/repos/{owner()}/{slug}/pulls", token=bot_token(),
                   json_body={"head": branch, "base": "main", "title": title,
-                             "body": summary[:8000] + "\n\nFiled by the Jav3 orchestrator. "
-                             "Approve or reject it in Jav3; this PR is a read-only mirror."})
+                             "body": summary[:8000] + "\n\nFiled by the CNTRL orchestrator. "
+                             "Approve or reject it in CNTRL; this PR is a read-only mirror."})
     return r.json().get("number")
 
 
 async def close_merge_mirror(slug: str, payload: dict, *, merged: bool) -> None:
-    """Close the mirror PR once Jav3 decided (Gitea marks it merged by itself when main
+    """Close the mirror PR once CNTRL decided (Gitea marks it merged by itself when main
     holds its head). Never raises."""
     number = payload.get("pr_number")
     try:
         if number:
             pr = await _pull(slug, number)
             if pr and not pr.get("merged") and pr.get("state") != "closed":
-                note = ("Approved in Jav3; main now holds these changes." if merged
-                        else "Rejected in Jav3.")
+                note = ("Approved in CNTRL; main now holds these changes." if merged
+                        else "Rejected in CNTRL.")
                 await api("POST", f"/repos/{owner()}/{slug}/issues/{number}/comments",
                           json_body={"body": note})
                 await _close_pr_quietly(slug, number)

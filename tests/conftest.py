@@ -30,6 +30,26 @@ def no_node_naming(monkeypatch):
     monkeypatch.setattr(agenttree, "NAMING", False)
 
 
+@pytest.fixture(autouse=True)
+def fresh_gitea_checks():
+    """gitea.ensure_remote_repo trusts a full check of a repo for 15 minutes, in the
+    process: a test's fake Gitea must not inherit the previous test's checks."""
+    from backend import gitea
+    gitea.forget_ensured()
+    yield
+
+
+@pytest.fixture(autouse=True)
+def own_client_config(tmp_path_factory, monkeypatch):
+    """The terminal and desk clients keep their files in $XDG_CONFIG_HOME/cntrl
+    (tui.json, history.jsonl, update-check.json, credentials). A test that did not
+    set it read and wrote the developer's real ~/.config/cntrl: a tui.json there
+    with perm_explained hid the first-use permission note, a saved tab layout
+    carried from one test into the next, and test prompts landed in the real
+    history. Every test gets an empty one; a test that sets its own still wins."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("xdg-config")))
+
+
 @pytest.fixture
 def tmp_env(tmp_path, monkeypatch):
     """Point all durable-state paths at a temp dir so tests never touch real data."""
@@ -42,3 +62,25 @@ def tmp_env(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "vm_dir", tmp_path / "data" / "vm")
     monkeypatch.setattr(settings, "secrets_path", tmp_path / "secrets.json")
     return tmp_path
+
+
+@pytest.fixture(scope="session", autouse=True)
+def no_real_state(tmp_path_factory):
+    """Every test, tmp_env or not, keeps durable state in a temp dir. Tests that
+    skipped tmp_env wrote the developer's real install (the DB, registry.json,
+    seeded skills, jwt_secret, once secrets.json). Session-wide, so tests that
+    share state without tmp_env still share it; tmp_env still gives a test its
+    own dir on top."""
+    root = tmp_path_factory.mktemp("state")
+    mp = pytest.MonkeyPatch()
+    for name, path in (("state_dir", root), ("data_dir", root / "data"),
+                       ("db_path", root / "data" / "jarvis.db"),
+                       ("memory_dir", root / "memory"), ("projects_dir", root / "projects"),
+                       ("skills_dir", root / "skills"), ("agents_dir", root / "agents"),
+                       ("vm_dir", root / "data" / "vm"), ("gitea_dir", root / "gitea"),
+                       ("secrets_path", root / "config" / "secrets.json"),
+                       ("gitea_admin_token_path", root / "config" / "gitea-admin.token"),
+                       ("gitea_bot_token_path", root / "config" / "gitea-bot.token")):
+        mp.setattr(settings, name, path)
+    yield root
+    mp.undo()

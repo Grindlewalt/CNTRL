@@ -45,7 +45,7 @@ parameters:
           expose:
             type: string
             enum: [none, host, lan]
-            description: none = inside the box only; host = ask the operator to relay it to the Jav3 host (loopback); lan = ask for the LAN (dedicated address only).
+            description: none = inside the box only; host = ask the operator to relay it to the CNTRL host (loopback); lan = ask for the LAN (dedicated address only).
         required: [port, purpose]
     restart:
       type: string

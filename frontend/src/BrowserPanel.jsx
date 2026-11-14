@@ -52,11 +52,11 @@ export default function BrowserPanel() {
 
   return (
     <Card title="Browser use" headingLevel={2} id="browser">
-      {data === null ? <EmptyState>loading…</EmptyState>
+      {data === null ? <EmptyState>Loading…</EmptyState>
         : data.browsers.length === 0 ? (
           <EmptyState>No browsers. Install the extension from{' '}
-            <a href="/cli/jav3-browser.zip">jav3-browser.zip</a> and pair it with the
-            Add computer line.</EmptyState>
+            <a href="/cli/cntrl-browser.zip">cntrl-browser.zip</a> and pair it with the
+            “Add computer” command.</EmptyState>
         ) : (
           <ul className="device-list desk-list">
             {data.browsers.map((b) => (

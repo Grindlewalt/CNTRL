@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from './api.js'
 import { useAsk } from './ask.jsx'
-import { human, sevClass } from './format.js'
+import { human } from './format.js'
 import { notify, notifyError } from './notify.js'
 import { baselineAsk } from './securityCopy.js'
+import { eventState } from './securityRuns.js'
+import { Button } from './components/index.js'
+import { State, Ticks } from './securityParts.jsx'
 
 // The evidence board for one security alert. A card on the Security page says
 // "write flag: network_call in fetch.py"; this is where the operator finds out
@@ -20,13 +23,13 @@ import { baselineAsk } from './securityCopy.js'
 
 function Facts({ s }) {
   return (
-    <dl className="sbd-facts">
+    <dl className="bd-facts">
       {s.rows.map((r, i) => (
-        <div key={i} className="sbd-fact">
+        <div key={i} className="bd-fact">
           <dt>{r.label}</dt>
           <dd>
             {r.value}
-            {r.hint && <span className="sbd-hint">{r.hint}</span>}
+            {r.hint && <span className="bd-hint">{r.hint}</span>}
           </dd>
         </div>
       ))}
@@ -38,39 +41,39 @@ function Facts({ s }) {
 // column so selecting the code doesn't drag the numbers along with it.
 function Code({ s }) {
   return (
-    <div className="sbd-code">
-      {s.path && <div className="sbd-code-path mono">{s.path}</div>}
+    <div className="bd-code">
+      {s.path && <div className="bd-code-path">{s.path}</div>}
       {s.blocks.map((b, i) => (
-        <div key={i} className="sbd-block">
-          {i > 0 && <div className="sbd-gap">⋯</div>}
+        <div key={i} className="bd-block">
+          {i > 0 && <div className="bd-gap" aria-label="lines skipped">…</div>}
           {b.lines.map((ln) => (
-            <div key={ln.n} className={ln.mark ? 'sbd-line mark' : 'sbd-line'}>
-              <span className="sbd-ln" aria-hidden="true">{ln.n}</span>
+            <div key={ln.n} className={ln.mark ? 'bd-line mark' : 'bd-line'}>
+              <span className="bd-ln" aria-hidden="true">{ln.n}</span>
               <code>{ln.text || ' '}</code>
             </div>
           ))}
         </div>
       ))}
-      {s.truncated && <div className="dim small sbd-trunc">…snippet truncated</div>}
+      {s.truncated && <div className="bd-trunc">The snippet is cut short here.</div>}
     </div>
   )
 }
 
 function Diff({ s }) {
   return (
-    <div className="sbd-code sbd-diff">
+    <div className="bd-code">
       {s.hunks.map((h, i) => (
-        <div key={i} className="sbd-block">
-          <div className="sbd-hunk mono">{h.header}</div>
+        <div key={i} className="bd-block">
+          <div className="bd-hunk">{h.header}</div>
           {h.lines.map((ln, j) => (
-            <div key={j} className={`sbd-line d-${ln.k === '+' ? 'add' : ln.k === '-' ? 'del' : 'ctx'}`}>
-              <span className="sbd-ln" aria-hidden="true">{ln.k === ' ' ? '' : ln.k}</span>
+            <div key={j} className={`bd-line ${ln.k === '+' ? 'add' : ln.k === '-' ? 'del' : 'ctx'}`}>
+              <span className="bd-ln" aria-hidden="true">{ln.k === ' ' ? '' : ln.k}</span>
               <code>{ln.text || ' '}</code>
             </div>
           ))}
         </div>
       ))}
-      {s.truncated && <div className="dim small sbd-trunc">…diff truncated</div>}
+      {s.truncated && <div className="bd-trunc">The diff is cut short here.</div>}
     </div>
   )
 }
@@ -91,23 +94,20 @@ function Files({ s }) {
     }
   }, [s])
   return (
-    <ul className="sbd-files" ref={box}>
+    <ul className="bd-files" ref={box}>
       {s.entries.map((e) => (
         <li key={e.rel} className={e.subject ? 'subject' : ''}
             ref={e.subject ? subject : undefined}>
-          <span className="sbd-fname mono">
-            {e.kind === 'dir' ? '📁 ' : ''}{e.name}{e.kind === 'dir' ? '/' : ''}
-          </span>
-          {e.subject && <span className="tag sbd-t-subject">this file</span>}
-          {e.burst && <span className="tag sbd-t-burst">same write</span>}
-          {e.flagged && <span className="tag sbd-t-flagged">⚑ own alert</span>}
-          <span className="grow" />
-          <span className="dim small">
+          <span className="mono">{e.name}{e.kind === 'dir' ? '/' : ''}</span>
+          {e.subject && <span className="bd-word">this file</span>}
+          {e.burst && <span className="bd-word">same write</span>}
+          {e.flagged && <span className="bd-word">has its own alert</span>}
+          <span className="bd-dim">
             {e.kind === 'dir'
               ? (e.count != null ? `${e.count} item${e.count === 1 ? '' : 's'}` : '')
               : (e.size == null ? '' : human(e.size))}
           </span>
-          <span className="dim small sbd-when">{e.ago}</span>
+          <span className="bd-dim">{e.ago}</span>
         </li>
       ))}
     </ul>
@@ -121,12 +121,12 @@ const TABLE_ROWS = 12
 function Table({ s }) {
   const [all, setAll] = useState(false)
   if (!s.rows.length) {
-    return <div className="dim small">{s.empty || 'nothing recorded'}</div>
+    return <div className="bd-note">{s.empty || 'Nothing recorded.'}</div>
   }
   const rows = all ? s.rows : s.rows.slice(0, TABLE_ROWS)
   return (
-    <div className="sbd-tablewrap">
-      <table className="sbd-table">
+    <div className="bd-tablewrap">
+      <table className="bd-table">
         <thead>
           <tr>{s.cols.map((c) => <th key={c}>{c}</th>)}</tr>
         </thead>
@@ -137,8 +137,8 @@ function Table({ s }) {
         </tbody>
       </table>
       {s.rows.length > TABLE_ROWS && (
-        <button type="button" className="ghost small sbd-more" onClick={() => setAll(!all)}>
-          {all ? `show the first ${TABLE_ROWS}` : `show all ${s.rows.length}`}
+        <button type="button" className="sq-fold bd-more" onClick={() => setAll(!all)}>
+          {all ? `Show the first ${TABLE_ROWS}` : `Show all ${s.rows.length}`}
         </button>
       )}
     </div>
@@ -151,12 +151,12 @@ function Section({ s }) {
       : s.type === 'diff' ? <Diff s={s} />
         : s.type === 'files' ? <Files s={s} />
           : s.type === 'table' ? <Table s={s} />
-            : <div className="sbd-notebody">{s.text}</div>
+            : <div className="bd-text">{s.text}</div>
   return (
-    <section className="sbd-sec">
+    <section className="bd-sec">
       {s.title && <h4>{s.title}</h4>}
       {body}
-      {s.note && <div className="dim small sbd-note">{s.note}</div>}
+      {s.note && <div className="bd-note">{s.note}</div>}
     </section>
   )
 }
@@ -183,7 +183,8 @@ export default function SecurityBoard({ eventId, seed, onClose, onAck }) {
   }, [onClose])
 
   const ev = board?.event || seed || {}
-  const sev = sevClass(ev.severity)
+  const st = eventState(ev)
+  const when = (v) => String(v).replace('T', ' ').slice(0, 19)
   const ask = useAsk()
   const [busy, setBusy] = useState(false)
 
@@ -208,39 +209,38 @@ export default function SecurityBoard({ eventId, seed, onClose, onAck }) {
   }
 
   return (
-    <div className="sbd-scrim" onClick={onClose}>
-      <div className={`sbd-modal sev-${sev}`} onClick={(e) => e.stopPropagation()}
+    <div className="bd-scrim" onClick={onClose}>
+      <div className="bd-modal" onClick={(e) => e.stopPropagation()}
            role="dialog" aria-modal="true" aria-label="security alert detail">
-        <div className="sbd-head">
-          <span className={`tag sev-${sev}-tag`}>{ev.severity || '…'}</span>
-          <div className="sbd-headtext">
-            <strong className="sbd-title">{board?.title || ev.summary || 'Loading…'}</strong>
-            <div className="dim small sbd-sub">
-              <span className="mono">{ev.kind}</span>
-              {ev.project_slug && <> · {ev.project_slug}</>}
-              {ev.created_at && <> · {String(ev.created_at).replace('T', ' ').slice(0, 19)}</>}
+        <div className="bd-head">
+          <div className="bd-headtext">
+            {ev.severity && <State tone={st.tone}>{st.word}</State>}
+            <h2 className="bd-title"><Ticks text={board?.title || ev.summary || 'Loading…'} /></h2>
+            <div className="bd-sub">
+              {ev.kind && <span className="mono">{ev.kind}</span>}
+              {ev.project_slug && <span>in {ev.project_slug}</span>}
+              {ev.created_at && <span>{when(ev.created_at)}</span>}
               {/* repeats were counted onto this row; the evidence is the first */}
               {ev.count > 1 && (
-                <> · seen {ev.count}×{ev.last_seen
-                  && `, last ${String(ev.last_seen).replace('T', ' ').slice(0, 19)}`}</>)}
-              {ev.acknowledged ? <> · acknowledged</> : null}
-              {/* their own click, filed already acknowledged (Settings → Notifications) */}
-              {ev.actor === 'operator' && <> · by you</>}
-              {ev.quiet === 'kind' && <> · recorded only</>}
+                <span>seen {ev.count} times{ev.last_seen && `, last ${when(ev.last_seen)}`}</span>)}
+              {ev.acknowledged ? <span>acknowledged</span> : null}
+              {/* their own click, filed already acknowledged (Settings, Alerts) */}
+              {ev.actor === 'operator' && <span>by you</span>}
+              {ev.quiet === 'kind' && <span>recorded only</span>}
             </div>
           </div>
-          <button className="ghost" onClick={onClose} title="close (Esc)">✕</button>
+          <Button variant="ghost" className="bd-close" onClick={onClose} title="close (Esc)">Close</Button>
         </div>
 
-        <div className="sbd-body">
-          {err && <div className="sbd-err">could not load this board — {err}</div>}
-          {!board && !err && <div className="dim center-pad">assembling…</div>}
+        <div className="bd-body">
+          {err && <div className="bd-err">Could not load the evidence: {err}</div>}
+          {!board && !err && <div className="bd-brief"><p className="bd-note">Gathering the evidence…</p></div>}
 
           {board && (board.why || board.checks?.length > 0) && (
-            <section className="sbd-brief">
-              {board.why && <p className="sbd-why">{board.why}</p>}
+            <section className="bd-brief">
+              {board.why && <p>{board.why}</p>}
               {board.checks?.length > 0 && (
-                <ul className="sbd-checks">
+                <ul>
                   {board.checks.map((c, i) => <li key={i}>{c}</li>)}
                 </ul>
               )}
@@ -250,12 +250,12 @@ export default function SecurityBoard({ eventId, seed, onClose, onAck }) {
           {board?.sections.map((s, i) => <Section key={i} s={s} />)}
 
           {board && (
-            <section className="sbd-sec">
-              <button className="ghost small" onClick={() => setRaw((r) => !r)}>
-                {raw ? 'hide' : 'show'} the raw event
+            <section className="bd-sec">
+              <button type="button" className="sq-fold" onClick={() => setRaw((r) => !r)}>
+                {raw ? 'Hide' : 'Show'} the raw event
               </button>
               {raw && (
-                <pre className="log-pre sbd-raw">
+                <pre className="lg-pre bd-raw">
                   {JSON.stringify({ ...ev, detail: board.detail }, null, 2)}
                 </pre>
               )}
@@ -263,31 +263,29 @@ export default function SecurityBoard({ eventId, seed, onClose, onAck }) {
           )}
         </div>
 
-        <div className="sbd-foot">
-          <span className="dim small">
-            {ev.triage_verdict === 'flag' ? `⚑ auto review: ${ev.triage_reason || 'flagged'}` : ''}
-          </span>
-          <span className="grow" />
-          <button className="ghost" onClick={onClose}>Close</button>
+        <div className="bd-foot">
+          {ev.triage_verdict === 'flag' && (
+            <State tone="warn" why={ev.triage_reason || undefined}>Flagged by Auto review</State>)}
+          <span className="sq-spacer" />
           {proc && proc.unit && (
-            <button className="ghost" disabled={busy} onClick={() => allow('unit')}
+            <Button variant="ghost" disabled={busy} onClick={() => allow('unit')}
                     title={`Allow everything ${proc.unit} runs, in every box`}>
-              Allow the whole unit</button>
+              Allow the whole unit</Button>
           )}
           {proc && (
-            <button className="ghost" disabled={busy} onClick={() => allow('program')}
+            <Button variant="ghost" disabled={busy} onClick={() => allow('program')}
                     title="Stop alerting on this program in this unit, in every box">
-              Allow this program</button>
+              Allow this program</Button>
           )}
           {fault && fault.conversation_id && (
             <Link className="ghost-link" to={`/c/${fault.conversation_id}`} onClick={onClose}
                   title="open the chat where this happened">Open the chat</Link>
           )}
           {onAck && !ev.acknowledged && (
-            <button onClick={() => { onAck(ev.id); onClose() }}
+            <Button onClick={() => { onAck(ev.id); onClose() }}
                     title={fault ? 'You have dealt with it, or noted the bug. It leaves the list.'
                       : 'Mark it seen. A repeat raises a new alert.'}>
-              {fault ? 'Mark resolved' : 'Acknowledge'}</button>
+              {fault ? 'Mark resolved' : 'Acknowledge'}</Button>
           )}
         </div>
       </div>

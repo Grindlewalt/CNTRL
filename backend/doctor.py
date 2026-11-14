@@ -1,7 +1,7 @@
 """`python -m backend.cli doctor [--json]`: where this install stands, stage by
 stage, and the one command that moves each unfinished stage forward.
 
-The installer's `--check` answers "can this machine host Jav3" before there is
+The installer's `--check` answers "can this machine host CNTRL" before there is
 a venv; this answers "how far did the install get" once there is one. Both are
 written for a person AND for an installing agent (docs/AGENT-INSTALL.md): each
 stage says who can do the fix — `agent` (a plain command as the service user)
@@ -19,22 +19,28 @@ import sys
 from pathlib import Path
 
 from .config import CONFIG_DIR, settings
+from .version import __version__
 
 USAGE = "usage: python -m backend.cli doctor [--json]"
 
 
 def unit_name() -> str:
-    """jarvis.service, or jarvis-<name>.service for a named instance: the unit
-    is named after its config dir exactly as install.sh names both."""
+    """cntrl.service, or cntrl-<name>.service for a named instance: the unit
+    is named after its config dir exactly as install.sh names both. An install
+    from before the rename that the installer has not upgraded yet still runs
+    from ~/.config/jarvis[-<name>] as jarvis[-<name>].service."""
     d = CONFIG_DIR.name
-    return f"{d}.service" if d.startswith("jarvis") else "jarvis.service"
+    return f"{d}.service" if d.startswith(("cntrl", "jarvis")) else "cntrl.service"
 
 
 def _stage(sid: str, title: str, ok: bool | None, detail: str = "", fix: str = "",
            who: str = "agent", optional: bool = False) -> dict:
-    # ok None = not applicable here (skipped), never a failure
+    # ok None = not applicable here (skipped), never a failure: like a passed stage it
+    # carries no fix. (It used to keep one: on a KVM host without Docker the skipped
+    # docker stage told the agent to hand "install Docker" to the person.)
+    todo = ok is False
     return {"id": sid, "title": title, "ok": ok, "optional": optional,
-            "detail": detail, "fix": "" if ok else fix, "who": "" if ok else who}
+            "detail": detail, "fix": fix if todo else "", "who": who if todo else ""}
 
 
 def _systemctl(*args: str) -> str:
@@ -254,7 +260,8 @@ def _gitea_gaps() -> list[dict]:
 
 def summary(st: list[dict]) -> dict:
     todo = [s for s in st if s["ok"] is False and not s["optional"]]
-    return {"ready": not todo, "unit": unit_name(), "port": settings.lan_port,
+    return {"ready": not todo, "version": __version__, "unit": unit_name(),
+            "port": settings.lan_port,
             "config_dir": str(CONFIG_DIR), "state_dir": str(settings.state_dir),
             "repo_dir": str(settings.base_dir),
             "next": todo[0]["id"] if todo else None, "stages": st}
@@ -268,6 +275,7 @@ def run(args: list[str]) -> int:
     if "--json" in args:
         print(json.dumps(rep, indent=1))
         return 0 if rep["ready"] else 1
+    print(f"CNTRL {rep['version']}")
     for s in rep["stages"]:
         mark = {True: "ok  ", False: "opt " if s["optional"] else "MISS", None: "--  "}[s["ok"]]
         print(f"  {mark}  {s['title']:<30} {s['detail']}")

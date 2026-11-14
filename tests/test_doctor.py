@@ -32,6 +32,13 @@ def test_json_shape(capsys, monkeypatch, tmp_env):
 
 
 def test_unit_follows_the_config_dir(monkeypatch, tmp_path):
+    monkeypatch.setattr(doctor, "CONFIG_DIR", tmp_path / "cntrl-test")
+    assert doctor.unit_name() == "cntrl-test.service"
+    monkeypatch.setattr(doctor, "CONFIG_DIR", tmp_path / "cntrl")
+    assert doctor.unit_name() == "cntrl.service"
+    monkeypatch.setattr(doctor, "CONFIG_DIR", tmp_path / "elsewhere")
+    assert doctor.unit_name() == "cntrl.service"
+    # an install from before the rename, not moved yet: its units have the old names
     monkeypatch.setattr(doctor, "CONFIG_DIR", tmp_path / "jarvis-test")
     assert doctor.unit_name() == "jarvis-test.service"
     monkeypatch.setattr(doctor, "CONFIG_DIR", tmp_path / "jarvis")

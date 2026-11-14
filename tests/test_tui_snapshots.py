@@ -1,7 +1,7 @@
 """Per-page screen snapshots of the real terminal client, the way macOS Terminal.app shows
 it: a pty, TERM=xterm-256color (no COLORTERM, so no truecolor), 80x24 and 160x48.
 
-Each test starts clients/jav3cli/jav3 unmodified against tests/tui_fake_http.py's seeded
+Each test starts clients/cntrl/cntrl unmodified against tests/tui_fake_http.py's seeded
 fake (no network), on a pinned clock and time zone, opens one page, and compares the
 screen to tests/tui_snapshots/<page>-<cols>x<rows>.txt: the text, then one line per row of
 colour runs (fg/bg as xterm-256 indexes), so a contrast or accent change fails too. A

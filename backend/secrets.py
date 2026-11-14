@@ -1,6 +1,6 @@
 """Operator API keys the agent can USE but never SEE.
 
-Values live host-side in ~/.config/jarvis/secrets.json (0600), next to the
+Values live host-side in ~/.config/cntrl/secrets.json (0600), next to the
 DeepSeek key's env file. The agent's context carries only the NAMES; the host
 substitutes the real value at execution time. Everything persisted or fed back
 to the model — args in the DB, the message history, outputs — carries the

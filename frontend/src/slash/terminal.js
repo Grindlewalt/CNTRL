@@ -22,9 +22,20 @@ export const TERMINAL_ONLY = {
     + 'toolbar, at the top of the chat',
   persona: 'agent presets live on the Agents page — /agents takes you there',
   dnd: 'do not disturb is in Settings → Alerts; while it is on, the top bar says so',
-  update: 'the terminal client updates itself: /update there, or jav3 update in a shell; '
+  update: 'the terminal client updates itself: /update there, or cntrl update in a shell; '
     + 'this page is always the server’s newest',
   'new-panel': 'panels are the terminal client’s /new-panel — the Work page has its own windows',
+  transcript: 'the terminal client’s /transcript puts the whole chat on the clipboard — here '
+    + '/export downloads it as markdown',
+  pull: 'the clone and pull commands for a project are the terminal client’s /pull — the web '
+    + 'app does not show them yet',
+  helper: 'the terminal client’s /helper loads CNTRL’s manual into the next turn — here, just '
+    + 'ask CNTRL about itself: it can read its manual',
+  undo: 'undoing CNTRL’s last file change is the terminal client’s /undo — the web app has no '
+    + 'undo yet',
+  restart: 'restarting is the terminal client’s — here the browser’s reload picks up a new '
+    + 'version',
+  pages: 'published pages are on the Review page: each live one with its link and Unpublish',
 }
 
 // the terminal client's aliases for the above

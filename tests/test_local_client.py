@@ -4,12 +4,11 @@ import importlib.machinery
 import importlib.util
 import json
 import socket
-from pathlib import Path
 
 import httpx
 import pytest
 
-CLI = Path(__file__).resolve().parents[1] / "clients" / "jav3cli" / "jav3"
+from client_paths import CLI
 
 
 def _load():

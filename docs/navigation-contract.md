@@ -22,7 +22,7 @@ keeps the last three frames so before/after is visible. No grid, no drawn
 set-of-marks overlays (Anthropic measured no consistent gain); the element list
 is text.
 
-## A. Desk wire protocol (jav3-desk <-> backend/desk.py)
+## A. Desk wire protocol (cntrl-desk <-> backend/desk.py)
 
 `PROTOCOL_V` stays 1. Everything below is additive and optional; an old client
 that omits the new fields keeps working (server treats `elements` as `[]`,
@@ -152,7 +152,7 @@ now reads differently from what was typed (autocomplete or formatting?) —
 check the screenshot before retyping`. The typing error is kept for the field
 AND the screen both unchanged. `desk-apps.json` entries pass the same
 terminal / script-runner exclusion as the installed-app list;
-`jav3-desk status` names any dropped entry.
+`cntrl-desk status` names any dropped entry.
 
 ### A.5 Locked screen / sleeping display
 
@@ -170,7 +170,7 @@ both flags. An old client never sends them and reads as awake.
 `locked: null` (in `hello` or a `state` frame, sent explicitly) means
 UNKNOWN: a Linux box whose locker reports nothing (logind by session, then the
 ScreenSaver D-Bus, are tried first). The server does not refuse on unknown and
-`jav3-desk status` prints `screen:  unknown`; the capture itself then says what
+`cntrl-desk status` prints `screen:  unknown`; the capture itself then says what
 is wrong (a raw `screencapture failed: could not create image from display`
 from an older client reads as `the screen could not be captured - it is
 probably locked or asleep`). An omitted `locked` is `false`, as before.
@@ -383,7 +383,7 @@ def to_pixels(rx: float, ry: float, convention: str, width: int, height: int) ->
 
 | WP | owns | must not touch |
 |---|---|---|
-| 1 desk client | `clients/jav3-desk/jav3-desk`, `tests/test_desk_client.py` | anything under backend/, tools/ |
+| 1 desk client | `clients/cntrl-desk/cntrl-desk`, `tests/test_desk_client.py` | anything under backend/, tools/ |
 | 2 desk server | `backend/desk.py`, `backend/desk_api.py`, `tools/desk_*`, `tests/test_desk.py`, `frontend/src/DeskPanel.jsx` (only if needed) | the client, grounding.py internals (call the stub) |
 | 3 grounding | `backend/grounding.py`, `backend/grounding_fixtures.py`, `backend/grounding_api.py`, `tests/test_grounding*.py`, `frontend/src/GroundingPanel.jsx`, `frontend/src/pages/Settings.jsx` (one import + one mount line) | desk.py, browser.py, main.py (already mounted) |
 | 4 browser | `clients/jav3-browser/**`, `backend/browser.py`, `backend/browser_api.py`, `tools/browser_*`, `tests/test_browser.py` | desk, grounding |

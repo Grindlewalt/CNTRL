@@ -1,5 +1,5 @@
 // The web composer's slash commands — the terminal client's set
-// (clients/jav3cli/jav3, _commands()) where it makes sense in a browser.
+// (clients/cntrl/cntrl, _commands()) where it makes sense in a browser.
 //
 // Each command: { name, aliases, usage, help, busyOk, args?, run }.
 //   args(env)      -> [{value, label, meta}] (or a promise of one): the
@@ -32,7 +32,7 @@ export const WINDOW_TYPES = [
   ['renderer', 'Renderer — html / pdf / images'],
   ['organizer', 'File organizer'],
   ['run', 'Run — python sandbox'],
-  ['context', 'Context files — load into Jav3'],
+  ['context', 'Context files — load into CNTRL'],
   ['agent', 'Run an agent'],
   ['research', 'Research bots — live'],
   ['git', 'Git — review, approve, push'],
@@ -127,8 +127,8 @@ export const COMMANDS = [
     help: 'commands and keys',
     run: (_, env) => {
       env.host.setInput('/')
-      return '↑↓ move · Tab completes · Enter runs · Esc closes · //text sends a message '
-        + 'that starts with a slash · Enter while a turn runs messages the agent'
+      return '↑↓ move, Tab completes, Enter runs, Esc closes, //text sends a message '
+        + 'that starts with a slash, Enter while a turn runs messages the agent'
     },
   },
   {
@@ -171,7 +171,7 @@ export const COMMANDS = [
       value: String(c.id),
       label: c.summary || `Chat #${c.id}`,
       meta: [c.starred ? '★' : '', c.project_slug || '', `#${c.id}`]
-        .filter(Boolean).join(' · '),
+        .filter(Boolean).join(', '),
     })),
     run: (arg, env) => {
       if (!arg) { env.host.openList(); return }
@@ -190,7 +190,7 @@ export const COMMANDS = [
       const m = await loadModel()
       return (m?.models || []).map((x) => ({
         value: x.id, label: x.label || x.id,
-        meta: [x.id === m.active ? 'current' : '', modelCaption(x)].filter(Boolean).join(' · '),
+        meta: [x.id === m.active ? 'current' : '', modelCaption(x)].filter(Boolean).join(', '),
       }))
     },
     run: async (arg) => {
@@ -277,7 +277,7 @@ export const COMMANDS = [
   {
     name: 'local', busyOk: true,
     help: 'local chats (files and shell on your machine)',
-    run: () => 'only in the jav3 terminal client — it runs the tools where it is',
+    run: () => 'only in the cntrl terminal client — it runs the tools where it is',
   },
   {
     name: 'rename', usage: '[title]',
@@ -348,14 +348,14 @@ export const COMMANDS = [
     run: async (arg, env) => {
       const h = env.host
       const c = currentConvo(h)
-      const title = c?.summary || (h.conversationId ? `Jav3 chat #${h.conversationId}` : 'Jav3 chat')
+      const title = c?.summary || (h.conversationId ? `CNTRL chat #${h.conversationId}` : 'CNTRL chat')
       // the saved transcript when there is one (what the terminal exports),
       // else what is on screen (a temporary chat has nothing saved)
       const msgs = h.conversationId
         ? (await api(`/api/conversations/${h.conversationId}/messages`)).messages
         : h.messages
       need(msgs?.length, 'nothing to export')
-      const name = arg || `jav3-${h.conversationId || 'chat'}.md`
+      const name = arg || `cntrl-${h.conversationId || 'chat'}.md`
       download(name.endsWith('.md') ? name : `${name}.md`, transcriptMarkdown(title, msgs))
       return `saved ${name}`
     },

@@ -1,14 +1,14 @@
 // node frontend/src/__tests__/securityRuns.test.mjs
 import assert from 'node:assert/strict'
 import {
-  UNTRUSTED, cardTotals, cardsFor, chatHref, clock, countsLine, countsParts, eventActions,
+  UNTRUSTED, cardTitle, cardTotals, cardsFor, chatHref, eventState, clock, countsLine, countsParts, eventActions,
   kindsToMute, lineTitle, muteAsk, mutable, programOf, runState, stopRunAsk, subjectsText,
 } from '../securityRuns.js'
 
 // the header's counts, as the sketch words them
 assert.equal(countsLine({ need: 2, filtered: 47, reports: 1 }),
-  '2 need you · 47 filtered as normal work · 1 agent report')
-assert.equal(countsLine({ need: 1, filtered: 0, reports: 3 }), '1 need you · 3 agent reports')
+  '2 need you, 47 filtered as normal work, 1 agent report')
+assert.equal(countsLine({ need: 1, filtered: 0, reports: 3 }), '1 need you, 3 agent reports')
 assert.equal(countsLine({ need: 0, filtered: 0, reports: 0 }), '')
 assert.equal(countsLine(), '')
 // only the filtered count is a "(show)"
@@ -104,5 +104,22 @@ assert.deepEqual(cardTotals(undefined), { need: 0, reports: 0, runs: 0 })
 assert.equal(clock('2026-10-01 05:31:12'), '05:31')
 assert.equal(clock('2026-10-01T05:31:12Z'), '05:31')
 assert.equal(clock(''), '')
+
+// card titles: the project is in the meta line, a bare kind reads as words
+assert.equal(cardTitle({ title: 'website · git_mirror_failed', project: 'website' }), 'Git mirror failed')
+assert.equal(cardTitle({ title: 'login_failed', project: null }), 'Login failed')
+assert.equal(cardTitle({ title: 'site · chat 4 "Fix the nav"', project: 'site' }), 'Chat 4 "Fix the nav"')
+assert.equal(cardTitle({ title: 'box p-1 · boot 3' }), 'Box p-1, boot 3')
+assert.equal(cardTitle({}), '')
+assert.equal(cardTitle({ title: 'site · harness_fault', project: 'site' }), 'Agent report')
+
+// an event's state word: yolo approvals and failed pushes say what they are
+assert.equal(eventState({ kind: 'yolo_auto_approved', severity: 'info' }).word, 'Approved without asking')
+assert.equal(eventState({ kind: 'git_mirror_failed', severity: 'warn', detail: { error: 'denied' } }).tone, 'bad')
+assert.equal(eventState({ kind: 'git_mirror_failed', detail: { error: 'denied' } }).why, 'denied')
+assert.deepEqual([eventState({ severity: 'critical' }).tone, eventState({ severity: 'warn' }).tone,
+  eventState({ severity: 'info' }).tone], ['bad', 'warn', 'quiet'])
+assert.equal(lineTitle({ kind: 'yolo_auto_approved', summary: 'approved unasked (yolo): package pip x' }),
+  'package pip x')
 
 console.log('securityRuns ok')

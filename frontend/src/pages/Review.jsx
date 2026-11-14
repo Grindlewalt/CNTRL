@@ -7,17 +7,15 @@ import RunCards from '../SecurityRuns.jsx'
 import TriagePanel from '../TriagePanel.jsx'
 import Posture from '../Posture.jsx'
 import ScrollHint from '../ScrollHint.jsx'
-import { useEgressDecide } from '../EgressDecide.jsx'
+import { HostRequest, useEgressDecide } from '../EgressDecide.jsx'
 import { PendingCountContext } from '../Notices.jsx'
 import { notify, notifyError } from '../notify.js'
 import { useAsk } from '../ask.jsx'
+import { ago } from '../format.js'
 import { liveInQueue } from '../securityQueue.js'
 import { cardsFor, cardTotals } from '../securityRuns.js'
-import {
-  ALLOW_ALWAYS_TIP, ALLOW_ONCE_TIP, ASKS_LEDE, DENY_TIP, FAULTS_LEDE, REFUSED_TAG, askAge,
-  askKindText, ledeFor, SECURITY_LEDES,
-} from '../securityCopy.js'
-import EmptyState from '../components/EmptyState.jsx'
+import { ASKS_LEDE, askAge, ledeFor, SECURITY_LEDES } from '../securityCopy.js'
+import { Group, Item, Section, State } from '../securityParts.jsx'
 import Page from '../components/Page.jsx'
 import Tabs from '../components/Tabs.jsx'
 import Button from '../components/Button.jsx'
@@ -29,9 +27,9 @@ import { listHeldJournal } from '../boxes/api/journalHeld.js'
 import { listPageRequests, listPages } from '../boxes/api/pages.js'
 import { listProfiles } from '../boxes/api/profiles.js'
 import { listImages } from '../boxes/api/images.js'
-import { needsProject } from '../boxes/logic.js'
 import {
-  EnvironmentCard, JournalHeldCard, PackageApprove, PageLiveCard, PagePublishCard, PackageSummary, ServiceRequest, SkillRequestCard, usePackageReject,
+  EnvironmentCard, JournalHeldCard, PackageApprove, PackageRequest, PageLiveCard, PagePublishCard,
+  ServiceRequest, SkillRequestCard, usePackageReject,
 } from '../boxes/RequestCards.jsx'
 
 // One cross-project queue of everything awaiting the operator: git commit
@@ -223,7 +221,7 @@ export function ReviewQueue({ slug }) {
   // Allow all trains the allowlist for every host, so it confirms hardest.
   const BULK_ASK = {
     approve: (n) => `Allow all ${n} sites? Each goes on its project's always-allow list, `
-      + 'including the ⚑ flagged ones. Addresses that can never be allowed, like the Jav3 '
+      + 'including the ones Auto review flagged. Addresses that can never be allowed, like the CNTRL '
       + 'host, are skipped.',
     reject: (n) => `Deny all ${n} sites? They stay blocked and come back if a box asks again.`,
     dismiss: (n) => `Clear all ${n} sites from this list? No decision is recorded; `
@@ -269,245 +267,150 @@ export function ReviewQueue({ slug }) {
   const total = totals.need + totals.reports + gitTotal + pending.length + svcReqs.length + pkgReqs.length
     + envReqs.length + skillReqs.length + heldJournal.length + pageReqs.length + asks.length
 
-  if (!slugs) return <div className="dim center-pad">…</div>
+  if (!slugs) return <p className="sq-lede">Loading…</p>
 
+  const gitRows = (slugs || []).flatMap((s) => (gitReqs[s] || []).map((r) => ({ ...r, slug: s })))
   return (
-    <div className="review-queue">
+    <div className="sq-queue">
       {total === 0 && (
-        <EmptyState pad>nothing waiting on you — all clear ✓</EmptyState>
+        <div className="sq-empty">
+          <b>Nothing is waiting for you.</b>
+          When an agent asks to commit, reach a new site, install a package, run a service or
+          publish a page, the request lands here. So do security alerts.
+        </div>
       )}
 
-      {/* ---- git commit requests (deliberately no bulk verdict: each one is
-             a push to a repo, they deserve individual eyes) ---- */}
+      {/* ---- git: commits and merge requests (deliberately no bulk verdict:
+             each one changes a repo, they deserve individual eyes) ---- */}
       {gitTotal > 0 && (
-        <section className="sbx-sec">
-          <div className="sbx-sec-head">
-            <h3>Commit requests</h3>
-            <span className="sec-count">{gitTotal}</span>
-          </div>
-          {(slugs || []).map((s) => {
-            const reqs = gitReqs[s] || []
-            if (reqs.length === 0) return null
-            return (
-              <div key={s} className="rev-group">
-                {multi && <div className="rev-group-head">📁 {projLabel(s)}</div>}
-                <ul className="staged-list rev-list">
-                  {reqs.map((r) => (
-                    <li key={r.id}>
-                      <span className="tag new">#{r.id}</span>
-                      {r.kind === 'push' && <span className="tag">PR</span>}
-                      <span className="grow ellipsis"
-                            title={r.kind === 'push' && r.summary
-                              ? `${r.message}\n\n${r.branch}\n${r.summary}` : r.message}>
-                        {String(r.message || '').split('\n')[0]}
-                        {r.kind === 'push' && r.summary && (
-                          <span className="dim small"> · {r.summary.split('\n').pop()}</span>)}
-                      </span>
-                      {r.kind === 'push' && r.pr_url && (
-                        <a className="win-btn" href={r.pr_url} target="_blank" rel="noreferrer"
-                           title={`review the diff in Gitea (${r.branch})`}>diff ↗</a>)}
-                      {r.error && <span className="tag error" title={r.error}>retry</span>}
-                      <button className="win-btn ok"
-                              title={r.kind === 'push' ? 'approve: merge the pull request into main'
-                                : 'approve: commit + push'}
-                              disabled={busy} onClick={() => gitAct(s, r.id, 'approve')}>✓</button>
-                      <button className="win-btn" title="reject" disabled={busy}
-                              onClick={() => gitAct(s, r.id, 'reject')}>✕</button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )
-          })}
-        </section>
+        <Section title="Commits and merges" count={gitTotal}>
+          <Group>
+            {gitRows.map((r) => <GitRequest key={`${r.slug}:${r.id}`} r={r} busy={busy}
+                                            project={projLabel(r.slug)} showProject={multi || !slug}
+                                            onAct={(verb) => gitAct(r.slug, r.id, verb)} />)}
+          </Group>
+        </Section>
       )}
 
-      {/* ---- service requests: each one individually, never in bulk, and
-             never auto-handled (the reviewer's never-list) ---- */}
+      {/* ---- services: each one individually, never in bulk, and never
+             auto-handled (the reviewer's never-list) ---- */}
       {svcReqs.length > 0 && (
-        <section className="sbx-sec">
-          <div className="sbx-sec-head">
-            <h3>Service requests</h3>
-            <span className="sec-count">{svcReqs.length}</span>
-          </div>
-          {svcReqs.map((x) => (
-            <ServiceRequest key={x.id} s={x} lan={lan}
-                            profilePlacement={placementOf(x.project_slug)}
-                            onDone={loadBoxReqs} />
-          ))}
-        </section>
+        <Section title="Services" count={svcReqs.length}>
+          <Group>
+            {svcReqs.map((x) => (
+              <ServiceRequest key={x.id} s={x} lan={lan}
+                              profilePlacement={placementOf(x.project_slug)}
+                              onDone={loadBoxReqs} />
+            ))}
+          </Group>
+        </Section>
       )}
 
-      {/* ---- package requests ---- */}
       {pkgReqs.length > 0 && (
-        <section className="sbx-sec">
-          <div className="sbx-sec-head">
-            <h3>Package requests</h3>
-            <span className="sec-count">{pkgReqs.length}</span>
-          </div>
-          {pkgReqs.map((p) => (
-            <div key={p.id} className="sbx-row sev-warn bx-cat-row">
-              <div className="grow"><PackageSummary p={p} />
-                {p.card && <div className="small bx-reach">{p.card}</div>}</div>
-              <div className="sbx-right bx-cat-right">
-                <span className="small">into <code>{p.target_variant}</code></span>
-                <span className="row">
-                  <Button variant="ghost" onClick={() => setApprovingPkg(p)}>Approve…</Button>
-                  <Button variant="ghost" danger onClick={() => rejectPkg(p)}>Reject</Button>
-                </span>
-              </div>
-            </div>
-          ))}
+        <Section title="Packages" count={pkgReqs.length}>
+          <Group>
+            {pkgReqs.map((p) => (
+              <PackageRequest key={p.id} p={p} onApprove={() => setApprovingPkg(p)}
+                              onReject={() => rejectPkg(p)} />
+            ))}
+          </Group>
           <PackageApprove p={approvingPkg} variants={variants}
                           onClose={() => setApprovingPkg(null)}
                           onDone={() => { setApprovingPkg(null); loadBoxReqs() }} />
-        </section>
+        </Section>
       )}
 
       {envReqs.length > 0 && (
-        <section className="sbx-sec">
-          <div className="sbx-sec-head">
-            <h3>Environment requests</h3>
-            <span className="sec-count">{envReqs.length}</span>
-          </div>
-          {envReqs.map((e) => <EnvironmentCard key={e.id} e={e} onDone={loadBoxReqs} />)}
-        </section>
+        <Section title="Environments" count={envReqs.length}>
+          <Group>{envReqs.map((e) => <EnvironmentCard key={e.id} e={e} onDone={loadBoxReqs} />)}</Group>
+        </Section>
       )}
 
       {skillReqs.length > 0 && (
-        <section className="sbx-sec">
-          <div className="sbx-sec-head">
-            <h3>Skill requests</h3>
-            <span className="sec-count">{skillReqs.length}</span>
-          </div>
-          {skillReqs.map((r) => <SkillRequestCard key={r.id} r={r} onDone={loadBoxReqs} />)}
-        </section>
+        <Section title="Skills" count={skillReqs.length}>
+          <Group>{skillReqs.map((r) => <SkillRequestCard key={r.id} r={r} onDone={loadBoxReqs} />)}</Group>
+        </Section>
       )}
 
       {heldJournal.length > 0 && (
-        <section className="sbx-sec">
-          <div className="sbx-sec-head">
-            <h3>Journal entries held</h3>
-            <span className="sec-count">{heldJournal.length}</span>
-          </div>
-          {heldJournal.map((h) => <JournalHeldCard key={`${h.project}:${h.id}`} h={h} onDone={loadBoxReqs} />)}
-        </section>
+        <Section title="Journal entries held back" count={heldJournal.length}>
+          <Group>
+            {heldJournal.map((h) => <JournalHeldCard key={`${h.project}:${h.id}`} h={h} onDone={loadBoxReqs} />)}
+          </Group>
+        </Section>
       )}
 
       {pageReqs.length > 0 && (
-        <section className="sbx-sec">
-          <div className="sbx-sec-head">
-            <h3>Pages waiting to publish</h3>
-            <span className="sec-count">{pageReqs.length}</span>
-          </div>
-          {pageReqs.map((p) => <PagePublishCard key={p.id} p={p} onDone={loadBoxReqs} />)}
-        </section>
-      )}
-
-      {livePages.length > 0 && (
-        <section className="sbx-sec">
-          <div className="sbx-sec-head">
-            <h3>Published pages</h3>
-            <span className="sec-count">{livePages.length}</span>
-          </div>
-          {livePages.map((p) => <PageLiveCard key={p.id} p={p} onDone={loadBoxReqs} />)}
-        </section>
+        <Section title="Pages to publish" count={pageReqs.length}>
+          <Group>{pageReqs.map((p) => <PagePublishCard key={p.id} p={p} onDone={loadBoxReqs} />)}</Group>
+        </Section>
       )}
 
       {/* ---- questions in chats: answered there, listed here so the count matches ---- */}
       {asks.length > 0 && (
-        <section className="sbx-sec">
-          <div className="sbx-sec-head">
-            <h3>Questions in chats</h3>
-            <span className="sec-count">{asks.length}</span>
-          </div>
-          <p className="dim small net-lede">{ASKS_LEDE}</p>
-          <ul className="staged-list rev-list">
+        <Section title="Questions in chats" count={asks.length} lede={ASKS_LEDE}>
+          <Group>
             {asks.map((k) => (
-              <li key={k.id} className="rev-egress">
-                <span className="tag pending">{askKindText(k.kind)}</span>
-                <span className="grow ellipsis" title={k.question}>{k.question}</span>
-                <span className="dim small">{askAge(k.age_s)}</span>
-                <Link className="small" to={`/c/${k.conversation_id}`}>
-                  Open chat #{k.conversation_id}</Link>
-              </li>
+              <Item key={k.id}
+                    meta={<><b>{k.kind === 'permission' ? 'Permission' : 'Question'}</b> in
+                      chat {k.conversation_id}, {askAge(k.age_s)}</>}
+                    title={k.question} titleAttr={k.question}
+                    actions={<Link className="ghost-link" to={`/c/${k.conversation_id}`}>
+                      Answer in chat</Link>} />
             ))}
-          </ul>
-        </section>
+          </Group>
+        </Section>
       )}
 
       {/* ---- egress host approvals ---- */}
       {pending.length > 0 && (
-        <section className="sbx-sec">
-          <div className="sbx-sec-head">
-            <h3>Sites boxes asked for</h3>
-            <span className="sec-count">{pending.length}</span>
-            <div className="sec-actions">
-              <button className="ghost" disabled={busy}
-                      title="put every site on its project's always-allow list"
-                      onClick={() => egressBulk('approve')}>Allow all</button>
-              <button className="ghost danger" disabled={busy}
-                      title="keep every site blocked"
-                      onClick={() => egressBulk('reject')}>Deny all</button>
-              <button className="ghost" disabled={busy}
-                      title="empty the list without deciding anything"
-                      onClick={() => egressBulk('dismiss')}>Clear list</button>
-            </div>
-          </div>
-          <p className="dim small net-lede">A box tried to reach these and no list covers them,
-            so they were blocked. "Allow always" adds the site to that project's always-allow
-            list for good; "Allow 1 h" lets it through for an hour and writes no list.</p>
-          <ul className="staged-list rev-list">
+        <Section title="Sites a box asked for" count={pending.length}
+                 lede={'A box tried to reach these and no list covers them, so they were blocked. '
+                   + '"Allow always" puts the site on that project\'s always-allow list; '
+                   + '"Allow 1 h" lets it through for an hour and writes no list.'}
+                 actions={pending.length > 1 && <>
+                   <Button variant="ghost" disabled={busy}
+                           title="empty the list without deciding anything"
+                           onClick={() => egressBulk('dismiss')}>Clear list</Button>
+                   <Button variant="ghost" disabled={busy} title="keep every site blocked"
+                           onClick={() => egressBulk('reject')}>Deny all</Button>
+                   <Button variant="ghost" disabled={busy}
+                           title="put every site on its project's always-allow list"
+                           onClick={() => egressBulk('approve')}>Allow all</Button></>}>
+          <Group>
             {pending.map((p) => (
-              <li key={p.id} className="rev-egress">
-                <span className="tag pending">{p.hit_count}×</span>
-                <span className="grow ellipsis" title={p.host}>{p.host}</span>
-                {p.refused && <span className="tag error" title={p.refused}>{REFUSED_TAG}</span>}
-                {p.triage_verdict === 'flag' && (
-                  <span className="tag triage-flag" title={p.triage_reason}>⚑ {p.triage_reason}</span>)}
-                {!slug && p.project_slug && !needsProject(p) && <span className="tag">{p.project_slug}</span>}
-                {needsProject(p) && <span className="tag pending" title="you pick the project when you allow it">no project</span>}
-                {p.refused && <span className="dim small net-refused">{p.refused}</span>}
-                <span className="rev-egress-btns">
-                  {!p.refused && <>
-                    <Button variant="ghost" title={ALLOW_ALWAYS_TIP(needsProject(p) ? '' : projLabel(p.project_slug))}
-                            onClick={() => egressAct(p, 'allow')}>Allow always</Button>
-                    <Button variant="ghost" title={ALLOW_ONCE_TIP}
-                            onClick={() => egressAct(p, 'once')}>Allow 1 h</Button></>}
-                  <Button variant="ghost" title={DENY_TIP} onClick={() => egressAct(p, 'deny')}>Deny</Button>
-                </span>
-              </li>
+              <HostRequest key={p.id} p={p} onDecide={egressAct} scoped={!!slug}
+                           projectName={projLabel(p.project_slug)} />
             ))}
-          </ul>
+          </Group>
           {picker}
-        </section>
+        </Section>
       )}
 
       {/* ---- security alerts: one card per run (alerts and the agents' own reports) ---- */}
       {runs.length > 0 && (
-        <section className="sbx-sec">
-          <div className="sbx-sec-head">
-            <h3>Security alerts</h3>
-            <span className="sec-count">{totals.need + totals.reports}</span>
-            {/* ack_all is global — inside a single project's Workspace panel it
-                would silently clear other projects' alerts, so it stays off */}
-            {!slug && (
-              <div className="sec-actions">
-                {totals.need > 0 && (
-                  <button className="ghost" disabled={busy}
-                          title="mark every alert as seen (agent reports stay)"
-                          onClick={() => ackAllAlerts(false)}>Acknowledge all</button>)}
-                {totals.reports > 0 && (
-                  <button className="ghost" disabled={busy}
-                          title="mark every agent report resolved"
-                          onClick={() => ackAllAlerts(true)}>Resolve all reports</button>)}
-              </div>
-            )}
-          </div>
-          {totals.reports > 0 && <p className="dim small net-lede">{FAULTS_LEDE}</p>}
+        <Section title="Security alerts" count={totals.need + totals.reports}
+                 actions={!slug && <>
+                   {/* ack_all is global: inside a single project's Workspace panel it
+                       would silently clear other projects' alerts, so it stays off */}
+                   {totals.reports > 0 && (
+                     <Button variant="ghost" disabled={busy} title="mark every agent report resolved"
+                             onClick={() => ackAllAlerts(true)}>Resolve all reports</Button>)}
+                   {totals.need > 0 && (
+                     <Button variant="ghost" disabled={busy}
+                             title="mark every alert as seen (agent reports stay)"
+                             onClick={() => ackAllAlerts(false)}>Acknowledge all</Button>)}
+                 </>}>
           <RunCards runs={runs} slug={slug} onChanged={loadAlerts}
                     onOpenBoard={(a) => setBoard({ id: a.id, seed: a })} />
-        </section>
+        </Section>
+      )}
+
+      {livePages.length > 0 && (
+        <Section title="Published pages" count={livePages.length}
+                 lede="Live now. Anyone with a link can open it; unpublish to stop the link working.">
+          <Group>{livePages.map((p) => <PageLiveCard key={p.id} p={p} onDone={loadBoxReqs} />)}</Group>
+        </Section>
       )}
 
       {board && (
@@ -515,6 +418,40 @@ export function ReviewQueue({ slug }) {
                        onClose={() => setBoard(null)} onAck={ackAlert} />
       )}
     </div>
+  )
+}
+
+// One commit or merge request. The message, branch and summary are the
+// agent's: text nodes only. A request whose last approval failed stays
+// pending with `error` set; approving it again retries.
+function GitRequest({ r, project, showProject, busy, onAct }) {
+  const merge = r.kind === 'push'
+  const lines = String(r.message || '').split('\n')
+  const stat = merge && r.summary ? r.summary.split('\n').pop().trim() : ''
+  return (
+    <Item
+      meta={<>
+        <b>{merge ? 'Merge request' : 'Commit'} #{r.id}</b>
+        {showProject && <> for {project}</>}
+        {merge && r.branch && <> from <span className="mono">{r.branch}</span></>}
+        {r.conversation_id && <>, from <Link to={`/c/${r.conversation_id}`}>chat {r.conversation_id}</Link></>}
+        {r.created_at && <>, {ago(r.created_at)}</>}
+      </>}
+      title={lines[0]}
+      titleAttr={merge && r.summary ? `${r.message}\n\n${r.branch}\n${r.summary}` : r.message}
+      state={r.error && <State tone="bad" why={r.error}>Last attempt failed</State>}
+      change={merge
+        ? `${stat ? `${stat}. ` : ''}Approve merges the pull request into main.`
+        : 'Approve commits the changes to main, then pushes them if the project has a remote.'}
+      actions={<>
+        {merge && r.pr_url && (
+          <a className="ghost-link" href={r.pr_url} target="_blank" rel="noreferrer"
+             title={`the diff in Gitea (${r.branch})`}>View diff</a>)}
+        <Button variant="ghost" disabled={busy} onClick={() => onAct('reject')}>Reject</Button>
+        <Button disabled={busy} onClick={() => onAct('approve')}
+                title={merge ? 'merge the pull request into main' : 'commit, then push'}>
+          {r.error ? 'Retry' : merge ? 'Approve merge' : 'Approve'}</Button>
+      </>} />
   )
 }
 
@@ -557,14 +494,19 @@ export default function Review() {
   )
 }
 
-// The index tab: Auto review's control strip, then the queue itself.
+// The index tab: the queue and its history in the main column; beside it (under
+// it on a narrow screen) what is switched on and Auto review's controls.
 export function ReviewHome() {
   return (
-    <div className="review-page">
-      <Posture />
-      <TriagePanel />
-      <ReviewQueue />
-      <SecurityHistory />
+    <div className="review-page sq-home">
+      <div className="sq-main">
+        <ReviewQueue />
+        <SecurityHistory />
+      </div>
+      <aside className="sq-rail" aria-label="How the queue is set up">
+        <Posture />
+        <TriagePanel />
+      </aside>
     </div>
   )
 }

@@ -13,7 +13,7 @@
 # Usage:  scripts/jsxcheck.sh frontend/src/App.jsx frontend/src/pages/*.jsx frontend/src/styles.css
 set -uo pipefail
 HOST="${JSXCHECK_HOST:-grindlewalt@atomostest}"
-ESB="~/jarvis/frontend/node_modules/.bin/esbuild"
+ESB="~/cntrl/frontend/node_modules/.bin/esbuild"
 rc=0
 for f in "$@"; do
   [ -f "$f" ] || { echo "MISSING  $f"; rc=1; continue; }

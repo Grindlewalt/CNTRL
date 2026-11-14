@@ -47,8 +47,8 @@ export default function RunPanel({ slug, state, setState }) {
       </div>
       {result && (
         <div className="run-result">
-          <div className="dim">exit {result.exit_code} · {result.duration}s
-            {result.timed_out && <span className="warn"> · timed out</span>}</div>
+          <div className="dim">exit {result.exit_code}, {result.duration}s
+            {result.timed_out && <span className="warn">, timed out</span>}</div>
           {result.stdout && <pre className="console">{result.stdout}</pre>}
           {result.stderr && <pre className="console err">{result.stderr}</pre>}
           {result.artifacts?.length > 0 && result.artifacts.map((a) => (

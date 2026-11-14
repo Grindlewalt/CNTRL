@@ -83,7 +83,7 @@ async def test_fault_summary_is_cut_with_an_ellipsis_and_the_board_has_the_whole
     assert facts["What went wrong"] == long                    # nothing cut on the board
     assert facts["What it tried"] == "write_file then git commit"
     assert facts["Chat"] == "chat #646"
-    assert "Jav3's own tools" in board["title"]
+    assert "CNTRL's own tools" in board["title"]
 
 
 async def test_short_fault_summary_is_untouched(db):
@@ -316,7 +316,7 @@ async def test_proxy_denies_the_gateway_without_queueing_it(db, fake_host):
     from backend.vm import egress_proxy as ep
     v, reason, pin = await ep._authorize_target("10.201.0.1", "80", _att())
     assert v == "deny" and pin is None and reason != egress.NOT_LISTED
-    assert "Jav3 host" in reason
+    assert "CNTRL host" in reason
     await ep._record("10.201.0.1", "GET", "/", 0, 0, v, reason, _att())
     assert await egress.list_pending(db, "proj") == []
     # an ordinary unlisted site is still queued
@@ -331,7 +331,7 @@ async def test_old_queued_gateway_row_cannot_be_approved(client, db, fake_host):
     assert rows["10.201.0.1"]["refused"] == egress.HOST_REFUSED
     assert rows["pypi.org"]["refused"] is None
     r = await client.post(f"/api/egress/pending/{rows['10.201.0.1']['id']}/approve")
-    assert r.status_code == 400 and "Jav3 host" in r.json()["detail"]
+    assert r.status_code == 400 and "CNTRL host" in r.json()["detail"]
     # Approve all adds pypi.org and leaves the gateway alone
     r = await client.post("/api/egress/pending/bulk", json={"action": "approve"})
     assert r.json() == {"ok": True, "done": 1, "skipped": 1}

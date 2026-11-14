@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# services_lan_ip.sh: give Jav3's services their OWN LAN address (DESIGN-BOXES.md,
-# operator decision 0.4). WP3. Run by hand, as root, on the Jav3 host. Nothing
-# in Jav3 runs this script.
+# services_lan_ip.sh: give CNTRL's services their OWN LAN address (DESIGN-BOXES.md,
+# operator decision 0.4). WP3. Run by hand, as root, on the CNTRL host. Nothing
+# in CNTRL runs this script.
 #
 # Why: a service exposed with expose "lan" gets a host-side relay (backend/vm/
-# portfwd.py). It must never listen on the address Jav3's own UI is served on:
+# portfwd.py). It must never listen on the address CNTRL's own UI is served on:
 # browsers send cookies regardless of port (SECURITY-RESIDUAL-RISK.md #13), so a
-# hostile service on Jav3's address would receive the operator's session cookie.
+# hostile service on CNTRL's address would receive the operator's session cookie.
 # A second address is a different cookie origin.
 #
 # Usage:
@@ -22,14 +22,14 @@
 #           macvlan the host itself cannot talk to jsvc0's address (fine: only
 #           LAN clients need it).
 #
-# Jav3 recognises the address as dedicated ONLY by that label/interface name
-# (portfwd.check_lan_ip), and refuses one that is also an address Jav3 answers
+# CNTRL recognises the address as dedicated ONLY by that label/interface name
+# (portfwd.check_lan_ip), and refuses one that is also an address CNTRL answers
 # on. Pick an unused address OUTSIDE your DHCP pool (or reserve it), then set
-#   JARVIS_SERVICES_LAN_IP=<ip>      (config: services_lan_ip)
-# and restart Jav3.
+#   CNTRL_SERVICES_LAN_IP=<ip>      (config: services_lan_ip)
+# and restart CNTRL.
 #
-# `add` also installs an nft table `jav3_svc_lan` that DROPS Jav3's UI port on
-# the new address, so the operator cannot end up logged in to Jav3 through it
+# `add` also installs an nft table `jav3_svc_lan` that DROPS CNTRL's UI port on
+# the new address, so the operator cannot end up logged in to CNTRL through it
 # (a login there would put the cookie on the services' origin).
 #
 # --persist writes /etc/systemd/system/jav3-services-lan-ip.service, a oneshot
@@ -37,7 +37,7 @@
 #
 # ROLLBACK (any time; services with LAN exposure stop being reachable, nothing
 # else changes):
-#   1. unset JARVIS_SERVICES_LAN_IP (or set it to "") and restart Jav3: LAN relays
+#   1. unset CNTRL_SERVICES_LAN_IP (or set it to "") and restart CNTRL: LAN relays
 #      are refused from then on, loopback relays keep working;
 #   2. sudo vm/net/services_lan_ip.sh del <ip>/<prefix> [iface] [--macvlan]
 #      (removes the address or jsvc0, the nft table and the boot unit);
@@ -88,7 +88,7 @@ if [[ "$cmd" == "add" ]]; then
   private "$ip_only" || { echo "$ip_only is not a private (RFC 1918) address" >&2; exit 1; }
   [[ "$ip_only" == 10.201.* ]] && { echo "10.201.0.0/16 is the guests' network" >&2; exit 1; }
   primary="$(ip -o -4 addr show dev "$iface" | awk '{print $4}' | cut -d/ -f1 | head -1)"
-  [[ "$ip_only" != "$primary" ]] || { echo "$ip_only is $iface's own (Jav3's) address" >&2; exit 1; }
+  [[ "$ip_only" != "$primary" ]] || { echo "$ip_only is $iface's own (CNTRL's) address" >&2; exit 1; }
   if ip -o -4 addr show | awk '{print $4}' | cut -d/ -f1 | grep -qx "$ip_only"; then
     echo "$ip_only is already on this host" >&2; exit 1
   fi
@@ -121,7 +121,7 @@ EOF
     extra=""; [[ $macvlan -eq 1 ]] && extra="--macvlan"
     cat >/etc/systemd/system/jav3-services-lan-ip.service <<EOF
 [Unit]
-Description=Jav3 services' dedicated LAN address ($cidr)
+Description=CNTRL services' dedicated LAN address ($cidr)
 After=network-online.target
 Wants=network-online.target
 
@@ -137,7 +137,7 @@ EOF
     systemctl daemon-reload
     systemctl enable jav3-services-lan-ip.service
   fi
-  echo "added $cidr ($( [[ $macvlan -eq 1 ]] && echo "jsvc0 on $iface" || echo "$iface:jsvc")); set JARVIS_SERVICES_LAN_IP=$ip_only"
+  echo "added $cidr ($( [[ $macvlan -eq 1 ]] && echo "jsvc0 on $iface" || echo "$iface:jsvc")); set CNTRL_SERVICES_LAN_IP=$ip_only"
 else
   if [[ $macvlan -eq 1 ]]; then
     ip link del jsvc0 2>/dev/null || true
@@ -150,5 +150,5 @@ else
     rm -f /etc/systemd/system/jav3-services-lan-ip.service
     systemctl daemon-reload
   fi
-  [[ $keep_unit -eq 1 ]] || echo "removed $cidr; unset JARVIS_SERVICES_LAN_IP and restart Jav3"
+  [[ $keep_unit -eq 1 ]] || echo "removed $cidr; unset CNTRL_SERVICES_LAN_IP and restart CNTRL"
 fi

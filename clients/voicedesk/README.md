@@ -1,4 +1,4 @@
-# voicedesk — Jav3 desktop mode, headless
+# voicedesk — CNTRL desktop mode, headless
 
 Microphone and speaker always up, "hey Jav3" to start, no browser tab. Starts
 at login, survives reboots, reconnects on its own.
@@ -87,14 +87,14 @@ in the foreground once first, grant the permission, then load the agent.
   made on the Pi; this side only provides the hair trigger.
 - **Reconnects** with backoff (1→30s). Mic audio recorded while the socket is
   down is discarded rather than queued — replaying a minute of stale room noise
-  at Jav3 on reconnect is worse than losing it.
+  at CNTRL on reconnect is worse than losing it.
 
 ## Wiring it to the projector
 
 If the projection mapper is running with its MCP server on (see
 `src/mcp/README.md` in that repo), the Pi will also mirror what it is hearing
 and saying onto a chosen surface. Nothing is needed here — that feed goes Pi →
-projector directly. Ask Jav3 to "put the voice display on the wall".
+projector directly. Ask CNTRL to "put the voice display on the wall".
 
 ## Troubleshooting
 

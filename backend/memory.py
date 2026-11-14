@@ -20,7 +20,7 @@ _WEAKENING = [re.compile(p, re.I) for p in (
     r"\bshell\b[^.\n]{0,40}\b(?:turned|switched|set)\s+on\b",
     r"\b(?:grant|enable|allow)(?:s|ed|ing)?\s+(?:the\s+)?shell\b",
     r"\bdisabl(?:e|es|ed|ing)\b[^.\n]{0,40}\b(?:guard|gate|approval)s?\b",
-    r"\b(?:grant|give)(?:s|ed|ing)?\s+(?:it\s+|jav3\s+|the\s+agent\s+)?"
+    r"\b(?:grant|give)(?:s|ed|ing)?\s+(?:it\s+|cntrl\s+|jav3\s+|the\s+agent\s+)?"
     r"(?:more\s+|full\s+|all\s+)?(?:permissions?|access(?:ibility)?|screen recording)\b",
     r"\b(?:disable|turn\s+off|switch\s+off)\b[^.\n]{0,40}"
     r"\b(?:security|sandbox|taint|firewall|lock\s*screen)\b",
@@ -368,6 +368,21 @@ def restore_trash(tid: str, notes=None) -> str:
     return name
 
 
+_trusted_cache: dict[str, tuple[int, int, bool]] = {}     # path -> (mtime_ns, size, trusted)
+
+
+def _note_trusted_at(p) -> bool:
+    """note_trusted for the note file p, remembered until the file changes: the
+    badge is asked every few seconds by every open page."""
+    st = p.stat()
+    hit = _trusted_cache.get(str(p))
+    if hit and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
+        return hit[2]
+    trusted = note_trusted(parse_note(p.read_text())[0])
+    _trusted_cache[str(p)] = (st.st_mtime_ns, st.st_size, trusted)
+    return trusted
+
+
 def pending_counts(notes=None) -> dict:
     """What waits on the operator in memory: agent notes not yet approved, and
     agent changes proposed to notes that are binding. The Memory nav badge."""
@@ -375,7 +390,7 @@ def pending_counts(notes=None) -> dict:
     n = 0
     for p in (notes.glob("*.md") if notes.is_dir() else ()):
         try:
-            if not note_trusted(parse_note(p.read_text())[0]):
+            if not _note_trusted_at(p):
                 n += 1
         except OSError:
             continue
@@ -385,7 +400,7 @@ def pending_counts(notes=None) -> dict:
 
 
 def notify_pending(name: str, proposal: bool = False) -> None:
-    """One toast for one NEW pending note (or proposal): "Jav3 saved a note that
+    """One toast for one NEW pending note (or proposal): "CNTRL saved a note that
     waits for you". On the shared notices stream, so it is never a security event
     (agents write notes all day; that would bury the real ones). Not sent for an
     incognito turn: its notes are thrown away. Best-effort."""
@@ -397,8 +412,8 @@ def notify_pending(name: str, proposal: bool = False) -> None:
         from .agents_run import NOTICE_CHAN
         bus.publish(NOTICE_CHAN, {
             "type": "memory_pending",
-            "title": ("Jav3 proposed a change to a note" if proposal
-                      else "Jav3 saved a note for your approval"),
+            "title": ("CNTRL proposed a change to a note" if proposal
+                      else "CNTRL saved a note for your approval"),
             "summary": flat_line(name, 80), "to": "/memory"})
     except Exception:  # noqa: BLE001 — the note stands whether or not the toast does
         pass
@@ -447,9 +462,9 @@ def set_context_selection(slug: str, files: list[str]) -> None:
     _context_file(slug).write_text(json.dumps(files))
 
 SEEDS = {
-    "soul.md": """# Soul — how Jav3 acts
+    "soul.md": """# Soul — how CNTRL acts
 
-You are Jav3, the operator's personal assistant. You are concise, direct and
+You are CNTRL, the operator's personal assistant. You are concise, direct and
 practical. No filler, no restating what the operator just said. When you don't
 know something, say so. When a task is ambiguous, ask one sharp question rather
 than guessing. You keep durable state in your memory files and project journals.
@@ -580,7 +595,7 @@ STATIC_BEHAVIOR = """# Behavior — how you work
   code-driven fetches (pip/git/curl inside run_code) depend on egress being on.
 
 ## The system around you
-- You are Jav3: FastAPI + SQLite on the operator's Pi; your loop runs in
+- You are CNTRL: FastAPI + SQLite on the operator's Pi; your loop runs in
   the sandbox VM; everything durable — memory, projects, agents, tools — is a
   plain file on the host, and the web GUI is a live view over those files.
 - GUI map: Work (chat, with the project's panels beside it) · Agents
@@ -664,7 +679,7 @@ STATIC_BEHAVIOR = """# Behavior — how you work
 - Save preferences, decisions, corrections and durable facts about the operator,
   their setup and their projects. Don't save what's derivable (code structure,
   version history, file contents, anything a search would find), and don't save
-  how Jav3's own tools or sandbox behave: that goes stale the day it is fixed. A
+  how CNTRL's own tools or sandbox behave: that goes stale the day it is fixed. A
   tool that misbehaves is a report_harness_fault, not a note.
 - For feedback/project notes: the rule, then **Why:**, then **How to apply:**
   — so future-you can judge edge cases instead of blindly obeying. Convert
@@ -849,7 +864,7 @@ def secrets_index() -> str:
 
 
 def agents_index() -> str:
-    """Thin roster of defined agents so Jav3 knows what it can spawn_agent."""
+    """Thin roster of defined agents so CNTRL knows what it can spawn_agent."""
     import yaml
     d = settings.agents_dir
     rosters = []
@@ -888,7 +903,7 @@ _FRONTMATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.S)
 
 
 def _note_sort_key(path):
-    # preferences first — the standing rules Jav3 must always honor
+    # preferences first — the standing rules CNTRL must always honor
     name = path.stem.lower()
     return (0 if "pref" in name else 1, name)
 
@@ -914,7 +929,9 @@ def parse_note(text: str) -> tuple[dict, str]:
         return dict(_UNREADABLE_META), text.strip()
     import yaml
     try:
-        meta = yaml.safe_load(m.group(1))
+        # the C loader when PyYAML has one: same safe constructors, ~10x faster (every
+        # turn parses every note; on the Pi the pure-Python one took ~2.5 ms a note)
+        meta = yaml.load(m.group(1), Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader))
     except yaml.YAMLError:
         return dict(_UNREADABLE_META), m.group(2).strip()
     if meta is None:

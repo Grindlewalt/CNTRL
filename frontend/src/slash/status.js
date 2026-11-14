@@ -1,7 +1,7 @@
 // The pure half of /status and /details: the rows of the status card and the
 // tool-row toggle, with no fetch and no React, so node can test them
 // (src/slash/__tests__/status.test.mjs). The terminal client's /status is a
-// table of the same kind (clients/jav3cli/jav3, c_status); this one leaves out
+// table of the same kind (clients/cntrl/cntrl, c_status); this one leaves out
 // what only a terminal has (the working directory, its theme, pending !output)
 // and adds what only the server side has (the boxes).
 
@@ -13,7 +13,7 @@ export function usageLine(info) {
   const parts = [`${num(info.input_tokens)} in`, `${num(info.output_tokens)} out`,
                  `$${Number(info.cost_usd || 0).toFixed(4)}`]
   if (info.calls) parts.push(`${info.calls} call${info.calls === 1 ? '' : 's'}`)
-  return parts.join(' · ')
+  return parts.join(', ')
 }
 
 // "41,000 of 100,000 tokens (41%)"; just the used count when the window is unknown
@@ -45,7 +45,7 @@ export function boxesLine(r) {
   let s = `${running.length} of ${boxes.length} running${names ? `: ${names}` : ''}`
   if (running.length > 3) s += ` and ${running.length - 3} more`
   const b = r.budget
-  if (b && b.ram_mb_cap) s += ` · RAM ${num(b.ram_mb_used)} / ${num(b.ram_mb_cap)} MB`
+  if (b && b.ram_mb_cap) s += `, RAM ${num(b.ram_mb_used)} / ${num(b.ram_mb_cap)} MB`
   return s
 }
 

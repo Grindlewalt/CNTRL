@@ -49,7 +49,7 @@ assert.equal(unitAsk.title, 'Allow everything weekly-job.service runs?')
 assert.match(unitAsk.body, /system service you recognise/)
 assert.equal(baselineAsk({ exe: '/x' }, 'program').title, 'Allow /x?')
 assert.deepEqual(allowedLine({ exe: '*', unit: 'a.service', by: 'grant', at: '2026-09-29 21:03:03' }),
-  { what: 'everything in a.service', when: 'grant · 2026-09-29' })
+  { what: 'everything in a.service', when: 'grant, 2026-09-29' })
 assert.equal(allowedLine({ exe: '/x', unit: '' }).what, '/x')
 
 // WEB-06: every tag the Persistent tab paints has a plain meaning, and plurals agree
@@ -161,16 +161,16 @@ assert.match(TOOLS_LEDE, /each arrives off/)
 assert.match(IMPORT_TIP, /switched off/)
 
 // WEB-23: each route has its own tab title, and the pending count leads it
-assert.equal(tabTitle('/', 0), 'Work · Jav3')
-assert.equal(tabTitle('/security', 3), '(3) Security · Jav3')
-assert.equal(tabTitle('/security/logs', 0), 'Security: Logs · Jav3')
-assert.equal(tabTitle('/vms/images/', 12), '(12) VMs: Images · Jav3')
-assert.equal(tabTitle('/security', 140), '(99+) Security · Jav3')
-assert.equal(tabTitle('/c/646', 0), 'Work · Jav3')
-assert.equal(tabTitle('/security/bogus', 0), 'Security · Jav3')      // an unknown tab keeps its section
-assert.equal(tabTitle('/git', 0), 'Git · Jav3')
-assert.equal(tabTitle('/git/benchmark-game', 2), '(2) Git · Jav3')
-assert.equal(tabTitle('/nowhere', 0), 'Not found · Jav3')
-assert.equal(tabTitle(undefined, undefined), 'Work · Jav3')
+assert.equal(tabTitle('/', 0), 'Work · CNTRL')
+assert.equal(tabTitle('/security', 3), '(3) Security · CNTRL')
+assert.equal(tabTitle('/security/logs', 0), 'Security: Logs · CNTRL')
+assert.equal(tabTitle('/vms/images/', 12), '(12) VMs: Images · CNTRL')
+assert.equal(tabTitle('/security', 140), '(99+) Security · CNTRL')
+assert.equal(tabTitle('/c/646', 0), 'Work · CNTRL')
+assert.equal(tabTitle('/security/bogus', 0), 'Security · CNTRL')      // an unknown tab keeps its section
+assert.equal(tabTitle('/git', 0), 'Git · CNTRL')
+assert.equal(tabTitle('/git/benchmark-game', 2), '(2) Git · CNTRL')
+assert.equal(tabTitle('/nowhere', 0), 'Not found · CNTRL')
+assert.equal(tabTitle(undefined, undefined), 'Work · CNTRL')
 
 console.log('securityCopy ok')

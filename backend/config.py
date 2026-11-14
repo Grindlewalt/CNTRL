@@ -6,34 +6,74 @@ import sqlite3
 from pathlib import Path
 
 from pydantic import PrivateAttr, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (BaseSettings, DotEnvSettingsSource,
+                               EnvSettingsSource, SettingsConfigDict)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 log = logging.getLogger(__name__)
+
+# Settings are CNTRL_<NAME>. Before the rename they were JARVIS_<NAME>, and an
+# install from then still has those in its env file, its units and its shell:
+# the old name is read whenever the new one is unset, and the new one wins when
+# both are set. Settings below get this from Settings' sources; anything that
+# reads the environment directly goes through env_get.
+ENV_PREFIX = "CNTRL_"
+OLD_ENV_PREFIX = "JARVIS_"
+
+
+def env_get(name: str, default: str | None = None) -> str | None:
+    """CNTRL_<name> from the environment, else the old JARVIS_<name>, else
+    `default`. An empty value counts as unset."""
+    return (os.environ.get(ENV_PREFIX + name)
+            or os.environ.get(OLD_ENV_PREFIX + name) or default)
+
 
 # Where the env file, secrets.json, providers.json and backup.json live. Read
 # from the process environment only (it has to be known BEFORE the env file is
 # read), so a second instance on the same user account (scripts/install.sh
 # --name) gets its own key and secrets instead of sharing the first one's.
 #
-# A checkout installed as a named instance remembers it in <repo>/.jarvis-instance
-# (one line, JARVIS_CONFIG_DIR=<dir>, written by install.sh), so a plain
+# A checkout installed as a named instance remembers it in <repo>/.cntrl-instance
+# (one line, CNTRL_CONFIG_DIR=<dir>, written by install.sh; a checkout from
+# before the rename has .jarvis-instance with JARVIS_CONFIG_DIR), so a plain
 # `.venv/bin/python -m backend.cli ...` run from it targets that instance, not
 # the default one. The environment still wins.
 def _instance_config_dir() -> str | None:
-    try:
-        for line in (BASE_DIR / ".jarvis-instance").read_text().splitlines():
-            k, _, v = line.partition("=")
-            if k.strip() == "JARVIS_CONFIG_DIR" and v.strip():
-                return v.strip()
-    except OSError:
-        pass
+    for fname, prefix in ((".cntrl-instance", ENV_PREFIX),
+                          (".jarvis-instance", OLD_ENV_PREFIX)):
+        try:
+            for line in (BASE_DIR / fname).read_text().splitlines():
+                k, _, v = line.partition("=")
+                if k.strip() == prefix + "CONFIG_DIR" and v.strip():
+                    return v.strip()
+        except OSError:
+            pass
     return None
 
 
-DEFAULT_CONFIG_DIR = Path(os.path.expanduser("~/.config/jarvis"))
+# The server's own files in its config dir. The terminal client keeps its
+# credentials in ~/.config/cntrl too, so "the dir exists" says nothing.
+_CONFIG_FILES = ("env", "secrets.json", "providers.json", "backup.json")
+
+
+def _has_server_config(d: Path) -> bool:
+    return any((d / n).exists() for n in _CONFIG_FILES)
+
+
+def _default_config_dir() -> Path:
+    """~/.config/cntrl, unless only the pre-rename ~/.config/jarvis holds a
+    server's config: then that one, as is. Nothing is moved at runtime; the
+    installer moves it on upgrade."""
+    new = Path(os.path.expanduser("~/.config/cntrl"))
+    old = Path(os.path.expanduser("~/.config/jarvis"))
+    if not _has_server_config(new) and _has_server_config(old):
+        return old
+    return new
+
+
+DEFAULT_CONFIG_DIR = _default_config_dir()
 CONFIG_DIR = Path(os.path.expanduser(
-    os.environ.get("JARVIS_CONFIG_DIR") or _instance_config_dir()
+    env_get("CONFIG_DIR") or _instance_config_dir()
     or str(DEFAULT_CONFIG_DIR)))
 ENV_FILE = CONFIG_DIR / "env"
 
@@ -69,7 +109,7 @@ def _db_has_tables(p: Path) -> bool:
 
 
 def has_state(root: Path) -> bool:
-    """True when `root` holds a real Jav3 install: data/jarvis.db exists AND
+    """True when `root` holds a real CNTRL install: data/jarvis.db exists AND
     has at least one table. Empty scaffolding dirs, seeded skills or memory
     files and a 0-byte or missing DB are not state — pointing the service at
     such a dir means running on an empty DB (the Pi deploy of 2026-09-28)."""
@@ -84,22 +124,44 @@ def has_any_state(root: Path) -> bool:
             or any(_has_content(root / n) for n in _LEGACY_PROBE))
 
 
+def _default_state_dir() -> Path:
+    """~/.local/share/cntrl, unless only the pre-rename ~/.local/share/jarvis
+    holds state: then that one, as is (the installer moves it on upgrade). It
+    asks about state, not about the dir: an older terminal client installed into
+    ~/.local/share/cntrl before it moved to ~/.local/share/cntrl-cli."""
+    new = Path(os.path.expanduser("~/.local/share/cntrl"))
+    old = Path(os.path.expanduser("~/.local/share/jarvis"))
+    if not has_any_state(new) and has_any_state(old):
+        return old
+    return new
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="JARVIS_",
+        env_prefix=ENV_PREFIX,
         env_file=ENV_FILE,
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
+    @classmethod
+    def settings_customise_sources(cls, settings_cls, init_settings, env_settings,
+                                   dotenv_settings, file_secret_settings):
+        # The environment still beats the env file; in each, CNTRL_ beats JARVIS_.
+        old_env = EnvSettingsSource(settings_cls, env_prefix=OLD_ENV_PREFIX)
+        old_dotenv = DotEnvSettingsSource(settings_cls, env_file=dotenv_settings.env_file,
+                                          env_prefix=OLD_ENV_PREFIX)
+        return (init_settings, env_settings, old_env, dotenv_settings, old_dotenv,
+                file_secret_settings)
+
     base_dir: Path = BASE_DIR
-    # ONE relocatable root for everything durable (JARVIS_STATE_DIR). The dirs
+    # ONE relocatable root for everything durable (CNTRL_STATE_DIR). The dirs
     # below are derived from it unless set explicitly (an explicit
-    # JARVIS_<NAME>_DIR always wins). The code checkout holds no state, so it can
+    # CNTRL_<NAME>_DIR always wins). The code checkout holds no state, so it can
     # be re-cloned or moved freely and a backup is one directory. A box still on
     # the old in-checkout layout keeps running from it until
     # `python -m backend.cli migrate-state` moves it (see _resolve_state_dirs).
-    state_dir: Path = Path(os.path.expanduser("~/.local/share/jarvis"))
+    state_dir: Path = _default_state_dir()
     data_dir: Path | None = None
     memory_dir: Path | None = None
     projects_dir: Path | None = None
@@ -130,30 +192,30 @@ class Settings(BaseSettings):
     pages_port: int = 8090
     pages_bind: str = "0.0.0.0"
     pages_base_url: str = ""
-    # A `jav3 login` device token dies this many days after it was minted, or
+    # A `cntrl login` device token dies this many days after it was minted, or
     # after this many days without being used, whichever comes first. The CLI
-    # answers either with "run: jav3 login".
+    # answers either with "run: cntrl login".
     device_token_ttl_days: int = 90
     device_token_idle_days: int = 30
     # Add `Secure` to the session cookie so it never rides plaintext HTTP. OFF
     # by default because a LAN deployment is reached over plain http (a Secure
     # cookie would silently never be sent there); set true only when every
-    # client reaches Jav3 over HTTPS, e.g. behind a TLS reverse proxy.
+    # client reaches CNTRL over HTTPS, e.g. behind a TLS reverse proxy.
     cookie_secure: bool = False
     # Extra hostnames allowed as the Origin of a cookie-authed state-changing
     # request, on top of the request's own Host. The CSRF-origin check refuses a
     # request whose Origin is any OTHER host — SameSite=Lax does not stop a
     # same-site sibling (another app served under the same parent domain).
     # Add a name here only for a page on another host that legitimately posts
-    # to Jav3.
+    # to CNTRL.
     # Each entry matches by hostname under any scheme: a bare host allows any
     # port, host:port only that port. The server's own LAN names are allowed
     # without listing them, but only on lan_port. A reverse proxy that
     # forwards the public Host needs nothing here; list its public name if it
-    # rewrites Host (JARVIS_CSRF_ALLOWED_HOSTS='["<public-host>"]').
+    # rewrites Host (CNTRL_CSRF_ALLOWED_HOSTS='["<public-host>"]').
     csrf_allowed_hosts: list[str] = []
-    # The committer email on every commit Jav3 makes in a project repo.
-    git_author_email: str = "jav3@localhost"
+    # The committer email on every commit CNTRL makes in a project repo.
+    git_author_email: str = "cntrl@localhost"
 
     # Gitea on the host (backend/gitea.py, docs/gitea.md): a systemd --user
     # service from the pinned static binary, SQLite, HTTP only. OFF until
@@ -164,7 +226,7 @@ class Settings(BaseSettings):
     gitea_enabled: bool = False
     gitea_port: int = 3000
     gitea_url: str = ""
-    gitea_owner: str = ""            # the operator's Gitea username (= Jav3's)
+    gitea_owner: str = ""            # the operator's Gitea username (= CNTRL's)
     gitea_bot_user: str = "jav3-agent"
     gitea_dir: Path | None = None    # default <state_dir>/gitea
     # 0600 files next to the env file; read host-side only, never in a box
@@ -210,11 +272,11 @@ class Settings(BaseSettings):
     model_max_tokens: int = 384_000
     # Main generation temperature. 0.7 keeps personality and fluency; the
     # no-tools self-check pass (which runs at 0.0) is what enforces rules, so
-    # the main turn doesn't need to run cold. Tunable via JARVIS_MODEL_TEMPERATURE.
+    # the main turn doesn't need to run cold. Tunable via CNTRL_MODEL_TEMPERATURE.
     model_temperature: float = 0.7
 
     # Per-model prices come from the provider catalogue (providers_catalog
-    # .json, or ~/.config/jarvis/providers.json to override one). These flat
+    # .json, or ~/.config/cntrl/providers.json to override one). These flat
     # per-1M USD rates only price a ledger row whose model the catalogue has
     # never heard of.
     price_cache_hit_per_m: float = 0.003
@@ -246,7 +308,7 @@ class Settings(BaseSettings):
     # Remote hosts whose images/video the render surfaces (chat markdown + the
     # dashboard iframe) may auto-load. Everything else is blocked, so a model
     # can't beacon data out through a resource URL to an arbitrary host. Same
-    # spirit as an egress allowlist; tune via JARVIS_MEDIA_HOSTS (JSON list).
+    # spirit as an egress allowlist; tune via CNTRL_MEDIA_HOSTS (JSON list).
     # The server's own LAN names/IPs are allowed on top of this (backend/lan.py).
     media_hosts: list[str] = ["upload.wikimedia.org", "i.imgur.com"]
 
@@ -258,7 +320,7 @@ class Settings(BaseSettings):
     # The mDNS instance/host label. Empty = the app's own name, lowercased; the
     # machine's hostname if that yields nothing usable.
     instance_name: str = ""
-    # The port uvicorn listens on (scripts/jarvis.service --port). Only used to
+    # The port uvicorn listens on (scripts/cntrl.service --port). Only used to
     # advertise; it does not change the bind.
     lan_port: int = 8000
     # The host the companion services (SearXNG, ollama/llama.cpp, the voice
@@ -515,7 +577,7 @@ class Settings(BaseSettings):
     # after their data was imported into a service box's /srv.
     persist_retire_days: int = 30
     # (a) operator decision 0.4: services with expose "lan" bind their metered
-    # relay to THIS second LAN address (an alias; never the address the Jav3 UI
+    # relay to THIS second LAN address (an alias; never the address the CNTRL UI
     # is served on). Empty = LAN exposure unavailable, loopback only.
     services_lan_ip: str = ""
     # --- Docker box runtime (WP8; Box.runtime "docker") ---------------------
@@ -547,7 +609,9 @@ class Settings(BaseSettings):
     # return 0 results — measured 2026-07-21). Pin the engines that still work
     # so web_search returns real links instead of just Wikipedia infoboxes.
     # Empty string = let SearXNG use its own default set.
-    searxng_engines: str = "bing,mojeek,wikipedia"
+    # 2026-11-09 on the Pi: bing,mojeek,wikipedia gave 8 relevant of 39 (Bing answering
+    # junk, Mojeek suspended); with yahoo 36 of 36. Brave answers until it rate-limits.
+    searxng_engines: str = "yahoo,bing,brave,mojeek,wikipedia"
     web_search_results: int = 8
     web_fetch_timeout: int = 15
     web_max_bytes: int = 2_000_000      # stop reading a page past this
@@ -623,18 +687,18 @@ class Settings(BaseSettings):
     voice_library_max_tracks: int = 120
     voice_library_ttl_seconds: int = 900
     # wake-word standby: seconds of idle before he stops listening for
-    # anything but "hey Jav3" again (only in effect when the sidecar
+    # anything but "hey CNTRL" again (only in effect when the sidecar
     # reports a wake model in its ready message)
     # Seconds of quiet before he drops back to wake-word standby. Short on
-    # purpose: re-arming costs one word ("Jav3, ...") and the same utterance
+    # purpose: re-arming costs one word ("CNTRL, ...") and the same utterance
     # carries the request, so a tight window is cheap — and it stops him
     # answering a conversation that was never aimed at him.
     voice_wake_timeout: int = 15
     # Quiet hours for the double-clap gesture. The clap is the one trigger with
     # no confirmation step and no words in it, so a dropped book at 3am starts
-    # music; overnight it is muted. "hey Jav3" is deliberately NOT gated —
+    # music; overnight it is muted. "hey CNTRL" is deliberately NOT gated —
     # it takes a spoken sentence to fire, so it cannot go off by accident, and
-    # the operator still wants a working Jav3 at night. The window wraps
+    # the operator still wants a working CNTRL at night. The window wraps
     # midnight; set start == end to disable without touching the flag.
     voice_clap_curfew: bool = True
     voice_clap_curfew_start: str = "22:30"
@@ -650,9 +714,9 @@ class Settings(BaseSettings):
     # right default: an unset secret must never mean "no check".
     voice_client_token: str = ""
 
-    # --- MCP clients (Jav3 reaching OUT) ---------------------------------
+    # --- MCP clients (CNTRL reaching OUT) ---------------------------------
     # The projection mapper's in-app MCP server. Off unless both are set. What
-    # Jav3 may do there is fixed by OUR tools/projector_*/TOOL.md manifest,
+    # CNTRL may do there is fixed by OUR tools/projector_*/TOOL.md manifest,
     # not by what the server advertises — see backend/mcp.py for why that
     # distinction is the whole security design.
     mcp_projector_url: str = ""          # e.g. http://10.0.0.40:8765/mcp
@@ -693,7 +757,7 @@ class Settings(BaseSettings):
     # pid files, dns log, pcap prefix) so a second instance on the same host
     # never loads, flushes or tears down the first one's. "" = derived: empty
     # (the plain names) for the default config dir, else a short hash of
-    # JARVIS_CONFIG_DIR. A named instance must also move its shared box off
+    # CNTRL_CONFIG_DIR. A named instance must also move its shared box off
     # jvtap0 / CID 3 (vm_egress_tap=jvtapN, vm_egress_host_ip=10.201.N.1,
     # vm_guest_cid): boot refuses otherwise (backend/vm/boxnet.py).
     instance: str = ""
@@ -778,7 +842,7 @@ class Settings(BaseSettings):
 
     # --- Backups (backend/backup.py, rclone) ------------------------------
     # `rclone sync` of the durable state to `backup_remote` (an rclone remote
-    # path, e.g. "myremote:jav3-backup"; the rclone config itself is the
+    # path, e.g. "myremote:cntrl-backup"; the rclone config itself is the
     # user's, at rclone's default path). Empty = backups off. These are the
     # defaults; PUT /api/backup/config overlays them (backend/backup.py).
     backup_remote: str = ""
@@ -795,7 +859,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _derive_service_urls(self):
         """Fill every service URL left unset from services_host. Emptiness (not
-        model_fields_set) is the test, so JARVIS_SEARXNG_URL= also means
+        model_fields_set) is the test, so CNTRL_SEARXNG_URL= also means
         "derive"; any non-empty explicit value wins untouched."""
         h = self.services_host.strip() or "localhost"
         if ":" in h and not h.startswith("["):
@@ -853,7 +917,7 @@ def ensure_dirs() -> None:
     if settings.legacy_layout and not _warned_legacy:
         _warned_legacy = True
         log.warning(
-            "Jav3 state is still inside the code checkout (%s) and the state "
+            "CNTRL state is still inside the code checkout (%s) and the state "
             "dir %s is empty — running from the old location. Stop the service "
             "and run `python -m backend.cli migrate-state` to move it.",
             settings.base_dir, settings.state_dir)

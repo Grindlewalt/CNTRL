@@ -42,7 +42,7 @@ export default function TaskBoardPanel({ slug, state, setState }) {
                 placeholder="what is this session trying to achieve?"
                 onChange={(e) => setState({ goal: e.target.value })} />
       <div className="row">
-        <span className="dim small grow">plan · {doneCount}/{todos.length} done</span>
+        <span className="dim small grow">plan, {doneCount}/{todos.length} done</span>
       </div>
       <ul className="todo-list grow-scroll">
         {todos.map((t, i) => (
@@ -55,7 +55,7 @@ export default function TaskBoardPanel({ slug, state, setState }) {
             <button className="win-btn" onClick={() => act({ action: 'delete', index: i })}>×</button>
           </li>
         ))}
-        {todos.length === 0 && <EmptyState as="li">no plan yet — Jav3 writes one with todo_update</EmptyState>}
+        {todos.length === 0 && <EmptyState as="li">no plan yet — CNTRL writes one with todo_update</EmptyState>}
       </ul>
       <form className="row" onSubmit={(e) => {
         e.preventDefault()

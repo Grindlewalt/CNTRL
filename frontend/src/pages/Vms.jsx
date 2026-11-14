@@ -23,6 +23,7 @@ import {
 } from '../boxes/glance.js'
 import { requestPackages } from '../boxes/api/packages.js'
 import { listProfiles } from '../boxes/api/profiles.js'
+import './runtime.css'
 import { deletePersist, getPersist, importPersist, listProjects } from '../boxes/api/persist.js'
 import {
   applyBuildEvent, budgetSegments, buildNeedsReload, bytes, mb, mergeBuildRest, persistDaysLeft, sortBoxes,
@@ -32,7 +33,7 @@ import {
   Confirm, LoadError, PlacementTag, ProjectList, RuntimeStatus, RuntimeTag, StateDot, Unavailable, useLoad,
 } from '../boxes/ui.jsx'
 
-// The VM manager: every box Jav3 runs (the shared turn box, project boxes,
+// The VM manager: every box CNTRL runs (the shared turn box, project boxes,
 // service boxes, image builders), the image variants they boot from, and the
 // package catalogue those images are built from. It replaces the old VM chip
 // in the bar, the shell sidebar's SandboxLine and the Work page's "Project
@@ -141,7 +142,7 @@ export function Boxes() {
               <span role="columnheader">Doing now</span>
               <span role="columnheader">Stops</span>
               <span role="columnheader">Runtime</span>
-              <span role="columnheader">Image · RAM · CPU</span>
+              <span role="columnheader">Image, RAM, CPU</span>
               <span role="columnheader">Up</span>
               <span role="columnheader" />
             </div>
@@ -176,7 +177,7 @@ export function Boxes() {
 function running(boxes) {
   const up = boxes.filter((b) => b.state === 'running').length
   const busy = boxes.filter((b) => b.state === 'running' && b.inflight > 0).length
-  return boxes.length ? `${up} running${busy ? ` · ${busy} busy` : ''}` : ''
+  return boxes.length ? `${up} running${busy ? `, ${busy} busy` : ''}` : ''
 }
 
 const STOPS_OTHER = { service: 'stays up (its services)', builder: 'when the build ends' }
@@ -200,7 +201,7 @@ function BoxRow({ b, legacy, open, unlimited, histTick, onToggle, onVerb }) {
             <span className="mono">{b.id}</span>
             <span className="dim small">
               {KIND_TEXT[b.kind] || b.kind}
-              {projects.length ? ` · ${projects[0]}` : ''}
+              {projects.length ? `, ${projects[0]}` : ''}
               {projects.length > 1 ? ` + ${projects.slice(1).join(', ')} (joined)` : ''}
             </span>
             {b.kind === 'service' && <PlacementTag placement={b.placement} />}
@@ -211,7 +212,7 @@ function BoxRow({ b, legacy, open, unlimited, histTick, onToggle, onVerb }) {
           {turns.length > 0 ? turns.map((t) => (
             <span key={t.key} className="bx-turn">
               <span><b>{t.head}</b>{t.title ? ` ${t.title}` : ''}
-                {t.project && <span className="dim"> · {t.project}</span>}</span>
+                {t.project && <span className="dim">, {t.project}</span>}</span>
               {t.tool && (
                 <span className="mono dim bx-tool" title={t.detail || undefined}>
                   {t.tool}{t.detail ? ` ${t.detail}` : ''}</span>)}
@@ -221,7 +222,7 @@ function BoxRow({ b, legacy, open, unlimited, histTick, onToggle, onVerb }) {
               {word === 'busy' ? plural(b.inflight, 'turn') : word}
               {!up && last && (
                 <span title={last.reason || undefined}>
-                  {' · '}{eventWord(last)} {localTime(last.created_at)}
+                  {', '}{eventWord(last)} {localTime(last.created_at)}
                   {last.actor ? ` by ${last.actor}` : ''}</span>)}
             </span>
           )}
@@ -238,13 +239,13 @@ function BoxRow({ b, legacy, open, unlimited, histTick, onToggle, onVerb }) {
                 : <span className="dim">{up ? (STOPS_OTHER[b.kind] || '–') : '–'}</span>}
         </span>
         <span role="cell" data-label="Runtime"><RuntimeTag runtime={b.runtime} /></span>
-        <span role="cell" className="small" data-label="Image · RAM · CPU">
+        <span role="cell" className="small" data-label="Image, RAM, CPU">
           <span className="mono">{b.image?.variant || 'main'}{b.image?.version ? ` v${String(b.image.version).replace(/^v/, '')}` : ''}</span>
           <span className="dim" title={unlimited
             ? 'the kernel on this machine ignores Docker memory limits, so this box can use all of the RAM'
-            : undefined}> · {ramLabel(mb(b.mem_mb), unlimited)}</span>
+            : undefined}>, {ramLabel(mb(b.mem_mb), unlimited)}</span>
           {b.rss_bytes != null && <span className="dim"> ({bytes(b.rss_bytes)} used)</span>}
-          {b.cpu_pct != null && <span className="dim"> · {b.cpu_pct}%</span>}
+          {b.cpu_pct != null && <span className="dim">, {b.cpu_pct}%</span>}
           {b.restart_needed && <Tag tone="pending" title="a newer image is waiting for its next boot">restart to update</Tag>}
         </span>
         <span role="cell" className="small" data-label="Up"
@@ -283,7 +284,7 @@ function BoxHistory({ b, tick }) {
       <div className="bx-history-facts dim small" role="cell">
         {b.started_at && <span>up since {localTime(b.started_at)}</span>}
         <span>disk {bytes(b.disk?.overlay_bytes)} overlay
-          {b.disk?.data_bytes != null ? ` · ${bytes(b.disk.data_bytes)} data` : ''}</span>
+          {b.disk?.data_bytes != null ? `, ${bytes(b.disk.data_bytes)} data` : ''}</span>
         {b.net?.tap && <span className="mono">{b.net.tap} {b.net.guest_ip || ''}</span>}
         {b.ram_cost_mb && b.ram_cost_mb !== b.mem_mb && (
           <span title="guest RAM plus QEMU's own">costs {mb(b.ram_cost_mb)} of the budget</span>)}
@@ -354,7 +355,7 @@ function Leftovers({ data, error, onDone, onRefresh }) {
                confirmLabel="Clean" danger onClose={() => setAsk(false)} onConfirm={go}>
         <p>Removes {leftoverSummary(clean)}: {clean.slice(0, 6).map((i) => i.name).join(', ')}
           {clean.length > 6 ? ` and ${clean.length - 6} more` : ''}.</p>
-        <p>Only what this server identifies as its own (Jav3&apos;s container label and socket
+        <p>Only what this server identifies as its own (CNTRL&apos;s container label and socket
           directory, its own box directories and QEMU processes); each is checked again first.
           Network interfaces are listed, never removed.</p>
       </Confirm>
@@ -377,12 +378,12 @@ function Budget({ data, noLimit }) {
           {mb(b?.ram_mb_used ?? used)} reserved of {cap ? `${mb(cap)} guest budget` : 'the host'}
         </span>
         {host > 0 && (
-          <span className="dim small">host {mb(host)} · Jav3 and the OS keep the rest</span>
+          <span className="dim small">host {mb(host)}, CNTRL and the OS keep the rest</span>
         )}
         <span className="grow" />
         {b && (
           <span className="dim small">
-            boxes {b.boxes}/{b.boxes_cap} · project boxes {b.project_boxes}/{b.project_boxes_cap}
+            boxes {b.boxes}/{b.boxes_cap}, project boxes {b.project_boxes}/{b.project_boxes_cap}
           </span>
         )}
       </div>
@@ -400,13 +401,13 @@ function Budget({ data, noLimit }) {
         })}
       </div>
       <div className="bx-legend dim small">
-        <span><i className="k-shared" /> shared</span>
+        <span><i className="k-shared" /> shared box</span>
         <span><i className="k-project" /> project</span>
         <span><i className="k-service" /> service</span>
         <span><i className="k-builder" /> builder</span>
-        <span>faded = reserved but stopped (every reservation counts)</span>
+        <span>Faded: reserved but stopped. Every reservation counts.</span>
         {noLimit && (data?.boxes || []).some((x) => x.runtime === 'docker')
-          && <span>hatched = Docker box with no enforced limit</span>}
+          && <span>Hatched: Docker box with no enforced limit.</span>}
       </div>
     </section>
   )
@@ -554,7 +555,7 @@ function PersistRetirement() {
                 <b>{r.name || r.slug}</b>{' '}
                 <span className="dim small">
                   {r.disk?.exists ? `${bytes(r.disk.bytes_used)} on /persist` : 'no disk'}
-                  {imported ? ` · imported ${ago(imported)}` : ''}
+                  {imported ? `, imported ${ago(imported)}` : ''}
                 </span>
                 {r.import?.error && <span className="error small bx-row-err">import: {r.import.error}</span>}
               </span>
@@ -666,7 +667,7 @@ function BuildPanel({ bs, onLog }) {
         {bs.running
           ? <>Building <b className="mono">{bs.variant}</b>
               <span className="dim"> — {bs.phase || 'working'}{bs.box ? ` in ${bs.box}` : ''}
-                {bs.mode ? ` · ${bs.mode}` : ''}</span></>
+                {bs.mode ? `, ${bs.mode}` : ''}</span></>
           : bs.last
             ? <>Last build of <b className="mono">{bs.last.variant}</b>{' '}
                 {bs.last.ok
@@ -704,7 +705,7 @@ function Variant({ v, building, baseVersion, onBuild, onLog }) {
         {v.builtin && <Tag>built-in</Tag>}
         {v.needs_build && <Tag tone="pending" title={NEEDS_BUILD_WHY}>needs a build</Tag>}
         <span className="dim small">{variantSource(v)}</span>
-        {v.min_mem_mb ? <span className="dim small">· needs ≥ {mb(v.min_mem_mb)}</span> : null}
+        {v.min_mem_mb ? <span className="dim small">needs at least {mb(v.min_mem_mb)}</span> : null}
         <span className="grow" />
         <Button variant="ghost" disabled={building} onClick={onBuild}>Build new version</Button>
       </div>
@@ -723,7 +724,7 @@ function Variant({ v, building, baseVersion, onBuild, onLog }) {
         <div className="small">this layer: <span className="mono">{v.layer_packages.join('  ')}</span></div>)}
       <details className="bx-recipe">
         <summary className="small">recipe
-          {v.recipe_sha256 && <span className="dim mono"> · {String(v.recipe_sha256).slice(0, 12)}</span>}</summary>
+          {v.recipe_sha256 && <span className="dim mono">, {String(v.recipe_sha256).slice(0, 12)}</span>}</summary>
         <pre className="mono small">{v.recipe || '(empty)'}</pre>
       </details>
       <details className="bx-recipe" onToggle={loadDocker}>
@@ -811,7 +812,7 @@ function BuildLog({ variant, version, onClose }) {
   }, [variant, version])
   const what = variant === 'base' ? 'base image rebuild' : `${variant}${r?.version != null ? ` ${verLabel(r.version)}` : ''}`
   return (
-    <Modal open title={`Build log · ${what}`} onClose={onClose} width={820}
+    <Modal open title={`Build log, ${what}`} onClose={onClose} width={820}
            footer={<Button variant="ghost" onClick={onClose}>Close</Button>}>
       {err && <div className={err.status === 404 ? 'dim small' : 'error small'}>
         {err.status === 404 ? (err.detail || 'no build log') : (err.detail || String(err))}</div>}
@@ -819,10 +820,10 @@ function BuildLog({ variant, version, onClose }) {
       {r && (
         <>
           <div className="bx-building small">
-            {r.running ? <Tag tone="running">running{r.phase ? ` · ${r.phase}` : ''}</Tag>
+            {r.running ? <Tag tone="running">running{r.phase ? `, ${r.phase}` : ''}</Tag>
               : r.ok ? <Tag tone="done">built</Tag> : <Tag tone="error">failed</Tag>}
             {r.error && <span className="error">{r.error}</span>}
-            <span className="dim">{r.lines.length} line{r.lines.length === 1 ? '' : 's'} · written by
+            <span className="dim">{r.lines.length} line{r.lines.length === 1 ? '' : 's'}, written by
               the {variant === 'base' ? 'build script' : 'builder guest'}</span>
           </div>
           <pre className="mono small bx-log-tail bx-log-full">{r.lines.join('\n') || '(empty)'}</pre>

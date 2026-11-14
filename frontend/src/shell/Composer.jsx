@@ -3,6 +3,7 @@ import Menu, { MenuItem, MenuSep } from '../components/Menu.jsx'
 import Toggle from '../components/Toggle.jsx'
 import ModelPicker from '../ModelPicker.jsx'
 import { isPhone } from '../breakpoints.js'
+import { SendGlyph } from './glyphs.jsx'
 
 // The shell's prompt: one box pinned under the transcript.
 //
@@ -22,14 +23,14 @@ function AgentPicker({ fresh, agents, agentSlug, agentName, onPick, onNewAs }) {
   const [open, setOpen] = useState(false)
   const close = useCallback(() => setOpen(false), [])
   const choose = (slug) => { setOpen(false); (fresh ? onPick : onNewAs)(slug) }
-  const label = agentSlug ? `@${agentSlug}` : '@jav3'
+  const label = agentSlug ? `@${agentSlug}` : '@cntrl'
   return (
     <Menu open={open} onClose={close} up align="left" floating width={280}
           label={fresh ? 'answer as' : 'new chat as'}
           trigger={(
             <button type="button" className="sh-chip" aria-haspopup="menu" aria-expanded={open}
                     title={fresh ? 'who answers this new chat'
-                                 : `this chat runs as ${agentSlug ? agentName(agentSlug) : 'Jav3'}`}
+                                 : `this chat runs as ${agentSlug ? agentName(agentSlug) : 'CNTRL'}`}
                     onClick={() => setOpen((o) => !o)}>
               <span className="ellipsis">{label}</span>
               <span className={open ? 'chev open' : 'chev'} aria-hidden="true">›</span>
@@ -37,7 +38,7 @@ function AgentPicker({ fresh, agents, agentSlug, agentName, onPick, onNewAs }) {
           )}>
       {!fresh && <div className="menu-caption">New chat as</div>}
       <MenuItem checked={fresh ? !agentSlug : undefined} sub="the central assistant"
-                onClick={() => choose('')}>Jav3</MenuItem>
+                onClick={() => choose('')}>CNTRL</MenuItem>
       {agents.length > 0 && <MenuSep />}
       {agents.map((a) => (
         <MenuItem key={a.slug} checked={fresh ? agentSlug === a.slug : undefined}
@@ -83,7 +84,7 @@ export default function Composer({
     if (e.key === 'Escape' && busy) { e.preventDefault(); onStop() }
   }
 
-  const who = agentSlug ? agentName(agentSlug) : 'Jav3'
+  const who = agentSlug ? agentName(agentSlug) : 'CNTRL'
   return (
     <form className="sh-composer" onSubmit={(e) => { e.preventDefault(); if (!busy) onSend() }}>
       <div className="sh-box">
@@ -91,7 +92,7 @@ export default function Composer({
           <span className="sh-caret" aria-hidden="true">›</span>
           <textarea ref={ta} rows={1} value={value}
                     aria-label={`message ${who}`}
-                    placeholder={temporary ? `Message ${who} (temporary)…` : `Message ${who}…`}
+                    placeholder={temporary ? `Message ${who} (temporary chat)` : `Message ${who}`}
                     onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} />
         </div>
         <div className="sh-bar">
@@ -106,9 +107,9 @@ export default function Composer({
           <span className="grow" />
           {busy
             ? <button type="button" className="send-btn stop" title="stop this turn (Esc)"
-                      aria-label="stop" onClick={onStop}>◼</button>
+                      aria-label="stop" onClick={onStop}><SendGlyph stop /></button>
             : <button type="submit" className="send-btn" title="send (Enter)"
-                      aria-label="send" disabled={!value.trim()}>↑</button>}
+                      aria-label="send" disabled={!value.trim()}><SendGlyph /></button>}
         </div>
       </div>
     </form>

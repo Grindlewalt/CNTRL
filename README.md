@@ -1,207 +1,443 @@
-# Jav3
+# CNTRL
 
-A self-hosted personal AI agent with durable file-backed memory, and multi-agent
-orchestration, running as a single service on a Raspberry
-Pi. Its defining constraint is that the agent is treated as untrusted: the entire
-reasoning loop executes inside a disposable KVM guest holding no API key, no
-database and no secrets, and every capability it has — models, tools, filesystem
-writes, network egress — is brokered through a gated host supervisor.
+CNTRL is a server you run yourself that gives AI agents real work to do (code,
+research, files, git, scheduled jobs) and keeps them contained while they do it.
+The name is short for "controlled": network, tools, runtimes and logs, the four
+things it keeps in hand.
 
-The agent's **entire reasoning loop runs inside a disposable KVM guest**,
-reachable only over AF_VSOCK. The host is a thin supervisor: a model gateway (the
-only path to DeepSeek) and a tool broker (the only path to tools). When monitored
-egress is on, the guest's only route off-box is a host proxy that applies
-per-project policy, injects granted secrets on the wire, meters every byte and
-can cut a host on an anomaly. See `SECURITY-RESIDUAL-RISK.md` for what that does
-and does not buy.
+The agent does its thinking and runs its code inside a disposable sandbox, a KVM virtual machine or a locked-down Docker container.
+That sandbox holds nothing worth stealing: no API key, no secrets, no database.
+Everything valuable stays on the host, and every time the agent wants to reach
+outside its sandbox (call the model, read a web page, change a file, open a
+network connection, push a commit) it has to ask the host, which checks the
+request, applies your rules, and keeps a record.
 
-## What's in it
+This is version 0.1.0, the first public release. The project was called Jav3
+until now; old names keep working (see [Upgrading from Jav3](#upgrading-from-jav3)).
 
-- **Untrusted-agent architecture** — VM-isolated ReAct loop, vsock RPC, a tool
-  broker, a write chokepoint with deterministic diff gates, taint tracking on
-  web-derived memory, SSRF-guarded fetch, and an egress proxy with an
-  allowlist-training approval queue
-- **Multi-agent orchestration** — a recursive head → leader → subagent hierarchy
-  with context narrowing down and rollups flowing up, plus a purpose-built
-  search-and-divide research pipeline (scout → parallel readers → synthesis) and
-  a shared token budget on a contextvar that spans every child agent
-- **Extension by folder, not by code** — tools, agents and skills are markdown +
-  a handler, discovered and hot-reloaded at runtime, so the agent can author its
-  own capabilities
-- **Voice** — a wake-word → STT → agent → TTS loop tuned to an ~880 ms
-  round trip, with a local llama.cpp fast tier for latency-sensitive turns
-- **Live GUI** — React SPA over SSE: streaming chat, a draggable project
-  workspace, watchable agent run trees, network + security review centers
+## Why use it
 
-Roughly 21k lines of Python and 8k of JS across ~80 test modules and 43 tools.
+**The agent can't leak what it never has.** In a typical agent setup the API
+key, your credentials and a shell all sit with the process that acts on the
+model's output. Then one prompt injection (a poisoned web page, a malicious
+README, a bad dependency) is enough to read the key or send your files
+somewhere. In CNTRL the model's output runs where none of that exists. An injection that gets code
+execution lands in a VM with no key, no secrets, and by default no network at
+all.
 
-## Layout
+**You decide what crosses the line.** Things that change the world outside the
+sandbox wait for you: a new network host, an extra package, a git commit or
+push, a page to publish, a memory note the agent wants to keep, a background
+service, a new schedule. You can tighten that (ask before every write or
+command) or loosen it per chat. The sandbox and the host's checks hold in
+every mode; the most permissive one only answers the approvals for you, and
+logs each one.
 
-- `backend/` — FastAPI app: auth, memory assembly, projects, chat (SSE), agent
-  loop, tool broker, egress proxy, git/secrets gates
-- `frontend/` — React (Vite) SPA, built to static and served by FastAPI
-- `tools/<name>/` — a tool is a folder: `TOOL.md` (frontmatter + schema) +
-  `handler.py`; hot-reloaded, no code change needed to add one
-- `agents/<slug>/AGENT.md`, `skills/<name>/SKILL.md` — same idea
-- `memory/` — soul.md / user.md / env.md / all-projects.md / notes (runtime state)
-- `projects/<slug>/` — project.md journal + code/ (a git repo from creation)
-- `vm/` — golden-image builder, guest bootstrap, nftables egress rules
-- `voicebox/` — the STT/wake-word/TTS sidecar (dockerised, runs off-Pi on a GPU box)
-- `docs/SELF.md` — the agent's own technical manual, served by the `self_docs` tool
-- `scripts/` — Pi setup, systemd units, backup + image-rebuild timers, E2E smoke
+**Everything is in one place.** One server holds your model providers and keys,
+your projects (each a git repo), memory, agents, skills and schedules. Every
+way in talks to that server: the web app, the terminal client, a paired
+computer or browser. Approvals from every chat, agent and schedule land in one
+Security queue. Model calls go through one gateway, so cost and token use are
+metered per call across everything. Revoke a device once and it's locked out
+everywhere, its running turns included.
 
-## Computer and browser use
+## How it works
 
-The agent can see and drive a computer you pair (`clients/jav3-desk`) and a
-Chromium browser with the `jav3-browser` extension. Nothing is on by default:
-you grant screen, input and shell per computer, and Read and Act per browser and
-project, in Settings. Clicks go by element id, by description or by coordinates;
-a description click sends the screenshot to the vision model you choose under
-Settings → Grounding. Pairing, the grants, that model finder and what to do
-about a locked screen are in [`docs/navigation.md`](docs/navigation.md); the
-risks that remain are in `SECURITY-RESIDUAL-RISK.md`.
+```
+   web app        terminal (cntrl)      paired computer / browser
+        \               |                    /
+         \______________|___________________/
+                        | HTTP on your network
+ +----------------------v-------------------------------------- host --+
+ |  approvals and the Security queue      model gateway (keys, cost)   |
+ |  tool broker: web_read, search, memory, git, publish, ...           |
+ |  write chokepoint -> projects (git)    secrets (by name)            |
+ |  memory, agents, schedules, logs       egress proxy (when on)       |
+ +--------------^--------------------------------------^---------------+
+                | vsock (VM) or unix sockets (Docker)   | the only way out
+ +--------------+---------------------- sandbox --------+---------------+
+ |  the agent loop, code execution, a copy of the project              |
+ |  no API key, no secrets, no database, no network unless you allow it |
+ +----------------------------------------------------------------------+
+```
+
+What happens when you send a message:
+
+1. The host builds the prompt (your memory notes, the project's context) and
+   starts a turn in the sandbox.
+2. The agent loop runs inside the sandbox. When it needs the model, it asks
+   the host's gateway, which adds the key, makes the call, meters it and
+   streams the answer back. The key never enters the sandbox.
+3. Code and file tools run inside the sandbox, against its copy of the
+   project. Tools that reach past it (reading the web, searching, memory, git,
+   publishing) are requests to the host's broker, which applies the checks and
+   approvals for each one.
+4. File changes come back through one host chokepoint. It refuses path tricks
+   and any write containing one of your stored secrets, runs diff checks that
+   flag suspicious changes, and lands the rest in the project. Commits wait for
+   you.
+5. Anything that needs your answer shows up in the Security queue (web) or
+   `/security` (terminal), from whichever chat or agent asked.
+
+The host and the sandbox talk only over vsock (VMs) or two unix sockets
+(Docker), and by default the sandbox has no network.
+
+## What it does
+
+- **Chats and projects.** Talk to an agent on its own or inside a project. A
+  project is a git repository on the host; agent writes land in it straight
+  away, every applied batch is kept on a hidden ref so `/history` and `/undo`
+  can bring back an overwritten or deleted file, and commits wait for your
+  approval. Committed work can be cloned read-only from the server
+  (`git clone http://<host>:<port>/git/<slug>`), pushed to GitHub with a
+  `GITHUB_TOKEN` secret, or mirrored to an optional local Gitea where agents
+  open pull requests ([docs/gitea.md](docs/gitea.md)).
+- **Any model.** Providers from the [models.dev](https://models.dev) catalogue:
+  OpenAI-compatible APIs (DeepSeek, OpenAI, OpenRouter, Groq, Mistral, xAI and
+  others, or a local server such as Ollama or LM Studio) plus native Anthropic
+  and Google adapters. Keys stay on the host; tokens and cost are metered per
+  call.
+- **Permission modes per chat.**
+  - `safe-yolo` is the default. Writes and commands in the sandbox run without
+    asking; the approvals below still wait for you.
+  - `auto` has a separate model call, which sees only the tool name and its
+    arguments, judge each write or command. Anything it isn't sure is safe asks
+    you.
+  - `ask` asks before every write or command.
+  - `yolo` asks nothing: requests are approved as they are made, and each one
+    is logged as a security event. It can only be switched on from a password
+    login, after a confirmation.
+- **Approvals in one queue.** Network hosts, extra packages, new sandbox
+  images, skill installs, background services, git commits, remotes and pushes,
+  published pages, memory notes the agent wrote, and new schedules (which start
+  paused).
+- **Memory you control.** Plain files on the host. A note the agent writes stays
+  out of its context until you approve it on the Memory page, and a note written
+  during a turn that read outside content carries a taint warning.
+- **Multi-agent work.** Agents defined as folders, sub-agents and throwaway
+  copies, an orchestrator that works through a plan (optionally each item on
+  its own branch, merged as one pull request you approve), a research pipeline,
+  and scheduled runs.
+- **Web reading.** `web_read` fetches pages on the host behind an SSRF guard
+  and reads PDFs a slice at a time (a scanned page comes back as an image for
+  models that take images). Web search uses a [SearXNG](https://docs.searxng.org)
+  instance you run yourself; the installer doesn't set one up
+  (`CNTRL_SEARXNG_URL`, default `http://localhost:8080`).
+- **Published pages.** The agent can ask to publish a static page. Once you
+  approve it, a separate read-only server (`cntrl-pages.service`, port 8090)
+  serves it, sandboxed, to anyone with the link.
+- **Two front ends.** A web app (Work, Agents, Security, VMs, Tools, Settings,
+  Memory, Schedules, Git) and `cntrl`, a keyboard-first terminal client.
+- **Computer and browser use**, off until you pair a device and grant it (see
+  [Computer and browser use](#computer-and-browser-use)).
+- **Backups** of the state directory with rclone, hourly once you set a remote
+  (see [Backups](#backups)).
+- **Voice**, experimental: a `/voice` page that needs a separate speech sidecar
+  on a GPU machine, set up by hand ([docs/voice.md](docs/voice.md)).
+
+## Requirements
+
+- Linux with apt (Debian, Ubuntu) or pacman (Arch). The installer has a dnf
+  branch for Fedora too, but no test covers it yet.
+- x86_64 or arm64 (aarch64).
+- For the VM sandbox: KVM (`/dev/kvm`, with virtualization switched on in the
+  firmware) and the `vhost_vsock` module. Without KVM, Docker can run the turns
+  of projects set to their own container; Docker you install yourself.
+- About 4 GB of RAM. A Raspberry Pi 4 with 4 GB runs it (the shared VM takes
+  768 MB by default).
+- systemd user services, running as a normal user (not root).
+- A model API key, or a local model server.
 
 ## Install
 
-One line, as the user the server will run as (not root):
+Run this as the user the server will run as:
 
-```
-curl -fsSL https://raw.githubusercontent.com/Grindlewalt/Jav3/main/scripts/bootstrap.sh | sh
-```
-
-It clones to `~/jarvis` (`JARVIS_DIR=…` changes that) and hands over to
-`scripts/install.sh`; installer flags pass through (`| sh -s -- --port 8780`).
-Or by hand:
-
-```
-git clone https://github.com/Grindlewalt/Jav3.git ~/jav3     # any path works
-cd ~/jav3 && bash scripts/install.sh
+```sh
+curl -fsSL https://raw.githubusercontent.com/Grindlewalt/cntrl/main/scripts/bootstrap.sh | sh
 ```
 
-**Or let a coding agent do it** (Claude Code, Codex, OpenCode, OpenClaw, …):
-paste the prompt at the end of [`docs/AGENT-INSTALL.md`](docs/AGENT-INSTALL.md)
-into it on the host. The guide has it look around read-only, ask the setup
-questions (port, runtime, second instance, provider, security profile, Gitea…),
-wait for a go, leave root steps and secrets to you, and verify with
-`python -m backend.cli doctor --json`. `install.sh --check --json` and
-`doctor --json` are the machine-readable reports it works from.
+The bootstrap installs git if it's missing, clones the repository to `~/cntrl`
+(or updates an existing checkout there, or one at `~/jarvis` from before the
+rename) and hands over to `scripts/install.sh`. You can steer it with
+`CNTRL_DIR` (where to clone), `CNTRL_REPO` (the git URL), `CNTRL_REF` (a branch
+or tag) and `CNTRL_ALLOW_ROOT=1` (install for root anyway); each also answers to
+its old `JARVIS_` name. Installer flags pass straight through:
+`curl … | sh -s -- --port 8780 --no-gitea`.
 
-The installer ends at first-run setup: on a terminal it asks for your login and
-model provider (and tests the key); otherwise it prints a one-time link,
-`http://<host>:<port>/setup?token=…`, to do the same in a browser. Only that
-link can create the first login. `.venv/bin/python -m backend.cli setup --status`
-prints it again.
+Or clone it yourself:
 
-`scripts/install.sh` is re-runnable, so it is the upgrade path too. It works on
-Debian/Ubuntu, Arch and Fedora, on arm64 and x86_64.
-
-**The terminal client** (`jav3`), on any computer that can reach the server:
-`curl -fsSL http://<host>:<port>/cli/install.sh | sh`, then `jav3` (it asks for
-the line from Settings → Add computer). It updates itself from that server: at
-start, at most once an hour, it compares its file with `GET /cli/version` and
-says "a newer jav3 is on the server: /update"; `/update` in the TUI, or
-`jav3 update` in a shell, replaces just the client file (the old one stays as
-`jav3.bak-<date>`). The TUI then offers to restart into it, and `/restart` does
-that any time: tabs, tiles, chats, drafts and notifications come back, and
-running turns carry on on the server meanwhile. It leaves its launcher and venv alone,
-refuses when run from a git checkout (`git pull` there), and if the new client
-needs newer libraries it prints the installer line instead.
-
-**A second instance beside another** (a test install, or a box where port 8000
-or `~/.config/jarvis` is already taken):
-`bash scripts/install.sh --name test --port 8780 --state-dir ~/jav3-test-state`
-installs `jarvis-test.service` with its config in `~/.config/jarvis-test`. The
-checkout remembers the instance, so later `backend.cli` commands and re-runs
-from it target that one. The installer refuses to overwrite another app's
-config dir, another checkout's unit, or a port something else is using.
-
-**Published pages.** The installer also enables `jarvis-pages.service`, a small
-read-only server (`python -m backend.pages_server`) on port 8090 that serves the
-pages an agent published and the operator approved, at `/p/<id>/` (anyone with
-the link can open one; pages run sandboxed, with no access to the app's login).
-Change the port or turn it off with `JARVIS_PAGES_PORT` / `JARVIS_PAGES_ENABLED`
-in the config env file (a second instance needs its own port); `doctor` checks it.
-
-The handful of steps that genuinely need root are collected into one phase, so
-they are one paste rather than a conversation:
-
-```
-bash scripts/install.sh --check                 # what is missing? changes nothing
-bash scripts/install.sh --target user@host      # ...on a remote host, over ssh
-sudo bash scripts/install.sh --root-phase       # packages, kvm, vsock, linger
-bash scripts/install.sh                         # everything else, unprivileged
+```sh
+git clone https://github.com/Grindlewalt/cntrl.git ~/cntrl
+cd ~/cntrl && bash scripts/install.sh
 ```
 
-Every failed check prints its own fix command. One failure no script can clear:
-if the CPU's virtualization extension is off in firmware, `--check` says so and
-stops — the agent loop runs inside a KVM guest and there is no host-side
-fallback, so that is a reboot into BIOS by a human.
+Everything that needs root happens in one step. When some of it is still
+owed, the installer prints the single command to run,
+`sudo bash scripts/install.sh --root-phase --user <you>`, and stops if the rest
+of the install can't go on without it; run that command, then run the install
+again. The root step installs only packages that are missing (QEMU and its UEFI
+firmware, Node and npm, Python's venv and pip, git, curl, rsync, rclone, and a
+tool that writes the cloud-init seed) and never upgrades one you already have.
+It also loads `kvm` and `vhost_vsock`, adds you to the `kvm` group, enables
+systemd linger, and lists what it changed and how to undo each change. If
+virtualization is off in the firmware, someone has to turn it on at the
+machine.
 
-**State dir.** Everything durable — `memory/`, `projects/`, `skills/`,
-`agents/` and `data/` (the SQLite DB, JWT secret, guest images) — lives in one
-directory outside the checkout: `~/.local/share/jarvis`, or `JARVIS_STATE_DIR`.
-`python -m backend.cli paths` prints where each piece resolves. A box installed
-before the state dir keeps running from its checkout (with a warning at start)
-until you stop the service and run `python -m backend.cli migrate-state`, which
-copies, verifies and only then removes the old copies.
+`bash scripts/install.sh --check` reports what's missing and changes nothing
+(`--check --json` prints one JSON object; `--target user@host` checks another
+machine over ssh).
 
-**Backups.** `python -m backend.cli backup` (and the hourly `jarvis-backup.timer`)
-runs `rclone sync` of the state to `JARVIS_BACKUP_REMOTE` (any rclone remote,
-e.g. `myremote:jav3-backup`; set it up with `rclone config`), with a consistent
-DB snapshot. Secrets (env file, `secrets.json`) are included only when
-`JARVIS_BACKUP_INCLUDE_SECRETS` is on, and only through an rclone crypt layer
-(`JARVIS_BACKUP_CRYPT_PASSWORD`, or your own crypt remote in
-`JARVIS_BACKUP_CRYPT_REMOTE`). `python -m backend.cli restore` pulls it back.
-The same settings are editable at `/api/backup/config`.
+The rest of the install, as your user:
 
-**Moving hosts.** `--from` migrates the durable state that is *not* in git —
-`memory/`, `projects/`, `skills/`, `agents/` and the SQLite DB — from either
-layout (an old checkout, or a state dir) into this box's state dir:
+1. creates `.venv` and installs the Python requirements;
+2. builds the web app (`npm ci`);
+3. writes the config and installs the systemd user units: `cntrl.service` (the
+   app, on all interfaces, port 8000 by default), `cntrl-pages.service`
+   (published pages, port 8090) and `cntrl-backup.timer`;
+4. builds the guest image (downloads a Debian cloud image, about 10 minutes;
+   skipped without a usable `/dev/kvm`);
+5. runs first-run setup: in a terminal it asks for your login, model provider
+   and default security profile; otherwise it prints a one-time `/setup` link to
+   open in a browser;
+6. sets up Gitea (skip with `--no-gitea`);
+7. if Docker is installed and your user can use it, builds the Docker box image
+   and switches Docker boxes on (skip with `--no-docker`);
+8. starts the service and checks `/api/health`.
 
+Flags: `--port <n>`, `--name <name>` (a second instance: `cntrl-<name>.service`,
+`~/.config/cntrl-<name>`, its own state in `~/.local/share/cntrl-<name>`, and
+the first free ports from 8091 for published pages and 3001 for Gitea),
+`--state-dir <dir>`, `--config-dir <dir>`,
+`--from <host:path>` (copy state from another install first; `--force`
+overwrites local state), `--no-image`, `--no-build`, `--no-gitea`,
+`--gitea-dry-run`, `--no-docker`, `--yes` (no questions) and `--rename-only`
+(see [Upgrading from Jav3](#upgrading-from-jav3)). `bash scripts/install.sh
+--help` lists them all.
+
+A coding agent can do the install for you: paste the prompt at the end of
+[docs/AGENT-INSTALL.md](docs/AGENT-INSTALL.md). That guide also covers second
+instances, state directories, moving from another machine and putting the
+server behind TLS.
+
+After installing:
+
+- Settings live in `~/.config/cntrl/env` (mode 0600) as `CNTRL_<NAME>=value`
+  lines (see `backend/config.py`). Restart with `systemctl --user restart
+  cntrl` after a change. Durable state (projects, memory, agents, skills, the
+  database) lives in `~/.local/share/cntrl`.
+- `~/cntrl/.venv/bin/python -m backend.cli doctor` tells you what's still
+  missing.
+- To upgrade: `cd ~/cntrl && git pull --ff-only && bash scripts/install.sh`.
+  Every step checks before it acts, so running it again is safe.
+
+## Sandboxes
+
+- **The shared VM.** By default one KVM guest runs every chat and project. It
+  isn't wiped between turns unless you set `CNTRL_VM_IDLE_SCRUB_SECONDS` (off by
+  default), and it's rebuilt from the read-only image whenever it restarts.
+- **Boxes of their own.** With `CNTRL_VM_BOXES_ENABLED=true` (off by default;
+  the installer's Docker step turns it on when Docker works), a project whose
+  security profile or "Runs in" setting asks for it gets its own VM or
+  container, stopped after 10 minutes idle. With boxes off, every project runs
+  in the shared VM whatever its setting says. Boxes also bring service boxes,
+  package requests, image variants (such as `desktop`, with a screen and a
+  browser) and the headless browser tool.
+- **Docker.** One container per box, with no network interface (`--network
+  none`), reaching the host only over two unix sockets
+  ([docs/docker-runtime.md](docs/docker-runtime.md)). It's lighter than a VM
+  and weaker: it shares the host kernel unless you configure gVisor
+  (`CNTRL_DOCKER_OCI_RUNTIME=runsc`). On a host without KVM, chats outside a
+  project can't run, and a project runs only when it's set to its own container.
+
+## Network access for agents
+
+Egress is off by default, and a fresh install leaves it off: the sandbox has no
+network at all. Web search and `web_read` still work, because they run on the
+host.
+
+Turning it on is a manual step for now. Set `CNTRL_VM_EGRESS=1` in the env file.
+The host also needs nftables, dnsmasq and tcpdump, and a sudoers rule that lets
+the service user run `sudo -n bash <checkout>/vm/net/net_up.sh …` (and
+`vm/net/net_box.sh` when boxes are on) without a password. The installer
+doesn't do any of this.
+
+With egress on, the sandbox's only way out is a proxy on the host. nftables
+drops the LAN and anything that tries to go around the proxy, and DNS goes
+through a logged host resolver. The proxy applies the project's security
+profile: the default profile allows a short list of package registries and
+GitHub hosts, and any other new host is refused and queued for your approval.
+A separate model call, the triage reviewer ("Auto review", on by default, with
+no tools and no network), goes through that queue every five minutes and can
+approve hosts it judges routine; you can switch it off in Security. The proxy
+meters bytes per host, fills in `{{secret:NAME}}` placeholders the project was
+granted in plain-HTTP requests, and cuts off a host when the traffic looks like
+exfiltration (volume, entropy, cadence). HTTPS is tunnelled, not inspected. A
+project can also be given access to listed LAN addresses (off by default).
+
+## Terminal client
+
+On any computer that can reach the server (Python 3.11 or newer):
+
+```sh
+curl -fsSL http://<host>:<port>/cli/install.sh | sh
+cntrl
 ```
-bash scripts/install.sh --from grindlewalt@oldhost:jarvis
+
+It installs into `~/.local/share/cntrl-cli` (with a private venv for httpx and
+textual unless the system Python already has both) and puts `cntrl` and `jav3`
+launchers in `~/.local/bin` (`CNTRL_BIN` changes that). The first time, it asks
+for the line from Settings > Access > Add computer, which gives it a chat-only
+device token; `/login password` signs in with your password for full access
+(security pages, secrets). It notices when the server has a newer client and
+updates itself with `/update` (or `cntrl update`). `cntrl --version` prints its
+version.
+
+## Computer and browser use
+
+Nothing here is on by default. To let an agent use a computer, install
+`cntrl-desk` on it (from `http://<host>:<port>/cli/cntrl-desk`), pair it with
+the Add computer line, and grant screen, input or shell in Settings. Shell also
+needs `cntrl-desk allow-shell` typed at that computer's own keyboard. Be aware
+that input amounts to a shell: with it granted, the agent can open a terminal
+and type into it.
+
+The Chromium extension (`http://<host>:<port>/cli/cntrl-browser.zip`, or
+`clients/jav3-browser/`) pairs the same way and is granted per project. See
+[docs/navigation.md](docs/navigation.md) and
+[clients/jav3-browser/README.md](clients/jav3-browser/README.md).
+
+## Backups
+
+`cntrl-backup.timer` runs every hour once a remote is set (in Settings, or
+`CNTRL_BACKUP_REMOTE` in the env file). It uploads memory, projects, agents,
+skills and a snapshot of the database with rclone. Secrets go up only if you
+turn that on, and only through an rclone crypt remote. Restore with
+`python -m backend.cli restore`.
+
+## Upgrading from Jav3
+
+Update the old checkout and run its installer (`git pull --ff-only && bash
+scripts/install.sh`), or run the bootstrap, which finds `~/jarvis` on its own.
+The installer then:
+
+- stops, disables and removes the old systemd user units (`jarvis.service`,
+  `jarvis-pages.service`, `jarvis-backup.*`, `jarvis-image-rebuild.*`, or
+  `jarvis-<name>-…` for a named instance), moves their drop-in directories to
+  the new names, and installs and starts the `cntrl` ones. An image-rebuild
+  timer you had installed comes back as `cntrl-image-rebuild.*`;
+- renames Gitea's unit from `jav3-gitea-<port>.service` to
+  `cntrl-gitea-<port>.service`, on the same data;
+- moves `~/.config/jarvis` to `~/.config/cntrl` and `~/.local/share/jarvis` to
+  `~/.local/share/cntrl` (when the install uses those default locations), but
+  only when the new directory holds none of the server's files. Nothing is
+  overwritten, and anything that couldn't be moved is named. The old state path
+  stays behind as a symlink to the new one, so absolute paths inside the state
+  keep working;
+- rewrites `JARVIS_` lines in the env file as `CNTRL_` (the old file is kept as
+  `env.bak`) and adds `CNTRL_INSTANCE_NAME=jav3`, so the server still answers
+  as `jav3.local` on your network.
+
+`bash scripts/install.sh --rename-only` does just this move, installs the new
+units and restarts, without building anything. Running it a second time finds
+nothing to do.
+
+What keeps working:
+
+- `JARVIS_*` settings are still read when the `CNTRL_*` one isn't set, and
+  until the move the app runs from the old directories as they are.
+- The `jav3` command, and `/cli/jav3` on the server, so old clients can update
+  themselves.
+- Logins and paired devices: the session cookie, the device token prefix, the
+  database file (`jarvis.db`) and the Gitea bot account keep their names.
+- The terminal client moves `~/.config/jav3` to `~/.config/cntrl` the first time
+  it starts. If `~/.config/cntrl` is already there (the server's own config on
+  the same machine), its files move in one by one beside the server's, a file
+  already there wins, and you stay logged in. The computer-use client moves its
+  own `desk*` files the same way.
+- The computer-use client is now `cntrl-desk`. A saved `jav3-desk` and
+  `/cli/jav3-desk` keep working, and its service keeps the name
+  `jav3-desk.service` (`local.jav3.desk` on macOS), so reinstalling replaces
+  the old one instead of running two.
+
+## Security model
+
+CNTRL treats the agent as untrusted. A prompt injection that reaches code
+execution lands in a sandbox with no key, no secrets and no database. With
+egress off it has no network; with egress on, its traffic goes through the
+proxy described above. Your approvals, the write chokepoint, the diff checks
+and the git gates are there in every permission mode; yolo only answers the
+approvals for you.
+
+What it doesn't protect against: anything you approve, or let the triage
+reviewer or yolo approve; content the agent reads that steers it within what it
+is allowed to do; and a flaw in the hypervisor, the host kernel or CNTRL's own
+host code. [SECURITY-RESIDUAL-RISK.md](SECURITY-RESIDUAL-RISK.md) goes through
+the remaining risks in detail. Read it before giving the agent a new
+capability.
+
+## Known limitations
+
+- **Writes are live.** Agent file writes land in the project immediately. The
+  diff checks are heuristics and only raise events. Look at `git diff` before
+  you run project code you didn't write.
+- **The Run panel runs on the host.** A project's Run panel runs one of the
+  project's Python files on the host as the server's user, with resource limits
+  and a timeout but no sandbox. Only you can start it, but the file may be one
+  the agent wrote.
+- **Exfiltration through an allowed host.** Anomaly detection limits how fast
+  and in what shape something can leak to a host you allowed; it can't rule it
+  out. HTTPS payloads are opaque to the proxy, secrets can't be filled into
+  HTTPS requests from the sandbox, and DNS is a logged side channel.
+- **Secret values aren't scrubbed everywhere.** `web_read` after a
+  substitution, `/local` tool results and service logs replace secret values
+  with placeholders; files the agent reads and `run_code` output reach the
+  model as they are.
+- **Captured model context.** The exact messages sent on each model call are
+  stored on the host (on by default, kept 7 days, adjustable in Logs). They
+  aren't scrubbed, they outlive a deleted chat, and they ride along in the
+  unencrypted database backup.
+- **No single audit log.** Security events, the egress log, the model call log,
+  box history and the computer-use audit are separate views.
+- **Plain HTTP.** The server speaks HTTP on your network, so logins, cookies and
+  device tokens travel in the clear unless you put TLS in front of it.
+- **Backups** upload the database (including password hashes) unencrypted.
+- **Attribution on the shared VM.** When several projects run turns in the
+  shared VM at the same time, their network traffic can't be told apart. Boxes
+  of their own are attributed exactly.
+- **Image updates.** The monthly image-rebuild timer
+  (`scripts/cntrl-image-rebuild.*`) isn't installed by the installer.
+- **Two instances on one host share the sandbox plumbing.** Their VMs use the
+  same vsock port unless you set `CNTRL_VM_VSOCK_PORT` for one of them, so only
+  the instance that starts first can run VM turns, and Docker containers are
+  named after box numbers, which can repeat across instances.
+- **Docker is weaker isolation** than a VM, and computer and browser use act
+  with your own accounts and sessions on the sites and apps you grant.
+
+## Development
+
+```sh
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/uvicorn backend.main:app --reload       # API on :8000
+cd frontend && npm ci && npm run dev              # web app, proxying to :8000
 ```
 
-It snapshots the source DB through SQLite's backup API (a live WAL database
-cannot be safely copied as a file), verifies `integrity_check` on arrival, and
-refuses to overwrite non-empty local state without `--force`. If the source is
-unreachable it fails hard rather than quietly starting a fresh install over the
-top of a migration. `data/vm/` is deliberately not copied: the golden image is
-built for the source host's architecture and is rebuilt natively instead.
+Tests: `.venv/bin/python -m pytest -q` and `cd frontend && npm test`.
+`scripts/test_on_linux.sh user@host` runs the suite on a Linux machine without
+touching a live install there, and CI runs it on Ubuntu with Python 3.13.
+Tests that need KVM, vsock or other host features skip themselves where those
+are missing.
 
-**Behind a reverse proxy.** Every cookie-carrying state change must come from
-Jav3's own origin. A TLS-terminating proxy that forwards the public `Host`
-header (Caddy does by default; nginx with `proxy_set_header Host $host`) needs
-no config: an `https://<public-host>` page reaching Jav3 over plain http is
-accepted when host and port match. `X-Forwarded-*` is never trusted. If your
-proxy rewrites `Host` (saves fail with "cross-origin request refused"), list
-the public name — matched by hostname under any scheme and port:
-
-```
-JARVIS_CSRF_ALLOWED_HOSTS='["<public-host>"]'
-```
-
-Update loop: `git pull -q && (cd frontend && npm run build) && systemctl --user
-restart jarvis` — check for in-flight agent work first, or use
-`scripts/deploy_pi.sh`, which does that guarding for you. Terminal clients pick
-up a new `clients/jav3cli/jav3` from `/cli/jav3` on their own (see Install).
-
-## Dev
-
-Backend: `uvicorn backend.main:app --reload` · Frontend: `cd frontend && npm run
-dev` (proxies /api to :8000) · Tests: `pytest` (needs `JARVIS_DEEPSEEK_API_KEY` —
-there are no model mocks, so full-flow tests hit the real API).
-
-Config via env or `~/.config/jarvis/env`, prefix `JARVIS_` (see
-`backend/config.py`). Notable flags: `JARVIS_VM_EGRESS` (monitored egress, off by
-default → the guest is netless),
-`JARVIS_VOICE_ENABLED`.
+Further reading: [docs/SELF.md](docs/SELF.md) (the agent's own manual of the
+system), [docs/docker-runtime.md](docs/docker-runtime.md),
+[docs/desktop.md](docs/desktop.md), [docs/gitea.md](docs/gitea.md),
+[docs/TUI-TESTING.md](docs/TUI-TESTING.md).
 
 ## Third-party
 
-Backups use [rclone](https://rclone.org) (MIT licence), run as a separate
-program — see `NOTICE`.
+rclone (MIT) runs as a separate program for backups; the provider catalogue is
+data from [models.dev](https://models.dev) (MIT); the web app ships Schibsted
+Grotesk and Martian Mono (SIL OFL 1.1). See [NOTICE](NOTICE).
 
-The LLM provider catalogue (`backend/providers_catalog.json`) is data from
-[models.dev](https://models.dev) (MIT licence), refreshed with
-`scripts/refresh_providers.py` — see `NOTICE`.
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).

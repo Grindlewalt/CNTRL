@@ -49,7 +49,7 @@ async def start_commit(slug: str, plan: dict, deps: list[dict]) -> tuple[str, st
             return sha, (f"Note: the branches of the items you build on ({', '.join(x['id'] for x in done)}) "
                          f"conflict in {', '.join(conflicts[:5])}; your copy starts from {d['id']}'s "
                          "work only. Check what the others did before relying on it.")
-        cur = await worktrees.commit_tree(gd, tree, [cur, sha], f"jav3: start of copy (with {d['id']})")
+        cur = await worktrees.commit_tree(gd, tree, [cur, sha], f"cntrl: start of copy (with {d['id']})")
     return cur, ""
 
 
@@ -65,7 +65,7 @@ async def finish_item(slug: str, plan_job: str, key: str) -> dict:
     ref = f"refs/heads/{w.branch}"
     base = await gitsafe.rev(w.git_dir, ref)
     try:
-        await gitsafe.snapshot(w.git_dir, w.dir, ref, f"jav3 {w.part}: end of attempt",
+        await gitsafe.snapshot(w.git_dir, w.dir, ref, f"cntrl {w.part}: end of attempt",
                                start=base)
     except Exception:  # noqa: BLE001 — recorded as it stands
         pass
@@ -174,7 +174,7 @@ async def integrate(slug: str, job_id: str, root_id: int, plan_mod) -> None:
             continue
         tree, conflicts = await worktrees.merge_tree(gd, tip, sha)
         if not conflicts:
-            tip = await worktrees.commit_tree(gd, tree, [tip, sha], f"jav3: merge {it['title']}")
+            tip = await worktrees.commit_tree(gd, tree, [tip, sha], f"cntrl: merge {it['title']}")
             results[it["id"]] = {"state": "merged"}
             included.append(it)
             continue
@@ -189,7 +189,7 @@ async def integrate(slug: str, job_id: str, root_id: int, plan_mod) -> None:
             rtree = None
         if rtree:
             tip = await worktrees.commit_tree(gd, rtree, [tip, sha],
-                                              f"jav3: merge {it['title']} (conflicts resolved)")
+                                              f"cntrl: merge {it['title']} (conflicts resolved)")
             results[it["id"]] = {"state": "resolved"}
             included.append(it)
             await save(state="merging")

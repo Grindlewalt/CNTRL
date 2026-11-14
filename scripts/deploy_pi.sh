@@ -48,8 +48,10 @@ fi
 echo "==> requirements"
 ssh "$PI" 'cd ~/jarvis && new=$(sha256sum requirements.txt | cut -d" " -f1) && if [ "$new" = "$(cat .venv/.requirements.sha256 2>/dev/null)" ]; then echo "    requirements unchanged: skipped pip install"; else .venv/bin/pip install -q -r requirements.txt && echo "$new" > .venv/.requirements.sha256 && echo "    requirements changed: installed"; fi'
 
+# The Pi's checkout stays at ~/jarvis; its unit is cntrl once install.sh (or
+# --rename-only) has moved it to the CNTRL names, jarvis until then.
 echo "==> restart"
-ssh "$PI" 'systemctl --user restart jarvis'
+ssh "$PI" 'u=jarvis; [ -f ~/.config/systemd/user/cntrl.service ] && u=cntrl; systemctl --user restart $u'
 sleep 8
 echo "==> health"
-ssh "$PI" 'curl -sf localhost:8000/api/health && echo && systemctl --user is-active jarvis'
+ssh "$PI" 'u=jarvis; [ -f ~/.config/systemd/user/cntrl.service ] && u=cntrl; curl -sf localhost:8000/api/health && echo && systemctl --user is-active $u'

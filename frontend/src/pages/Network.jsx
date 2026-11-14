@@ -2,14 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, subscribeSse } from '../api.js'
 import { notifyError } from '../notify.js'
 import { useAsk } from '../ask.jsx'
-import { useEgressDecide } from '../EgressDecide.jsx'
-import {
-  ALLOW_ALWAYS_TIP, ALLOW_ONCE_TIP, AUTO_ALLOW_LABEL, AUTO_ALLOW_LEDE, DENY_TIP, REFUSED_TAG,
-  WAITING_LEDE,
-} from '../securityCopy.js'
+import { HostRequest, useEgressDecide } from '../EgressDecide.jsx'
+import { AUTO_ALLOW_LABEL, AUTO_ALLOW_LEDE, WAITING_LEDE } from '../securityCopy.js'
 import { human, tsShort } from '../format.js'
 import { Link } from 'react-router-dom'
-import { Button, EmptyState, Input, Select, Tag, Toggle } from '../components/index.js'
+import { Button, Input, Select, Toggle } from '../components/index.js'
+import { Group, Section, State } from '../securityParts.jsx'
 import { listProfiles } from '../boxes/api/profiles.js'
 import RunsIn from '../boxes/RunsIn.jsx'
 import {
@@ -31,33 +29,32 @@ import {
 
 const FEED_CAP = 300
 
-// egress_events.verdict -> what the row says, and the Tag that says it. Three
-// words only: allowed, blocked, cut. Auto decisions keep their manual twin's
-// colour, add a dashed outline and a small "auto"; a queue approval (logged
-// so a block isn't the last word on a host since let through) reads
-// "allowed" with a note saying who approved it.
+// egress_events.verdict -> the state word a row says. Three words: allowed,
+// blocked, cut. Colour is for what wants a look: a block is amber, a cut red,
+// an approval green; plain allowed traffic is quiet. An auto decision says
+// "auto" after the word; a queue approval (logged so a block isn't the last
+// word on a host since let through) says who approved it.
 const CUT_TIP = 'Cut by the anomaly guard: an allowed site looked like data leaving '
   + '(a random-looking name, a traffic spike, or clockwork-regular connections). '
   + 'The proxy stopped it there and refuses every later request to that site.'
 const VERDICTS = {
-  allow: { text: 'allowed', tone: 'done' },
-  deny: { text: 'blocked', tone: 'pending' },
-  auto_allow: { text: 'allowed', tone: 'done', auto: true },
-  auto_deny: { text: 'blocked', tone: 'pending', auto: true },
-  cut: { text: 'cut', tone: 'error', tip: CUT_TIP },
-  approved: { text: 'allowed', tone: 'done', note: 'approved by you' },
-  reviewer_approved: { text: 'allowed', tone: 'done', dashed: true, note: 'by the reviewer' },
+  allow: { text: 'Allowed', tone: 'quiet' },
+  deny: { text: 'Blocked', tone: 'warn' },
+  auto_allow: { text: 'Allowed', tone: 'quiet', auto: true },
+  auto_deny: { text: 'Blocked', tone: 'warn', auto: true },
+  cut: { text: 'Cut', tone: 'bad', tip: CUT_TIP },
+  approved: { text: 'Approved', tone: 'ok', note: 'approved by you' },
+  reviewer_approved: { text: 'Approved', tone: 'ok', auto: true, note: 'by Auto review' },
 }
 const APPROVALS = new Set(['approved', 'reviewer_approved'])
-const verdictOf = (v) => VERDICTS[v] || { text: v || '?', tone: 'pending' }
+const verdictOf = (v) => VERDICTS[v] || { text: v || '?', tone: 'quiet' }
 
-function VerdictTag({ verdict }) {
+function Verdict({ verdict }) {
   const v = verdictOf(verdict)
   return (
-    <Tag tone={v.tone} className={`net-verdict${v.auto || v.dashed ? ' auto' : ''}`}
-         title={v.tip || (v.auto ? 'decided by auto mode' : v.note) || undefined}>
-      {v.text}{v.auto && <span className="net-auto-mark"> auto</span>}
-    </Tag>
+    <span className="nw-verdict" title={v.tip || (v.auto ? 'decided automatically' : v.note) || undefined}>
+      <State tone={v.tone}>{v.text}</State>{v.auto && <i> auto</i>}
+    </span>
   )
 }
 
@@ -114,7 +111,7 @@ function usePoll(path, pick) {
 
 const q = (project) => (project ? `?project=${encodeURIComponent(project)}` : '')
 
-// ---- the top strip: project · Auto · counts -------------------------------------
+// ---- the top: project, auto-allow, counts -----------------------------------------
 
 function AutoToggle({ project, onChange }) {
   const [mode, reload] = usePoll(`/api/egress/auto${q(project)}`, (r) => r)
@@ -126,15 +123,14 @@ function AutoToggle({ project, onChange }) {
       reload(); onChange?.()
     } catch (err) { notifyError(err) }
   }
-  const scope = !project ? 'default for every project'
-    : mode && mode.project === null ? `following the default (${mode.global})`
-      : 'this project only'
+  const scope = !project ? 'This is the default for every project.'
+    : mode && mode.project === null ? `This project follows the default (${mode.global}).`
+      : 'Set for this project only.'
   return (
-    <div className="net-auto">
+    <div className="nw-auto">
       <Toggle checked={!!mode?.effective} disabled={!mode} label={AUTO_ALLOW_LABEL}
-              onText={AUTO_ALLOW_LABEL} offText={AUTO_ALLOW_LABEL} onChange={flip}
-              title={AUTO_ALLOW_LEDE} />
-      <span className="dim small">{scope}</span>
+              onText={AUTO_ALLOW_LABEL} offText={AUTO_ALLOW_LABEL} onChange={flip} />
+      <p>{AUTO_ALLOW_LEDE} {scope}</p>
     </div>
   )
 }
@@ -144,12 +140,13 @@ function Counts({ project, tick }) {
   useEffect(() => { reload() }, [tick]) // eslint-disable-line
   const n = (k) => (c ? c[k] : '–')
   return (
-    <div className="net-counts"
-         title="Sites, not requests. Allowed and blocked cover the last 24 hours; waiting is right now.">
-      <span><b>{n('allowed')}</b> allowed <span className="dim small">24 h</span></span>
-      <span><b>{n('denied')}</b> blocked <span className="dim small">24 h</span></span>
-      <span className={c?.waiting ? 'net-count-waiting' : ''}><b>{n('waiting')}</b> waiting <span className="dim small">now</span></span>
-    </div>
+    <dl className="nw-counts"
+        title="Sites, not requests. Allowed and blocked cover the last 24 hours; waiting is right now.">
+      <div><dt>Allowed</dt><dd>{n('allowed')}</dd><small>sites, last 24 h</small></div>
+      <div><dt>Blocked</dt><dd>{n('denied')}</dd><small>sites, last 24 h</small></div>
+      <div className={c?.waiting ? 'warn' : undefined}>
+        <dt>Waiting</dt><dd>{n('waiting')}</dd><small>for you now</small></div>
+    </dl>
   )
 }
 
@@ -159,56 +156,30 @@ function Counts({ project, tick }) {
 // always trains the allowlist up (the project's own list); Allow 1 h lets it
 // through for an hour on no list; Deny keeps it out. WAITING_LEDE says so on
 // the page, and useEgressDecide (shared with the Queue) does the asking.
-function Waiting({ project, names, showProject, lastTry, tick, onDecided }) {
+function Waiting({ project, names, lastTry, tick, onDecided }) {
   const [pending, reload] = usePoll(`/api/egress/pending${q(project)}`, (r) => r.pending || [])
   useEffect(() => { reload() }, [tick]) // eslint-disable-line
   const { decide, picker } = useEgressDecide(() => { reload(); onDecided?.() }, { project, names })
   const rows = pending || []
   return (
-    <section className="net-sec">
-      <div className="sbx-sec-head"><h3>Waiting for you</h3>
-        <span className="sec-count">{rows.length}</span></div>
-      <p className="dim small net-lede">{WAITING_LEDE}</p>
-      {rows.length === 0 && <EmptyState>nothing waiting</EmptyState>}
-      <ul className="net-list">
-        {rows.map((p) => {
-          const last = lastTry(p.project_slug, p.host)
-          const tried = last?.method
-            ? `${last.method}${last.path ? ` ${last.path}` : ''}` : 'connect'
-          const label = needsProject(p) ? '' : projLabel(p.project_slug, names)
-          return (
-            <li key={p.id} className="net-wait">
-              <span className="net-host mono" title={p.host}>{p.host}</span>
-              <span className="net-wait-meta">
-                {(showProject || needsProject(p)) && (
-                  <Tag tone={needsProject(p) ? 'pending' : undefined}>{projLabel(p.project_slug, names)}</Tag>)}
-                {p.box_id && <Tag title="the box it came from">{p.box_id}</Tag>}
-                <span className="net-tried dim" title={tried}>
-                  {p.hit_count}× · {tried}</span>
-                {p.refused && (
-                  <Tag tone="error" title={p.refused}>{REFUSED_TAG}</Tag>)}
-                {p.auto_verdict === 'unsure' && (
-                  <Tag tone="pending" className="net-verdict auto"
-                       title={p.auto_reason || ''}>auto: unsure</Tag>)}
-                {p.triage_verdict === 'flag' && (
-                  <Tag className="triage-flag" title={p.triage_reason || ''}>
-                    ⚑ {p.triage_reason}</Tag>)}
-              </span>
-              {p.refused && <span className="dim small net-refused">{p.refused}</span>}
-              <span className="net-actions">
-                {!p.refused && <>
-                  <Button variant="ghost" onClick={() => decide(p, 'allow')} title={ALLOW_ALWAYS_TIP(label)}>
-                    {needsProject(p) && !project ? 'Allow always…' : 'Allow always'}</Button>
-                  <Button variant="ghost" onClick={() => decide(p, 'once')} title={ALLOW_ONCE_TIP}>
-                    Allow 1 h</Button></>}
-                <Button variant="ghost" onClick={() => decide(p, 'deny')} title={DENY_TIP}>Deny</Button>
-              </span>
-            </li>
-          )
-        })}
-      </ul>
+    <Section title="Waiting for you" count={rows.length} lede={WAITING_LEDE}>
+      {pending && rows.length === 0 && (
+        <p className="sq-lede">Nothing is waiting. A site no list covers shows up here when a box
+          tries to reach it.</p>)}
+      {rows.length > 0 && (
+        <Group>
+          {rows.map((p) => {
+            const last = lastTry(p.project_slug, p.host)
+            const tried = last?.method ? `${last.method}${last.path ? ` ${last.path}` : ''}` : ''
+            return (
+              <HostRequest key={p.id} p={p} onDecide={decide} scoped={!!project}
+                           projectName={projLabel(p.project_slug, names)} tried={tried} />
+            )
+          })}
+        </Group>
+      )}
       {picker}
-    </section>
+    </Section>
   )
 }
 
@@ -237,35 +208,37 @@ function fold(feed) {
 function DecisionRow({ d, names, onAllow }) {
   const [open, setOpen] = useState(false)
   const req = d.method ? `${d.method}${d.path ? ` ${d.path}` : ''}` : ''
+  const v = verdictOf(d.verdict)
   return (
-    <li className={`net-dec${open ? ' open' : ''}`}>
-      <button type="button" className="net-dec-row" aria-expanded={open}
+    <div className={`nw-dec${open ? ' open' : ''}`}>
+      <button type="button" className="nw-dec-row" aria-expanded={open}
               title={d.reason || ''} onClick={() => setOpen(!open)}>
-        <span className="net-dec-time dim">{tsShort(d.created_at) || 'now'}</span>
-        <span className="net-dec-verdict"><VerdictTag verdict={d.verdict} /></span>
-        <span className="net-host mono">{d.host}{d.n > 1 && (
-          <span className="dim net-dec-n"> ×{d.n}</span>)}</span>
-        <span className="net-dec-proj dim">{projLabel(d.project, names)}</span>
-        <span className="net-dec-bytes dim" title={APPROVALS.has(d.verdict) ? undefined : 'sent / received'}>
-          {APPROVALS.has(d.verdict) ? verdictOf(d.verdict).note
+        <span className="nw-dec-time">{tsShort(d.created_at) || 'now'}</span>
+        <Verdict verdict={d.verdict} />
+        <span className="nw-dec-host mono">{d.host}{d.n > 1 && (
+          <span className="nw-n"> ×{d.n}</span>)}</span>
+        <span className="nw-dec-proj">{projLabel(d.project, names)}</span>
+        <span className="nw-dec-bytes mono" title={APPROVALS.has(d.verdict) ? undefined : 'sent / received'}>
+          {APPROVALS.has(d.verdict) ? v.note
             : <>↑{human(d.bytes_out)} ↓{human(d.bytes_in)}</>}</span>
       </button>
       {open && (
-        <div className="net-dec-detail">
+        <div className="nw-dec-detail">
           {d.reason && <div>{d.reason}</div>}
-          {d.verdict === 'cut' && <div className="dim">{CUT_TIP}</div>}
-          {req && <div className="mono dim ellipsis" title={req}>{req}</div>}
+          {v.auto && <div className="sq-sub">Decided automatically{v.note ? `, ${v.note}` : ''}.</div>}
+          {d.verdict === 'cut' && <div className="sq-sub">{CUT_TIP}</div>}
+          {req && <div className="mono" title={req}>{req}</div>}
           {(d.box_id || d.service_id) && (
-            <div className="dim small">
-              {d.box_id ? `box ${d.box_id}` : ''}{d.box_id && d.service_id ? ' · ' : ''}
+            <div className="sq-sub">
+              {d.box_id && <>From box <span className="mono">{d.box_id}</span></>}
+              {d.box_id && d.service_id ? ', ' : ''}
               {d.service_id ? `service #${d.service_id}` : ''}</div>)}
           {d.verdict === 'auto_deny' && d.project !== IMAGE_BUILD && (
-            <div><Button variant="ghost" onClick={() => onAllow(d)}>
-              Allow it anyway</Button></div>
+            <Button variant="ghost" onClick={() => onAllow(d)}>Allow it anyway</Button>
           )}
         </div>
       )}
-    </li>
+    </div>
   )
 }
 
@@ -281,21 +254,18 @@ function Decisions({ feed, names, onChanged }) {
     } catch (err) { notifyError(err) }
   }
   return (
-    <section className="net-sec">
-      <div className="sbx-sec-head"><h3>Recent decisions</h3>
-        <span className="dim small">newest first · tap a row for why</span></div>
+    <Section title="Recent decisions" count={rows.length || null}
+             lede="Newest first. Repeats to the same site fold into one row; select a row to see why.">
       {rows.length === 0 && (
-        <EmptyState>no traffic yet — the guest&#39;s outbound requests
-          appear here as they happen</EmptyState>
+        <p className="sq-lede">No traffic yet. Requests from the boxes appear here as they happen.</p>
       )}
       {rows.length > 0 && (
-        <ul className="net-list net-dec-list">
-          {rows.map((d) => <DecisionRow key={d._k} d={d} names={names}
-                                        onAllow={allowAnyway} />)}
-        </ul>
+        <Group className="nw-dec-list">
+          {rows.map((d) => <DecisionRow key={d._k} d={d} names={names} onAllow={allowAnyway} />)}
+        </Group>
       )}
       {picker}
-    </section>
+    </Section>
   )
 }
 
@@ -307,13 +277,30 @@ function Decisions({ feed, names, onChanged }) {
 // Every approval writes the project's OWN list (DESIGN-BOXES (c)).
 
 // backend/egress.py decide(), in one sentence
-const ORDER = 'How a site is judged: a cut site, or a profile with the network off, is '
-  + 'always blocked; otherwise any "always block" entry wins; then any "always allow" '
-  + "entry (or a live auto allow) lets it through; any other site follows the profile's "
-  + 'new-sites rule.'
+const ORDER = 'A cut site, or a profile with the network off, is always blocked. Otherwise '
+  + 'any "always block" entry wins; then any "always allow" entry (or a live auto allow) lets '
+  + "it through; any other site follows the profile's new-sites rule."
 
-// allow-entry source (who put it there) -> a small dim word
-const WHO = { seed: 'built-in', reviewer: 'reviewer', operator: '' }
+// The sites CNTRL ships on the general list (package registries, GitHub): the
+// same dozen under every project, so they fold to one line until asked for
+function BuiltIns({ entries, render }) {
+  const [open, setOpen] = useState(false)
+  if (!entries.length) return null
+  return (
+    <>
+      <div className="nw-none">
+        {entries.length} built-in site{entries.length === 1 ? '' : 's'} on the general list
+        (package registries and code hosts).{' '}
+        <button type="button" className="sq-fold" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? 'Hide' : 'Show'}</button>
+      </div>
+      {open && entries.map(render)}
+    </>
+  )
+}
+
+// allow-entry source (who put it there) -> a few words
+const WHO = { seed: 'built in', reviewer: 'added by Auto review', operator: '' }
 
 function PolicyLists({ project, names, projects, tick, onChanged }) {
   const ask = useAsk()
@@ -375,81 +362,83 @@ function PolicyLists({ project, names, projects, tick, onChanged }) {
     try { await promoteToProfile(r.slug, host, { list }); refresh() } catch (err) { notifyError(err) }
   }
 
-  const fromTag = (e) => {
-    // an "Allow 1 h" is an auto entry with rule 'once': it says so, and Keep
-    // turns it into a real always-allow entry
-    const f = e.from === 'auto' && e.rule === 'once'
-      ? { text: '1 h', title: 'you allowed it for an hour: it expires on its own unless you keep it' }
-      : POLICY_FROM[e.from] || { text: e.from }
+  // where an entry lives, in words: "project list", "profile list", "for 1 h"
+  const fromText = (e) => {
+    if (e.from === 'auto' && e.rule === 'once') {
+      return { text: 'allowed for 1 h', title: 'you allowed it for an hour: it expires on its own unless you keep it' }
+    }
+    const f = POLICY_FROM[e.from] || { text: e.from }
+    return { text: e.from === 'auto' ? 'auto allow' : `${f.text} list`, title: e.from === 'auto' ? (e.reason || f.title) : f.title }
+  }
+  const editProfile = <Link to="/security/profiles">Edit profile</Link>
+  const allowRow = (r, e) => {
+    const f = fromText(e)
     return (
-      <Tag className={e.from === 'auto' ? 'net-verdict auto' : ''}
-           tone={e.from === 'auto' ? 'pending' : e.from === 'project' ? 'done' : undefined}
-           title={e.from === 'auto' ? (e.reason || f.title) : f.title}>{f.text}</Tag>
+      <div key={`a:${e.from}:${e.id ?? e.host}`} className={`nw-entry${e.blocked ? ' overruled' : ''}`}>
+        <span className="mono" title={e.host}>{e.host}</span>
+        <span className="nw-from" title={f.title}>
+          {f.text}{WHO[e.source] ? `, ${WHO[e.source]}` : ''}
+          {e.from === 'auto' && `, until ${tsShort(e.expires_at)}`}
+          {e.blocked && ', overruled by a block'}
+        </span>
+        <span className="sq-row-actions">
+          {e.from === 'auto' && <>
+            <Button variant="ghost" title="keep it: move it onto the project's list"
+                    onClick={() => keep(e)}>Keep</Button>
+            <Button variant="ghost" danger onClick={() => revoke(r, e)}>Revoke</Button></>}
+          {e.from === 'project' && <>
+            <Button variant="ghost" title={`move it to the ${r.profile.name} profile's always-allow list`}
+                    onClick={() => promote(r, e.host, 'allow')}>Move to profile</Button>
+            <Button variant="ghost" danger onClick={() => revoke(r, e)}>Remove</Button></>}
+          {(e.from === 'profile' || e.from === 'general') && e.source !== 'seed' && editProfile}
+        </span>
+      </div>
     )
   }
-  const editProfile = <Link className="small" to="/security/profiles">edit profile</Link>
-  const allowRow = (r, e) => (
-    <li key={`a:${e.from}:${e.id ?? e.host}`} className={`net-allow${e.blocked ? ' net-overruled' : ''}`}>
-      <span className="net-host mono" title={e.host}>{e.host}</span>
-      <span className="net-allow-meta">
-        {fromTag(e)}
-        {WHO[e.source] && <span className="dim small">{WHO[e.source]}</span>}
-        {e.from === 'auto' && (
-          <span className="dim small" title={e.reason || ''}>until {tsShort(e.expires_at)}</span>)}
-        {e.blocked && <span className="dim small">blocked wins</span>}
-      </span>
-      <span className="net-actions">
-        {e.from === 'auto' && <>
-          <Button variant="ghost" title="keep it: move it onto the project's list"
-                  onClick={() => keep(e)}>Keep</Button>
-          <Button variant="ghost" danger onClick={() => revoke(r, e)}>Revoke</Button></>}
-        {e.from === 'project' && <>
-          <Button variant="ghost" title={`move it to the ${r.profile.name} profile's always-allow list`}
-                  onClick={() => promote(r, e.host, 'allow')}>→ profile</Button>
-          <Button variant="ghost" danger onClick={() => revoke(r, e)}>Remove</Button></>}
-        {(e.from === 'profile' || e.from === 'general') && e.source !== 'seed' && editProfile}
-      </span>
-    </li>
-  )
-  const blockRow = (r, e) => (
-    <li key={`d:${e.from}:${e.host}`} className="net-allow net-deny">
-      <span className="net-host mono" title={e.host}>{e.host}</span>
-      <span className="net-allow-meta"><Tag tone="error">blocked</Tag>{fromTag(e)}</span>
-      <span className="net-actions">
-        {e.from === 'project' ? <>
-          <Button variant="ghost" title={`move it to the ${r.profile.name} profile's always-block list`}
-                  onClick={() => promote(r, e.host, 'deny')}>→ profile</Button>
-          <Button variant="ghost" onClick={() => revoke(r, e, 'deny')}>Remove</Button></>
-          : editProfile}
-      </span>
-    </li>
-  )
+  const blockRow = (r, e) => {
+    const f = fromText(e)
+    return (
+      <div key={`d:${e.from}:${e.host}`} className="nw-entry">
+        <span className="mono" title={e.host}>{e.host}</span>
+        <span className="nw-from" title={f.title}><State tone="warn">Always blocked</State> {f.text}</span>
+        <span className="sq-row-actions">
+          {e.from === 'project' ? <>
+            <Button variant="ghost" title={`move it to the ${r.profile.name} profile's always-block list`}
+                    onClick={() => promote(r, e.host, 'deny')}>Move to profile</Button>
+            <Button variant="ghost" onClick={() => revoke(r, e, 'deny')}>Remove</Button></>
+            : editProfile}
+        </span>
+      </div>
+    )
+  }
 
   return (
-    <section className="net-sec">
-      <div className="sbx-sec-head"><h3>Always allow &amp; always block</h3>
-        <Link className="small" to="/security/profiles">profiles →</Link></div>
-      <div className="dim small net-order">{ORDER}</div>
-      {groups && rows.length === 0 && <EmptyState>no projects yet</EmptyState>}
+    <Section title="Always allow and always block"
+             actions={<Link className="ghost-link" to="/security/profiles">Edit profiles</Link>}>
+      <details className="nw-how">
+        <summary>How a site is judged</summary>
+        <p>{ORDER}</p>
+      </details>
+      {groups && rows.length === 0 && <p className="sq-lede">No projects yet.</p>}
       {rows.map((r) => (
-        <div key={r.slug} className="net-group">
-          <div className="net-group-head">
-            {r.name}
-            {' '}<Tag title="this project's profile">
-              {r.profile.isDefault ? 'Default profile' : `${r.profile.name} profile`}</Tag>
-            <span className="dim small"> · new sites: {newSitesText(r.profile)}
-              {' · '}{r.allow.length} always allowed · {r.block.length} blocked</span>
-            <Button variant="link" onClick={() => addBlock(r)}>+ block a site</Button>
+        <Group key={r.slug}>
+          <div className="nw-proj-head">
+            <b>{r.name}</b>
+            <span className="sq-sub">
+              {r.profile.isDefault ? 'Default profile' : `${r.profile.name} profile`}, new
+              sites: {newSitesText(r.profile)}. {r.allow.length} always allowed, {r.block.length} always blocked.
+            </span>
+            <Button variant="link" onClick={() => addBlock(r)}>Block a site</Button>
           </div>
           {r.allow.length === 0 && r.block.length === 0 && (
-            <div className="dim small">nothing listed: every site follows the new-sites rule</div>)}
-          <ul className="net-list">
-            {r.block.map((e) => blockRow(r, e))}
-            {r.allow.map((e) => allowRow(r, e))}
-          </ul>
-        </div>
+            <div className="nw-none">Nothing listed: every site follows the new-sites rule.</div>)}
+          {r.block.map((e) => blockRow(r, e))}
+          {r.allow.filter((e) => e.source !== 'seed').map((e) => allowRow(r, e))}
+          <BuiltIns entries={r.allow.filter((e) => e.source === 'seed')}
+                    render={(e) => allowRow(r, e)} />
+        </Group>
       ))}
-    </section>
+    </Section>
   )
 }
 
@@ -476,7 +465,7 @@ function PolicyEditor({ slug }) {
     setSaving(true)
     try {
       await putPolicy(slug, parseHosts(allowText), parseHosts(denyText))
-      setStatus('saved'); setTimeout(() => setStatus(''), 1500); load()
+      setStatus('Saved'); setTimeout(() => setStatus(''), 1500); load()
     } catch (err) { notifyError(err) }
     setSaving(false)
   }
@@ -484,41 +473,36 @@ function PolicyEditor({ slug }) {
   if (!pol) return null
   if (pol.fixed || slug === GENERAL) {
     return (
-      <div className="sbx-card">
-        <div className="sbx-sec-head"><h3>Project lists</h3></div>
-        <div className="small">{pol.fixed
-          ? <>The image builders' fixed, registry-only policy — it cannot be edited.</>
-          : <>This is the Default profile's list: edit it on <Link to="/security/profiles">Profiles</Link>.</>}</div>
+      <div className="nw-card">
+        <h4>Project lists</h4>
+        <p>{pol.fixed
+          ? <>The image builders have a fixed policy that reaches package registries only. It cannot be edited.</>
+          : <>This is the Default profile's list: edit it on <Link to="/security/profiles">Profiles</Link>.</>}</p>
         {pol.effective_allow.length > 0 && (
-          <div className="dim small">always allows: {pol.effective_allow.join(', ')}</div>)}
+          <p>Always allows <span className="mono">{pol.effective_allow.join(', ')}</span></p>)}
       </div>
     )
   }
   return (
-    <div className="sbx-card">
-      <div className="sbx-sec-head"><h3>Project lists</h3>
-        <span className="dim small">{status}</span></div>
-      <div className="net-policy">
-        <div className="small">
-          <b>{pol.profile?.name || 'Default'}</b> profile
-          <span className="dim"> · new sites: {newSitesText({
-            network_off: pol.profile?.network_off, default_verdict: pol.profile?.default })}</span>
-          {' '}<Link to="/security/profiles" className="small">edit profile</Link>
-        </div>
-        <div className="bx-two">
-          <Input textarea label="Always allow — this project (one site per line)" className="md-editor" rows={4}
-                 spellCheck={false} value={allowText} onChange={(e) => setAllowText(e.target.value)} />
-          <Input textarea label="Always block — this project (wins)" className="md-editor" rows={4}
-                 spellCheck={false} value={denyText} onChange={(e) => setDenyText(e.target.value)} />
-        </div>
-        <div className="row">
-          <span className="grow" />
-          <Button disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save lists'}</Button>
-        </div>
-        {pol.effective_allow.length > 0 && (
-          <div className="dim small">with the profile, always allowed: {pol.effective_allow.join(', ')}</div>)}
-        {pol.effective_deny.length > 0 && (
-          <div className="dim small">with the profile, always blocked: {pol.effective_deny.join(', ')}</div>)}
+    <div className="nw-card">
+      <h4>Project lists <span>{status}</span></h4>
+      <p>
+        On the <b>{pol.profile?.name || 'Default'}</b> profile, new sites: {newSitesText({
+          network_off: pol.profile?.network_off, default_verdict: pol.profile?.default })}.{' '}
+        <Link to="/security/profiles">Edit profile</Link>
+      </p>
+      <div className="nw-two">
+        <Input textarea label="Always allow, this project (one site per line)" className="md-editor" rows={4}
+               spellCheck={false} value={allowText} onChange={(e) => setAllowText(e.target.value)} />
+        <Input textarea label="Always block, this project (a block wins)" className="md-editor" rows={4}
+               spellCheck={false} value={denyText} onChange={(e) => setDenyText(e.target.value)} />
+      </div>
+      <div className="nw-foot">
+        <span>
+          {pol.effective_allow.length > 0 && <>With the profile, always allowed: <span className="mono">{pol.effective_allow.join(', ')}</span>. </>}
+          {pol.effective_deny.length > 0 && <>Always blocked: <span className="mono">{pol.effective_deny.join(', ')}</span>.</>}
+        </span>
+        <Button disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save lists'}</Button>
       </div>
     </div>
   )
@@ -527,7 +511,7 @@ function PolicyEditor({ slug }) {
 // ---- per-project LAN access -------------------------------------------------
 // Box -> LAN only, through the host proxy: the guest still has no route to the
 // LAN. Entries are RFC1918 CIDRs, addresses or names, optionally :port. The
-// Jav3 host, loopback, link-local/metadata and the box network are refused at
+// CNTRL host, loopback, link-local/metadata and the box network are refused at
 // save and again at connect, even inside a listed range.
 function LanAccess({ slug }) {
   const [lan, setLan] = useState(null)
@@ -545,36 +529,30 @@ function LanAccess({ slug }) {
     setBusy(true)
     try {
       await putLan(slug, change)
-      setStatus('saved'); setTimeout(() => setStatus(''), 1500); load()
+      setStatus('Saved'); setTimeout(() => setStatus(''), 1500); load()
     } catch (err) { notifyError(err) }
     setBusy(false)
   }
 
   if (!lan || slug === GENERAL || slug === IMAGE_BUILD) return null
   return (
-    <div className="sbx-card">
-      <div className="sbx-sec-head"><h3>LAN access</h3>
-        <span className="dim small">{status}</span></div>
-      <div className="net-policy">
-        <Toggle checked={lan.enabled} disabled={busy} label="LAN access"
-                onText="On: this project's boxes may reach the devices listed below"
-                offText="Off"
-                onChange={(on) => send({ enabled: on, allow: parseHosts(text) })} />
-        {!lan.enabled && (
-          <div className="dim small">Off: boxes in this project cannot reach any
-            private or LAN address (NAS, Home Assistant, router).</div>)}
-        <Input textarea label="Allowed LAN targets (one per line: 10.0.0.0/24, 10.0.0.60:8123, nas.lan)"
-               className="md-editor" rows={4} spellCheck={false} value={text}
-               onChange={(e) => setText(e.target.value)} />
-        <div className="row">
-          <span className="dim small grow">
-            Never reachable, even inside a listed range: this server
-            {lan.hostIps.length > 0 && <> ({lan.hostIps.join(', ')})</>}, loopback,
-            link-local / cloud metadata and the box network.
-          </span>
-          <Button disabled={busy} onClick={() => send({ allow: parseHosts(text) })}>
-            {busy ? 'Saving…' : 'Save LAN list'}</Button>
-        </div>
+    <div className="nw-card">
+      <h4>LAN access <span>{status}</span></h4>
+      <Toggle checked={lan.enabled} disabled={busy} label="LAN access"
+              onText="On: this project's boxes may reach the devices listed below"
+              offText="Off: boxes in this project cannot reach any private or LAN address"
+              onChange={(on) => send({ enabled: on, allow: parseHosts(text) })} />
+      <Input textarea label="Allowed LAN targets (one per line: 10.0.0.0/24, 10.0.0.60:8123, nas.lan)"
+             className="md-editor" rows={4} spellCheck={false} value={text}
+             onChange={(e) => setText(e.target.value)} />
+      <div className="nw-foot">
+        <span>
+          Never reachable, even inside a listed range: this server
+          {lan.hostIps.length > 0 && <> (<span className="mono">{lan.hostIps.join(', ')}</span>)</>}, loopback,
+          link-local and cloud metadata addresses, and the box network.
+        </span>
+        <Button disabled={busy} onClick={() => send({ allow: parseHosts(text) })}>
+          {busy ? 'Saving…' : 'Save LAN list'}</Button>
       </div>
     </div>
   )
@@ -604,28 +582,30 @@ function Grants({ slug }) {
   }
 
   return (
-    <div className="sbx-card">
-      <div className="sbx-sec-head"><h3>Secret grants</h3>
-        <Button variant="ghost" onClick={add}>Grant secret</Button></div>
-      <ul className="staged-list rev-list">
-        {grants.length === 0 && <EmptyState as="li">none granted</EmptyState>}
-        {grants.map((g) => {
-          const granted = g.status === 'granted'
-          return (
-            <li key={g.secret_name}>
-              <span className={`tag ${granted ? 'done' : ''}`}>{g.status}</span>
-              <span className="grow ellipsis mono">{g.secret_name}</span>
+    <div className="nw-card">
+      <h4>Secret grants</h4>
+      <div className="nw-foot">
+        <span>Secrets this project may reference as <span className="mono">{'{{secret:NAME}}'}</span>.</span>
+        <Button variant="ghost" onClick={add}>Grant a secret</Button>
+      </div>
+      {grants.length === 0 && <p>None granted.</p>}
+      {grants.map((g) => {
+        const granted = g.status === 'granted'
+        return (
+          <div key={g.secret_name} className="nw-entry">
+            <span className="mono">{g.secret_name}</span>
+            <span className="nw-from"><State tone={granted ? 'ok' : 'quiet'}>{granted ? 'Granted' : 'Revoked'}</State></span>
+            <span className="sq-row-actions">
               <Button variant="ghost" danger={granted}
                       onClick={() => set(g.secret_name, granted ? 'revoked' : 'granted')}>
                 {granted ? 'Revoke' : 'Grant'}</Button>
-            </li>
-          )
-        })}
-      </ul>
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }
-
 
 // latest feed row per (project, host) — what the guest was doing when it asked
 function useLastTry(feed) {
@@ -664,19 +644,20 @@ export function NetworkPanel({ slug }) {
   const feed = useEgressFeed(slug, (ev) => decisive(ev) && bump())
   const lastTry = useLastTry(feed)
   return (
-    <div className="pane-col net-panel">
-      <div className="net-top">
-        <AutoToggle project={slug} onChange={bump} />
+    <div className="pane-col nw-view nw-panel">
+      <div className="nw-controls">
         <Counts project={slug} tick={tick} />
+        <AutoToggle project={slug} onChange={bump} />
       </div>
-      <p className="dim small net-lede">{AUTO_ALLOW_LEDE}</p>
       <Waiting project={slug} names={{}} lastTry={lastTry} tick={tick} onDecided={bump} />
       <Decisions feed={feed.slice(0, 60)} names={{}} onChanged={bump} />
       <PolicyLists project={slug} names={{}} projects={[]} tick={tick} onChanged={bump} />
-      <PolicyEditor slug={slug} />
-      <LanAccess slug={slug} />
-      <RunsIn slug={slug} />
-      <Grants slug={slug} />
+      <div>
+        <PolicyEditor slug={slug} />
+        <LanAccess slug={slug} />
+        <RunsIn slug={slug} />
+        <Grants slug={slug} />
+      </div>
     </div>
   )
 }
@@ -702,33 +683,34 @@ export default function Network() {
   // No heading or page padding of its own: this renders as the Network tab of
   // the Security layout, which owns the title, the tab strip and the insets.
   return (
-    <div className="net-view">
-      <div className="net-top">
-        <Select aria-label="project" value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                options={[{ value: '', label: 'All projects' },
-                  ...projects.map((p) => ({ value: p.slug, label: p.name }))]} />
-        <AutoToggle project={filter} onChange={bump} />
+    <div className="nw-view">
+      <div className="nw-top">
+        <div className="nw-controls">
+          <Select label="Project" value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  options={[{ value: '', label: 'All projects' },
+                    ...projects.map((p) => ({ value: p.slug, label: p.name }))]} />
+          <AutoToggle project={filter} onChange={bump} />
+        </div>
         <Counts project={filter} tick={tick} />
       </div>
-      <p className="dim small net-lede">{AUTO_ALLOW_LEDE}</p>
 
-      <Waiting project={filter} names={names} showProject={!filter}
-               lastTry={lastTry} tick={tick} onDecided={bump} />
+      <Waiting project={filter} names={names} lastTry={lastTry} tick={tick} onDecided={bump} />
       <Decisions feed={shown} names={names} onChanged={bump} />
       <PolicyLists project={filter} names={names} projects={projects} tick={tick} onChanged={bump} />
 
       {filter ? (
-        <details className="net-sec net-more">
-          <summary>Lists, LAN access, where it runs and secret grants for {names[filter] || filter}</summary>
-          <PolicyEditor slug={filter} />
-          <LanAccess slug={filter} />
-          <RunsIn slug={filter} />
-          <Grants slug={filter} />
-        </details>
+        <Section title={`${names[filter] || filter}: lists, LAN access, box and secrets`}>
+          <div>
+            <PolicyEditor slug={filter} />
+            <LanAccess slug={filter} />
+            <RunsIn slug={filter} />
+            <Grants slug={filter} />
+          </div>
+        </Section>
       ) : (
-        <div className="dim small">pick a project above to edit its own lists,
-          LAN access, the box it runs in and secret grants</div>
+        <p className="sq-lede">Choose a project at the top to edit its own lists, its LAN access,
+          the box it runs in and its secret grants.</p>
       )}
     </div>
   )

@@ -4,9 +4,9 @@ import Button, { SaveButton } from './components/Button.jsx'
 import Input, { Checkbox } from './components/Input.jsx'
 import Toggle from './components/Toggle.jsx'
 import Select from './components/Select.jsx'
-import Tag, { Badge } from './components/Tag.jsx'
 import Toolbar from './components/Toolbar.jsx'
 import EmptyState from './components/EmptyState.jsx'
+import './pages/manage.css'
 
 // The Skills tab of the Agents page (/agents/skills; /skills redirects here).
 // Skill authoring as a fill-out form: the fields generate valid frontmatter
@@ -80,13 +80,13 @@ export default function SkillsPanel() {
 
   return (
     <>
-      <aside>
+      <aside className="skills-aside">
         <form className="stack" onSubmit={create} noValidate>
-          <Input placeholder="new skill name" value={name}
-                 aria-label="new skill name" onChange={(e) => setName(e.target.value)} />
-          <Input placeholder="what does it do?" value={desc}
-                 aria-label="what the skill does" onChange={(e) => setDesc(e.target.value)} />
-          <Button type="submit">Create</Button>
+          <Input label="New skill" placeholder="Skill name" value={name}
+                 aria-label="New skill name" onChange={(e) => setName(e.target.value)} />
+          <Input placeholder="What it does, in a line" value={desc}
+                 aria-label="What the skill does" onChange={(e) => setDesc(e.target.value)} />
+          <Button type="submit">Create skill</Button>
           {error && <span className="error">{error}</span>}
         </form>
         <ul className="agent-list">
@@ -97,21 +97,22 @@ export default function SkillsPanel() {
                       onClick={() => setSelected(s.slug)}>
                 <span className="agent-row-name">{s.name}</span>
                 <span className="agent-row-sub">
-                  {s.enabled ? <Badge>granted</Badge> : <Tag>not granted</Tag>}
+                  <span className={s.enabled ? 'small skill-state ok' : 'small skill-state'}>
+                    {s.enabled ? 'Granted' : 'Not granted'}</span>
                 </span>
               </button>
             </li>
           ))}
-          {skills.length === 0 && <EmptyState as="li">none yet</EmptyState>}
+          {skills.length === 0 && <EmptyState as="li">No skills yet. Name one above to start.</EmptyState>}
         </ul>
-        <p className="dim small">a skill teaches Jav3 a procedure: it sees the
-          name + "use when" every turn, and gets the full instructions only when
-          it invokes the skill. Agents get every granted skill unless their
+        <p className="dim small">A skill teaches CNTRL a procedure. It sees the
+          name and the "use when" line every turn and reads the full instructions
+          only when it uses the skill. Agents get every granted skill unless their
           definition takes one away.</p>
       </aside>
       <main className={selected ? 'editor-pane skill-pane' : 'editor-pane split-idle'}>
         {!selected ? (
-          <EmptyState pad>select or create a skill</EmptyState>
+          <EmptyState pad>Pick a skill on the left to edit it, or create one.</EmptyState>
         ) : (
           <>
             <Toolbar variant="pane"
@@ -126,15 +127,15 @@ export default function SkillsPanel() {
                         onChange={(e) => { setContent(e.target.value); setDirty(true) }} />
             ) : (
               <div className="skill-form">
-                <Input label="what it does (shown to Jav3 every turn)"
+                <Input label="what it does (shown to CNTRL every turn)"
                        value={fields.description}
                        onChange={(e) => set({ description: e.target.value })} />
-                <Input label="use when… (how Jav3 decides to pick it)"
+                <Input label="use when… (how CNTRL decides to pick it)"
                        value={fields.when_to_use}
                        onChange={(e) => set({ when_to_use: e.target.value })} />
-                <Toggle checked={!!fields.enabled} label="granted to Jav3 and agents"
-                        onText="granted to Jav3 and agents"
-                        offText="not granted — Jav3 and agents can't use it"
+                <Toggle checked={!!fields.enabled} label="granted to CNTRL and agents"
+                        onText="granted to CNTRL and agents"
+                        offText="not granted — CNTRL and agents can't use it"
                         onChange={(v) => set({ enabled: v })} />
                 <Input textarea rows={12} className="md-editor" spellCheck={false}
                        label="instructions (loaded when the skill is invoked)"

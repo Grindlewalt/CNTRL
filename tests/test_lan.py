@@ -102,14 +102,24 @@ def test_media_hosts_include_own_names(fake_lan, monkeypatch):
     assert "jav3.local" in lan.media_hosts()
 
 
-def test_instance_name(monkeypatch):
+def test_instance_name(monkeypatch, tmp_path):
+    monkeypatch.setattr(lan.config, "CONFIG_DIR", tmp_path / ".config" / "cntrl")
     monkeypatch.setattr(settings, "instance_name", "")
-    assert lan.instance_name("Jav3") == "jav3"
+    assert lan.instance_name("CNTRL") == "cntrl"
     monkeypatch.setattr(settings, "instance_name", "My Box!")
-    assert lan.instance_name("Jav3") == "my-box"
+    assert lan.instance_name("CNTRL") == "my-box"
     monkeypatch.setattr(settings, "instance_name", "")
     monkeypatch.setattr(lan.socket, "gethostname", lambda: "Pi-4.lan")
     assert lan.instance_name("") == "pi-4"
+
+
+def test_an_install_from_before_the_rename_keeps_its_mdns_name(monkeypatch, tmp_path):
+    # still running from ~/.config/jarvis: paired computers know it as jav3.local
+    monkeypatch.setattr(lan.config, "CONFIG_DIR", tmp_path / ".config" / "jarvis")
+    monkeypatch.setattr(settings, "instance_name", "")
+    assert lan.instance_name("CNTRL") == "jav3"
+    monkeypatch.setattr(settings, "instance_name", "kitchen")     # a chosen name still wins
+    assert lan.instance_name("CNTRL") == "kitchen"
 
 
 async def test_mdns_without_zeroconf_is_noop(fake_lan, monkeypatch):

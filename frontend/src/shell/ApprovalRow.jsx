@@ -3,11 +3,11 @@ import Button from '../components/Button.jsx'
 // One thing waiting on the operator, inline in the transcript, with the
 // decisions its API actually offers:
 //
-//   network host   Allow · Deny     approve adds the host to the allowlist
+//   network host   Deny, Allow     approve adds the host to the allowlist
 //                                    that governs this project (its own, or
 //                                    the shared one) — there is no allow-once
 //                                    in the egress API, so none is offered
-//   git request    Approve · Reject  commit (or connect-and-push) happens on
+//   git request    Reject, Approve  commit (or connect-and-push) happens on
 //                                    approve, server-side, never from a tool
 //   plan question  Retry · Done · Skip   the item asked for the operator
 //
@@ -25,17 +25,19 @@ export default function ApprovalRow({ a, acting, onDecide, onReview }) {
       <div className="sh-approval" role="group" aria-label={`network request for ${a.host}`}>
         <div className="sh-approval-what">
           <span className="sh-approval-kind">Network</span>
-          <span className="sh-approval-main"><code>{a.host}</code> wants in
-            {a.hit_count > 1 && <span className="dim"> · {a.hit_count} tries</span>}</span>
+          <span className="sh-approval-main"><code>{a.host}</code> is not on the allowlist</span>
+          <span className="sh-approval-note">
+            {a.hit_count > 1 ? `Refused ${a.hit_count} times so far.` : 'Refused once so far.'}
+            {' '}Allow adds it for this project.</span>
           {a.triage_verdict === 'flag' && a.triage_reason && (
             <span className="sh-approval-note">Auto review flagged it: {a.triage_reason}</span>
           )}
         </div>
         <div className="sh-approval-acts">
+          <Button variant="ghost" disabled={busy}
+                  onClick={() => onDecide(a, 'reject')}>Deny</Button>
           <Button disabled={busy} onClick={() => onDecide(a, 'approve')}
                   title="add this host to the allowlist that governs this project">Allow</Button>
-          <Button variant="ghost" danger disabled={busy}
-                  onClick={() => onDecide(a, 'reject')}>Deny</Button>
         </div>
       </div>
     )
@@ -59,18 +61,18 @@ export default function ApprovalRow({ a, acting, onDecide, onReview }) {
             {a.git_kind === 'remote' ? 'connect this remote and push'
               : a.git_kind === 'merge' ? mergeNote(a)
               : a.git_kind === 'push'
-                ? `${a.branch} → main${a.summary ? ` · ${a.summary.split('\n').pop()}` : ''}`
+                ? `${a.branch} into main${a.summary ? `. ${a.summary.split('\n').pop()}` : ''}`
                 : files?.length ? `${files.length} file${files.length > 1 ? 's' : ''}`
                   : 'all changes'}</span>
         </div>
         <div className="sh-approval-acts">
           {a.git_kind === 'push' && a.pr_url && (
             <a className="sh-approval-note" href={a.pr_url} target="_blank"
-               rel="noreferrer">Open in Gitea ↗</a>)}
+               rel="noreferrer">Open in Gitea</a>)}
           {onReview && <Button variant="ghost" onClick={() => onReview(a)}>Review</Button>}
-          <Button disabled={busy} onClick={() => onDecide(a, 'approve')}>Approve</Button>
-          <Button variant="ghost" danger disabled={busy}
+          <Button variant="ghost" disabled={busy}
                   onClick={() => onDecide(a, 'reject')}>Reject</Button>
+          <Button disabled={busy} onClick={() => onDecide(a, 'approve')}>Approve</Button>
         </div>
       </div>
     )
@@ -100,5 +102,5 @@ function mergeNote(a) {
   const parts = pl.parts || []
   // files_total: everything approval commits (uncommitted work the job started with too)
   const files = pl.files_total ?? parts.reduce((n, p) => n + (p.files || 0), 0)
-  return `${pl.branch || a.branch} → main · ${parts.length} agent${parts.length === 1 ? '' : 's'} · ${files} files`
+  return `${pl.branch || a.branch} into main: ${parts.length} agent${parts.length === 1 ? '' : 's'}, ${files} files`
 }

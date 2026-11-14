@@ -4,6 +4,7 @@ import { notify, notifyError } from '../notify.js'
 import { useAsk } from '../ask.jsx'
 import Page from '../components/Page.jsx'
 import Tag from '../components/Tag.jsx'
+import './manage.css'
 
 const ASSEMBLED = '::assembled'
 const QUEUE = '::review'
@@ -40,7 +41,7 @@ function whyPending(n) {
     return 'The turn that wrote this had read outside content (a web page, a screen, files or '
       + "another agent's message). Read the text before you approve it."
   }
-  return 'Written by Jav3. It is not in its context or rules until you approve it.'
+  return 'Written by CNTRL. It is not in its context or rules until you approve it.'
 }
 
 function DiffView({ diff, body }) {
@@ -74,7 +75,7 @@ function ProposalCard({ p, busy, onApprove, onReject, onOpen }) {
           note edited since</Tag>}
       </div>
       <p className="mem-why">
-        Jav3 wants to change a note that is already binding. The note is unchanged and still
+        CNTRL wants to change a note that is already binding. The note is unchanged and still
         in force until you approve.
       </p>
       {p.description && <p className="mem-desc">{p.description}</p>}
@@ -108,7 +109,7 @@ function HeldFileCard({ h, busy, onApprove, onReject }) {
         <span className="dim mem-when">{when(h.held_at)}</span>
       </div>
       <p className="mem-why">
-        This file is loaded into every prompt of the project. Jav3 wrote to it after reading
+        This file is loaded into every prompt of the project. CNTRL wrote to it after reading
         outside content, so the change is held: the file is unchanged and still in force until
         you approve.
       </p>
@@ -133,10 +134,10 @@ function NoteCard({ n, busy, onApprove, onReject, onOpen }) {
     <section className="mem-card">
       <div className="mem-card-head">
         <h3>{n.name}</h3>
-        <Tag tone="pending">{n.source === 'agent' ? 'agent note' : 'held back'}</Tag>
-        {n.taint === 'untrusted' && !n.bad_frontmatter && (
-          <Tag tone="untrusted" title="Read the text before you approve it">
-            read outside content</Tag>)}
+        {n.taint === 'untrusted' && !n.bad_frontmatter
+          ? <Tag tone="untrusted" title="Read the text before you approve it">
+              Read outside content</Tag>
+          : !n.bad_frontmatter && <Tag tone="pending">Pending</Tag>}
         {n.bad_frontmatter && <Tag tone="untrusted">unreadable header</Tag>}
         <span className="dim mem-when">{when(n.mtime * 1000)}</span>
       </div>
@@ -145,7 +146,7 @@ function NoteCard({ n, busy, onApprove, onReject, onOpen }) {
       <pre className="mem-body">{n.body || '(empty)'}</pre>
       <div className="mem-actions">
         <button disabled={busy} onClick={() => onApprove(n)}
-                title="Makes this note binding: it rides Jav3's context on every turn">
+                title="Makes this note binding: it rides CNTRL's context on every turn">
           Approve</button>
         <button className="ghost danger" disabled={busy} onClick={() => onReject(n)}
                 title="Moves the note to the Trash; you can restore it">Reject</button>
@@ -366,22 +367,22 @@ export default function Memory() {
   }
 
   return (
-    <Page variant="split" title="Memory">
+    <Page variant="split" title="Memory" className="memory-page">
       <aside className="mem-aside">
         <ul className="file-list mem-list">
           <li className={selected === QUEUE ? 'active mem-live' : 'mem-live'}
               onClick={() => pick(QUEUE)}>
-            <span className="mem-name">waiting for you</span>
+            <span className="mem-name">Waiting for you</span>
             <span className="mem-meta">
               {waiting > 0
                 ? <Tag tone="pending">{waiting} to review</Tag>
-                : <span className="dim">nothing waiting</span>}
+                : <span className="dim">Nothing waiting</span>}
             </span>
           </li>
           <li className={selected === ASSEMBLED ? 'active mem-live' : 'mem-live'}
               onClick={() => pick(ASSEMBLED)}>
-            <span className="mem-name">assembled context</span>
-            <span className="mem-meta dim">live — what rides every turn</span>
+            <span className="mem-name">Assembled context</span>
+            <span className="mem-meta dim">What goes into every turn</span>
           </li>
           {files.map((f) => {
             const nm = notes[nkey(f.path)]
@@ -397,16 +398,15 @@ export default function Memory() {
                 {(isN && nm.pending) || hasProposal || f.auto_generated
                   || (rides && f.tokens != null) ? (
                     <span className="mem-meta">
-                      {isN && nm.pending && (
-                        <Tag tone="pending" title="Written by Jav3, waiting for your approval. Not in its context or rules.">
-                          pending</Tag>)}
-                      {isN && nm.pending && nm.taint === 'untrusted' && (
-                        <Tag tone="untrusted" title="The turn that wrote it had read outside content">
-                          outside content</Tag>)}
-                      {hasProposal && (
-                        <Tag tone="pending" title="Jav3 proposed a change to this note; it is unchanged until you approve">
-                          change proposed</Tag>)}
-                      {f.auto_generated && <Tag>auto</Tag>}
+                      {isN && nm.pending && (nm.taint === 'untrusted'
+                        ? <Tag tone="untrusted" title="Waiting for your approval. The turn that wrote it had read outside content.">
+                            Outside content</Tag>
+                        : <Tag tone="pending" title="Written by CNTRL, waiting for your approval. Not in its context or rules.">
+                            Pending</Tag>)}
+                      {!(isN && nm.pending) && hasProposal && (
+                        <Tag tone="pending" title="CNTRL proposed a change to this note; it is unchanged until you approve">
+                          Change proposed</Tag>)}
+                      {f.auto_generated && <span className="dim">auto</span>}
                       {rides && f.tokens != null && (
                         <span className="dim" title="Rough input tokens if the whole file rides the context">
                           ≈{f.tokens.toLocaleString()} tok</span>)}
@@ -417,23 +417,23 @@ export default function Memory() {
           })}
           <li className={selected === TRASH ? 'active mem-live' : 'mem-live'}
               onClick={() => pick(TRASH)}>
-            <span className="mem-name">trash</span>
+            <span className="mem-name">Trash</span>
             <span className="mem-meta dim">
-              {trash.length ? `${trash.length} deleted, restorable` : 'empty'}</span>
+              {trash.length ? `${trash.length} deleted, restorable` : 'Empty'}</span>
           </li>
         </ul>
-        <button className="ghost" onClick={newNote}>+ new note</button>
+        <button className="ghost" onClick={newNote}>New note</button>
         <details className="mem-legend">
           <summary>What the tags mean</summary>
           <dl>
             <dt><Tag tone="pending">pending</Tag></dt>
-            <dd>Jav3 wrote this note and it waits for you. It is not in its context, index or
+            <dd>CNTRL wrote this note and it waits for you. It is not in its context, index or
               rules until you approve it.</dd>
             <dt><Tag tone="untrusted">outside content</Tag></dt>
             <dd>The turn that wrote it had read a web page, a screen, files or another agent's
               message. Read it before you approve.</dd>
             <dt><Tag tone="pending">change proposed</Tag></dt>
-            <dd>Jav3 wants to change a note that is already binding. The note stays as it is
+            <dd>CNTRL wants to change a note that is already binding. The note stays as it is
               until you approve the change.</dd>
             <dt><Tag>auto</Tag></dt>
             <dd>Regenerated from project summaries; your edits are overwritten.</dd>
@@ -447,13 +447,13 @@ export default function Memory() {
         {selected === ASSEMBLED && (
           <>
             <div className="pane-head">
-              <h3>What Jav3 sees right now</h3>
+              <h3 className="mem-title">What CNTRL sees right now</h3>
               <span className="dim">
                 {assembled?.active_project
                   ? `project loaded: ${assembled.active_project}`
                   : 'no project loaded'}
                 {assembled?.tokens != null &&
-                  ` · ≈${assembled.tokens.toLocaleString()} input tokens ride every turn`}
+                  `, ≈${assembled.tokens.toLocaleString()} input tokens ride every turn`}
               </span>
             </div>
             <pre className="context-view">{assembled?.system_prompt || '…'}</pre>
@@ -462,7 +462,7 @@ export default function Memory() {
         {selected === QUEUE && (
           <>
             <div className="pane-head">
-              <h3>Waiting for you</h3>
+              <h3 className="mem-title">Waiting for you</h3>
               <span className="dim">
                 {waiting
                   ? `${pendingNotes.length} note${pendingNotes.length === 1 ? '' : 's'}, `
@@ -474,7 +474,7 @@ export default function Memory() {
             </div>
             <div className="mem-queue">
               <p className="dim mem-intro">
-                What Jav3 saves stays here until you approve it: it is not in its context and
+                What CNTRL saves stays here until you approve it: it is not in its context and
                 not one of its rules before then. Notes you write yourself are trusted at once.
               </p>
               {heldFiles.map((h) => (
@@ -489,15 +489,15 @@ export default function Memory() {
                 <NoteCard key={`n:${n.name}`} n={n} busy={busy === `n:${n.name}`}
                           onApprove={approveNote} onReject={rejectNote} onOpen={openNote} />))}
               {!waiting && (
-                <p className="mem-empty">All clear. A note Jav3 saves will show up here with
-                  its text, ready to approve or reject.</p>)}
+                <p className="mem-empty">Nothing is waiting. Notes CNTRL saves appear here with
+                  their text, ready to approve or reject.</p>)}
             </div>
           </>
         )}
         {selected === TRASH && (
           <>
             <div className="pane-head">
-              <h3>Trash</h3>
+              <h3 className="mem-title">Trash</h3>
               <span className="dim">deleted notes stay here until restored</span>
             </div>
             <div className="mem-queue">
@@ -509,7 +509,7 @@ export default function Memory() {
                     {t.taint === 'untrusted' && <Tag tone="untrusted">outside content</Tag>}
                     {t.has_proposal && <Tag tone="pending">had a proposed change</Tag>}
                     <span className="dim mem-when">
-                      deleted {when(t.deleted_at)} · {t.size.toLocaleString()} B</span>
+                      deleted {when(t.deleted_at)}, {t.size.toLocaleString()} B</span>
                     <button className="ghost" disabled={busy === `t:${t.id}`}
                             onClick={() => restore(t)}>Restore</button>
                   </div>
@@ -545,13 +545,13 @@ export default function Memory() {
               <button onClick={save} disabled={!dirty || !!loadError}>{dirty ? 'Save' : 'Saved'}</button>
             </div>
             {noteMeta?.proposal && (
-              <p className="mem-banner">Jav3 proposed a change to this note. It is unchanged until
+              <p className="mem-banner">CNTRL proposed a change to this note. It is unchanged until
                 you approve it. <button className="link" onClick={() => pick(QUEUE)}>Review the change</button></p>)}
             {(conflict || editedElsewhere) && (
               <p className="mem-banner warn">
                 {conflict
                   ? 'This file changed since you opened it, so nothing was saved. '
-                  : 'This note changed since you opened it (Jav3 or a scheduled run wrote to it). '}
+                  : 'This note changed since you opened it (CNTRL or a scheduled run wrote to it). '}
                 <button className="link" onClick={() => loadFile(selected)}>
                   Reload{dirty ? ' (drops your edits)' : ''}</button></p>)}
             {loadError ? (

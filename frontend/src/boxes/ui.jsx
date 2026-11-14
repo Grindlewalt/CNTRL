@@ -78,13 +78,13 @@ export function RuntimeStatus({ runtimes, compact = false }) {
   return (
     <div className={compact ? 'bx-runtimes small' : 'sbx-card bx-runtimes small'}>
       <div className={kvm.available ? '' : 'bx-runtime-off'}>
-        <b>KVM</b> {kvm.available ? <Tag tone="done">available</Tag> : <Tag tone="error">unavailable</Tag>}
-        {kvm.reason && <span className="dim"> — {kvm.reason}</span>}
+        <b>KVM</b> <span className={kvm.available ? 'bx-rt-on' : 'bx-rt-off'}>{kvm.available ? 'available' : 'unavailable'}</span>
+        {kvm.reason && <span className="dim">: {kvm.reason}</span>}
       </div>
       <div className={docker.available ? '' : 'bx-runtime-off'}>
-        <b>Docker</b> {docker.available ? <Tag tone="done">available</Tag> : <Tag>unavailable</Tag>}
-        {!docker.available && docker.reason && <span className="dim"> — {docker.reason}</span>}
-        {docker.available && flags.length > 0 && <span className="dim"> · {flags.join(' · ')}</span>}
+        <b>Docker</b> <span className={docker.available ? 'bx-rt-on' : 'bx-rt-off'}>{docker.available ? 'available' : 'unavailable'}</span>
+        {!docker.available && docker.reason && <span className="dim">: {docker.reason}</span>}
+        {docker.available && flags.length > 0 && <span className="dim">: {flags.join(', ')}</span>}
       </div>
       {docker.available && (docker.weak || docker.warnings.length > 0) && (
         <div className="bx-warn-box">

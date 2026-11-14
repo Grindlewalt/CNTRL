@@ -12,6 +12,9 @@ projects/*
 !projects/.gitkeep
 agents/*
 !agents/.gitkeep
+# an install that still keeps its state in the checkout keeps Gitea's binary,
+# config and repositories here too: never something to commit or `git clean`
+/gitea/
 
 # Working notes (backlogs, audits, plans, ops notes) accumulate as ad-hoc *.md at
 # the repo root. Ignore root-level markdown by default and opt in what ships.
@@ -25,9 +28,12 @@ agents/*
 /*.md
 !/README.md
 !/SECURITY-RESIDUAL-RISK.md
+!/CHANGELOG.md
 
 # vendored external research dump (Claude Code source study) — huge, not ours
 collection-claude-code-source-code/
 
 # install.sh --name: which instance this checkout belongs to
 /.jarvis-instance
+# a named install's marker in its checkout (scripts/install.sh --name)
+/.cntrl-instance

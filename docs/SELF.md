@@ -1,4 +1,4 @@
-# Jav3 — technical self-reference
+# CNTRL — technical self-reference
 
 This is your own manual. `self_docs` with no args returns the section list;
 `self_docs(section="...")` returns one section. Everything here describes the
@@ -6,8 +6,8 @@ system you are running inside right now.
 
 ## architecture
 
-FastAPI backend + SQLite (`data/jarvis.db`) on the operator's Raspberry Pi,
-React SPA in front. Everything durable is a plain file on the host: `memory/`
+FastAPI backend + SQLite (`data/jarvis.db` in the state dir) on the operator's
+Linux host, React SPA in front. Everything durable is a plain file on the host: `memory/`
 (soul, user, env, all-projects, `notes/`), `projects/<slug>/` (a git repo from
 creation: project.md, code, `.workspace.json` board layout, `.context.json`
 opt-ins), `skills/<name>/SKILL.md`, `agents/<slug>/AGENT.md`,
@@ -15,10 +15,11 @@ opt-ins), `skills/<name>/SKILL.md`, `agents/<slug>/AGENT.md`,
 GUI edit are the same data.
 
 Your reasoning loop (the ReAct loop: model call → tool calls → repeat) runs
-inside a disposable box (a KVM guest VM; with `docker_enabled` a hardened
-Docker container instead) with no keys, no DB, no secrets, reachable only over
-vsock (KVM) or the broker socket (Docker). The host is a thin supervisor: a model gateway (the only path
-to DeepSeek) and a tool broker (the only path to tools). `run_code` executes
+inside a disposable box (a KVM guest VM; for a project set to run in its own
+container, with `docker_enabled`, a hardened Docker container instead) with no
+keys, no DB, no secrets, reachable only over vsock (KVM) or the broker socket
+(Docker). The host is a thin supervisor: a model gateway (the only path to the
+model provider) and a tool broker (the only path to tools). `run_code` executes
 inside the guest only; every other tool executes host-side behind its gates.
 One shared token Budget rides the whole operation (all subagents included) and
 stops it when exhausted.
@@ -32,7 +33,7 @@ each one read-only, so the operator pulls with plain git (on by default,
     git clone http://<host>:<port>/git/<slug>      # first time, e.g. http://10.0.0.82:8000
     cd <slug> && git pull                          # afterwards
 
-git asks for the operator's Jav3 username and password (HTTP Basic, the same
+git asks for the operator's CNTRL username and password (HTTP Basic, the same
 login as the app). To stop it asking: macOS `git config --global
 credential.helper osxkeychain`; elsewhere `store` (plain text in
 `~/.git-credentials`) or `cache` (kept in memory, 15 minutes by default).
@@ -51,11 +52,11 @@ the terminal's `/pull` prints them.
 With Gitea enabled (`python -m backend.cli gitea-setup`, see docs/gitea.md)
 each project is also a private repo there (port 3000 by default): approved
 commits push main to it, and a helper turn's project info carries its clone
-command. The operator signs in with their Jav3 username and the Gitea password
-chosen at setup (setup offers to reuse the Jav3 password; without a terminal it
-wrote a random one to `~/.config/jarvis/gitea-admin.password` on the host and
+command. The operator signs in with their CNTRL username and the Gitea password
+chosen at setup (setup offers to reuse the CNTRL password; without a terminal it
+wrote a random one to `~/.config/cntrl/gitea-admin.password` on the host and
 Gitea asks for a new one at first sign-in). This is how to give someone else
-read access without handing out the Jav3 password: create them an account on
+read access without handing out the CNTRL password: create them an account on
 the web app's Git page (nav ⋯ menu, Accounts card; password session only), and
 every enabled account that is not an admin gets read on every repo at once
 (new repos and re-enabled accounts too; `gitea-setup --access` re-applies it).
@@ -67,22 +68,22 @@ setup minted are the server's own and stay on the host.
 You never create, see or rotate credentials. When one is needed, tell the
 operator the steps; they do it.
 
-- Terminal client: `jav3 login` or `/login`. Two kinds. A device token is chat
+- Terminal client: `cntrl login` or `/login`. Two kinds. A device token is chat
   only (no security pages, no secrets). A password session has full access. For
   a device login the operator opens the web app, Settings > Access > Add
   computer, which shows a single-use login code and the install line; the code
-  goes to `jav3 login`. The same panel lists and revokes devices, and a code can
+  goes to `cntrl login`. The same panel lists and revokes devices, and a code can
   be cancelled before it is used. `/login password` signs in with the password.
 - Model API keys (e.g. `deepseek_api_key`) are server settings on the host. The
   model gateway holds them; they never enter your box.
-- git: the Jav3 username and password (see getting your code).
+- git: the CNTRL username and password (see getting your code).
 - Gitea: the operator's own Gitea sign-in (see getting your code).
 - Secrets a project needs are added by the operator under Secrets; you see
   names, not values.
 
 ## terminal client
 
-`jav3` is a keyboard-first copy of the web app. `/help` lists everything. Keys:
+`cntrl` is a keyboard-first copy of the web app. `/help` lists everything. Keys:
 - ctrl+t splits the tile with a new chat; ctrl+w closes the tile
 - ctrl+x then a key is the leader: arrows move between tiles, z zooms, t new
   tab, w close tab, 1-9 jump to a tab, [ ] previous or next tab, v security
@@ -111,21 +112,24 @@ restart into it; `/restart` starts the client again with your tabs, chats and
 drafts (turns keep running on the server); `/sessions`
 switches chats; `/permissions`; `/vms`; `/security`; `/pull` prints the
 clone and pull commands for this chat's project; `/helper` loads this manual
-into the chat so you can answer questions about Jav3 itself.
+into the chat so you can answer questions about CNTRL itself.
 
 ## boxes and images
 
 By default one shared box runs every project's turns. With `vm_boxes_enabled`
-(off by default) each project gets its own box, stopped after
-`vm_box_idle_stop_seconds` (600) idle. `vm_idle_scrub_seconds` (0 = off) wipes
+(off by default) a project whose profile or "Runs in" setting says so gets its
+own box, stopped after `vm_box_idle_stop_seconds` (600) idle; with it off,
+every project runs in the shared box whatever that setting says. `vm_idle_scrub_seconds` (0 = off) wipes
 the shared box. Docker boxes need `docker_enabled`. Anything installed with
 `pip install` or `npm install` in `run_code` is wiped after each turn; package
 requests and an approved `/persist` disk survive. Images: `main` is the base;
 `desktop` adds a screen and browser. If a tool says it needs the desktop image
 (screenshot), call `environment_request(use="desktop", reason=...)`; it is
 filed for approval and nothing changes until the operator approves.
-`headless_browser` reads pages that need JavaScript. Egress is off by default
-(`vm_egress`): the box has no network until hosts are approved.
+`headless_browser` (shipped to the box only with boxes on) reads
+pages that need JavaScript. Egress is off by default (`vm_egress`): the box has
+no network at all until the operator turns it on, and then a new host waits for
+approval unless the project's profile allows it.
 
 ## approvals
 
@@ -166,7 +170,7 @@ was. Notes written in a turn that had read outside content (a web page, a
 screen, files, another agent's message) also carry a persistent *taint*, shown
 to the operator as a warning. Keep a few notes, one topic each, updated in place
 (replace, don't append under a stale claim); deleted notes go to a trash the
-operator can restore. Notes about how Jav3's own tools behave go stale: use
+operator can restore. Notes about how CNTRL's own tools behave go stale: use
 report_harness_fault for those.
 
 ## projects
@@ -195,7 +199,9 @@ You only ever see secret NAMES; values live host-side. Use
 
 A 401/403 after substitution means the ORIGIN rejected the real key (wrong /
 expired / not yet activated) — the error text shows the placeholder because
-values are scrubbed from everything you see. Never ask the operator to paste a
+web_read puts the placeholder back in place of the value before you see the
+response. (That is not a general scrub: files and run_code output reach you
+as they are.) Never ask the operator to paste a
 key value into chat.
 
 ## egress and security
@@ -251,9 +257,10 @@ count on Security = pending approvals and alerts; the badge on Memory = notes
 and changes waiting for approval.
 
 The workspace board is draggable panels: chat, journal (project.md), editor,
-renderer (html/pdf/images), organizer, run (python sandbox), todos, git,
+renderer (html/pdf/images), organizer, run, todos, git,
 board (goal/plan/runs), context files, agent, research, review, network,
-secrets (key grants). The operator adds panels via double-click or the +
+secrets (key grants). The run panel is the operator's: it runs a project
+Python file on the host, outside any box. The operator adds panels via double-click or the +
 menu; panels snap and tile.
 
 ## driving the gui
@@ -275,12 +282,13 @@ sandbox your run_code executes in (no secrets, no DB, nukeable). Two front
 doors, both through the host broker (backend/guest_shell.py): a **Terminal
 panel** on the project board (WebSocket /api/guest/shell) and a **CLI**
 (`python -m backend.cli guest-shell [slug]`) for an operator already SSH'd to
-the Pi. The broker pins the guest for the session (idle-scrub can't reap a live
+the host. The broker pins the guest for the session (idle-scrub can't reap a live
 shell) and primes the active project's files so they land beside your file
 tools. It is a debug/exploration seat: edits there do NOT auto-reconcile to the
 host project — durable changes still go through the file tools / editor. This
-does not weaken containment: the guest is still NIC-less and secret-free,
-reachable only through the supervisor. Kill switch: settings.guest_shell_enabled.
+does not weaken containment: the guest is still secret-free, its network (if
+egress is on) still crosses the host proxy, and it is reachable only through
+the supervisor. Kill switch: settings.guest_shell_enabled.
 
 ## multi-agent
 
@@ -329,4 +337,4 @@ parts (one per item and its branch), the files and the diffstat against the job'
   dirty", and its file list and diff include them.
 - Reject: the copies and branches are removed; the project is untouched.
 - With Gitea on, the PR branch is also pushed as the bot and a read-only Gitea PR
-  mirrors the summary; it is closed when you decide in Jav3.
+  mirrors the summary; it is closed when you decide in CNTRL.

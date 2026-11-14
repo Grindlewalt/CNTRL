@@ -1,4 +1,4 @@
-// Functions injected into Jav3's own tabs with chrome.scripting.executeScript.
+// Functions injected into CNTRL's own tabs with chrome.scripting.executeScript.
 // Each is serialized (not imported by the page) and run once PER FRAME: the
 // service worker enumerates the tab's frames and injects into each, then
 // stitches the results together (element numbers are local to a frame; the
@@ -286,7 +286,7 @@ export async function typeEl(id, text, submit) {
       return { ok: false, err: 'that is a ' + el.type + '; use browser_click to change it' };
     }
     if (el.type === 'password' || el.type === 'file') {
-      return { ok: false, err: 'Jav3 does not type into password or file fields' };
+      return { ok: false, err: 'CNTRL does not type into password or file fields' };
     }
     const proto = el.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
     Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, text);

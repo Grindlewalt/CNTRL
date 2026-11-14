@@ -307,7 +307,7 @@ export function useSlash(host) {
     const h = hostRef.current
     if (h.busy) { say('a turn is running — /stop it or wait, then /orchestration', 'warn'); return }
     h.newChat()
-    setNextChat({ mode: 'orchestrate', label: `orchestrator · ${project}` })
+    setNextChat({ mode: 'orchestrate', label: `orchestrator, ${project}` })
     // after the new chat has rendered, so the pin lands on it and the send
     // carries it (not on the chat that was open)
     envRef.current.afterRender((fresh) => {
@@ -338,7 +338,7 @@ export function useSlash(host) {
             + 'and messages them as they work.\n\nEvery agent uses the default model unless '
             + 'you name one for a task.'} />
         <div className="slash-actions">
-          <span className="slash-keys">⌘/Ctrl+Enter starts · Esc cancels</span>
+          <span className="slash-keys">⌘/Ctrl+Enter starts, Esc cancels</span>
           <button type="button" className="ghost" onClick={() => setDump(null)}>Cancel</button>
           <button type="button" disabled={!dump.text.trim()} onClick={startDump}>
             Start orchestration</button>
@@ -371,7 +371,7 @@ export function useSlash(host) {
                 {r.kind === 'cmd' ? <>
                   <span className="slash-name">/{r.cmd.name}</span>
                   {r.cmd.usage && <span className="slash-usage">{r.cmd.usage}</span>}
-                  <span className="slash-help">{r.via ? `/${r.via} · ` : ''}{r.cmd.help}</span>
+                  <span className="slash-help">{r.via ? `/${r.via}, ` : ''}{r.cmd.help}</span>
                 </> : <>
                   <span className="slash-name">{r.label || r.value}</span>
                   {r.meta && <span className="slash-help">{r.meta}</span>}
@@ -399,8 +399,8 @@ export function useSlash(host) {
           </div>
         ) : <div className={`slash-note ${note.kind}`}>{note.text}</div>)}
         {open && (
-          <div className="slash-keys">↑↓ move · Tab complete · Enter run · Esc close
-            {' · '}//text sends a slash</div>
+          <div className="slash-keys">↑↓ move, Tab complete, Enter run, Esc close
+            {', '}//text sends a slash</div>
         )}
       </div>
     )
