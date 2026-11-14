@@ -39,6 +39,8 @@
 .convo-list li.active .convo-actions { background: transparent; }
 .proj-rows a { padding: var(--sp-3) var(--sp-5); font-size: var(--fs-base); }
 .proj-rows .proj-dot { display: none; }   /* said nothing: every project row had one */
+/* a pinned project: a small pin before the ⋯ */
+.proj-rows .proj-pin { flex: none; margin-left: auto; display: inline-flex; color: var(--faint); }
 .convo-group-empty { font-size: var(--fs-sm); color: var(--faint); padding: var(--sp-2) var(--sp-5); }
 .convo-new-folder { font-size: var(--fs-sm); margin: var(--sp-2) 0 0 var(--sp-2); }
 .chat-layout aside .menu-caption { text-transform: none; letter-spacing: 0;

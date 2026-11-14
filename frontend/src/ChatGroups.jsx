@@ -179,6 +179,8 @@ function ProjectRow({ p, href, workspace, onPin, onRename, onDelete }) {
       <Link to={href} title={p.slug}>
         <span className="proj-dot" aria-hidden="true" />
         <span className="convo-title ellipsis">{p.name}</span>
+        {pinned && <span className="proj-pin" title="Pinned">
+          <UiGlyph name="pin" size={12} /></span>}
       </Link>
       <span className="convo-actions">{menu}</span>
     </li>
