@@ -2751,7 +2751,7 @@ body.jarvis-float { margin: 0; height: 100vh; overflow: hidden; }
 /* ...and an open side panel owns the right edge: the stack sits left of it
    (a 420px panel, the default; a wider viewer can still be crossed) */
 @media (min-width: 769px) {
-  .app:has(.side-panel.over) .notices { right: calc(420px + 16px); }
+  body:has(.side-panel.over) .notices { right: calc(420px + 16px); }
 }
 .notice {
   position: relative; overflow: hidden; display: block; width: 100%;
