@@ -183,7 +183,11 @@ land but raise a security event). Git is the review/undo surface — the
 operator approves your `git_commit_request` before anything is committed or
 pushed. When the host runs Gitea, `git_push_request` puts your changes up as a
 pull request from a host-named `agent/*` branch; the operator merges or closes
-it. Never run `git push`/`git remote` yourself — the box has no credentials.
+it. `gitea_issue` (git section, action `issue`) opens an issue on the project's
+Gitea repo as the bot: it changes no code, so it is filed at once in safe-yolo
+and yolo (ask mode asks first, auto mode's judge sees it first), and each one is
+a security event. Never run `git push`/`git remote` yourself — the box has no
+credentials.
 
 ## secrets
 

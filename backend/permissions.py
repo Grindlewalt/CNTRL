@@ -44,9 +44,12 @@ DEFAULT_MODE = "safe-yolo"
 LEGACY_YOLO = "yolo"      # old clients and stored rows: always safe-yolo
 
 IN_GUEST_GATED = frozenset({"write_file", "edit_file", "run_code"})
+# gitea_issue files at once in safe-yolo (an issue on the host's own Gitea changes
+# no code and reaches no one outside it; each one is a security event), but is
+# still a write-type call: ask mode asks and auto mode's judge sees it first.
 GATED_TOOLS = IN_GUEST_GATED | {"git_commit_request", "git_remote_request", "git_push_request",
                                 "service_request", "package_request",
-                                "environment_request", "skill_request"}
+                                "environment_request", "skill_request", "gitea_issue"}
 GATE_OP = "permission_gate"          # the guest's "may this run?" broker call
 
 YES = "Yes"

@@ -125,22 +125,33 @@ async def import_project(body: ImportProject):
             await gitgate.clone_repo(url, project_dir)
         except RuntimeError as e:
             raise HTTPException(status_code=502, detail=f"clone failed: {e}")
-        await gitgate.run_git(slug, "config", "user.name", "CNTRL")
-        await gitgate.run_git(slug, "config", "user.email",
-                              settings.git_author_email)
-        md = project_md_path(slug)
-        if not md.exists():
-            md.write_text(PROJECT_TEMPLATE.format(
-                name=name, summary=body.summary or f"Imported from {url}",
-                created=date.today().isoformat()))
-        await db.execute(
-            "INSERT INTO projects (slug, name, path, github_remote) VALUES (?, ?, ?, ?)",
-            (slug, name, str(project_dir), url))
-        await db.commit()
-        await refresh_all_projects(db)
+        await register_cloned(db, slug, name, summary=body.summary or f"Imported from {url}",
+                              remote=url)
     finally:
         await db.close()
     return {"slug": slug, "name": name, "github_remote": url}
+
+
+async def register_cloned(db, slug: str, name: str, *, summary: str,
+                          remote: str | None = None) -> None:
+    """Make the clone already in projects/<slug> a project: the repo's author,
+    a project.md (kept if the clone or the caller already put one there), the
+    row, and the all-projects rollup. The import above and dev-agent-setup
+    (backend/devagent.py, a clone of the install's own checkout) both end here.
+    The caller has checked that the slug is free."""
+    from . import gitgate
+    project_dir = settings.projects_dir / slug
+    await gitgate.run_git(slug, "config", "user.name", "CNTRL")
+    await gitgate.run_git(slug, "config", "user.email", settings.git_author_email)
+    md = project_md_path(slug)
+    if not md.exists():
+        md.write_text(PROJECT_TEMPLATE.format(
+            name=name, summary=summary, created=date.today().isoformat()))
+    await db.execute(
+        "INSERT INTO projects (slug, name, path, github_remote) VALUES (?, ?, ?, ?)",
+        (slug, name, str(project_dir), remote))
+    await db.commit()
+    await refresh_all_projects(db)
 
 
 @router.get("/projects/{slug}")

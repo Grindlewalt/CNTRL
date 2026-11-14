@@ -43,7 +43,7 @@ fi
 # ---------------------------------------------------------------- options ----
 DO_CHECK=0 DO_ROOT=0 DO_USER=1 BUILD_FRONTEND=1 BUILD_IMAGE=1 RENAME_ONLY=0
 FROM_HOST="" FORCE=0 ASSUME_YES=0 TARGET_HOST="" STATE_DIR_OPT="" PORT_OPT="" NAME_OPT="" CFG_DIR_OPT=""
-DO_GITEA=1 GITEA_DRY=0 DO_DOCKER=1 JSON_OUT=0
+DO_GITEA=1 GITEA_DRY=0 DO_DOCKER=1 JSON_OUT=0 DEV=0
 # $SUDO_USER is only meaningful when we are actually running under sudo. Taking
 # it unconditionally means a stale value inherited from the environment wins
 # over who we really are — which reported the wrong username inside a sandbox.
@@ -90,6 +90,12 @@ Options
                        requests to; add it later: python -m backend.cli gitea-setup)
   --gitea-dry-run      print what the Gitea step would do, change nothing there
   --no-docker          skip the Docker boxes step (add it later: python -m backend.cli docker-setup)
+  --dev                a dev install, for developers and testers (docs/DEV-INSTALL.md):
+                       everything above, then the dev-agent project and its skill
+                       (python -m backend.cli dev-agent-setup). With --name, the
+                       instance also gets its own state dir (~/.local/share/cntrl-<name>)
+                       and its own published-pages and Gitea ports, so it can run
+                       beside a stable install
   --force              overwrite existing local state during --from
   --yes                do not prompt
   -h, --help           this text
@@ -115,6 +121,7 @@ while [ $# -gt 0 ]; do
     --no-gitea)   DO_GITEA=0 ;;
     --no-docker)  DO_DOCKER=0 ;;
     --gitea-dry-run) GITEA_DRY=1 ;;
+    --dev)        DEV=1 ;;
     --yes|-y)     ASSUME_YES=1 ;;
     -h|--help)    usage; exit 0 ;;
     *) echo "unknown option: $1" >&2; usage >&2; exit 64 ;;
@@ -1204,6 +1211,17 @@ user_phase() {
   first_run_setup
   gitea_step
   docker_step
+  dev_agent_step
+}
+
+# --dev: the dev-agent project (CNTRL's own code), its instructions and the
+# cntrl-try-everything skill; with Gitea, its repo; with boxes, a box of its
+# own (docs/DEV-INSTALL.md). Idempotent, local only, after the steps it uses.
+dev_agent_step() {
+  [ "$DEV" = 1 ] || return 0
+  step "dev-agent project (--dev)"
+  .venv/bin/python -m backend.cli dev-agent-setup \
+    || warn "dev-agent setup did not finish — fix the line above, then re-run: $REPO_DIR/.venv/bin/python -m backend.cli dev-agent-setup"
 }
 
 # A new named instance (--name <n>) beside the default one: the default keeps
@@ -1330,8 +1348,9 @@ emit_json() {
     printf '{"ready":%s,"arch":%s,"distro":%s,"pkg":%s,"user":%s,' "$ready" \
       "$(jstr "$ARCH")" "$(jstr "$DISTRO")" "$(jstr "$PKG")" "$(jstr "$TARGET_USER")"
     printf '"version":%s,' "$(jstr "$VERSION")"
-    printf '"repo_dir":%s,"unit":%s,"port":%s,"config_dir":%s,"state_dir":%s,' \
-      "$(jstr "$REPO_DIR")" "$(jstr "$UNIT")" "$PORT" "$(jstr "$CFG_DIR")" "$(jstr "$STATE_DIR")"
+    printf '"repo_dir":%s,"unit":%s,"port":%s,"config_dir":%s,"state_dir":%s,"dev":%s,' \
+      "$(jstr "$REPO_DIR")" "$(jstr "$UNIT")" "$PORT" "$(jstr "$CFG_DIR")" "$(jstr "$STATE_DIR")" \
+      "$([ "$DEV" = 1 ] && echo true || echo false)"
     printf '"kvm":%s,"vsock":%s,"docker":%s,' \
       "$(jbool test -r /dev/kvm -a -w /dev/kvm)" "$(jbool test -e /dev/vhost-vsock)" \
       "$(jbool docker info)"
@@ -1490,6 +1509,10 @@ printf '  backups (rclone):     set a remote via /api/backup/config, or CNTRL_BA
 printf '  start:                systemctl --user restart %s\n' "$UNIT"
 printf '  logs:                 journalctl --user -u %s -f\n' "$UNIT"
 printf '  re-check:             bash %s/scripts/install.sh --check\n' "$REPO_DIR"
+if [ "$DEV" = 1 ]; then
+  printf '  dev-agent:            add a model key in Settings > Models (API providers), open the dev-agent project,\n'
+  printf '                        ask it to run the cntrl-try-everything skill (docs/DEV-INSTALL.md)\n'
+fi
 
 # Start it either way. Without KVM/vsock no agent turn can run (there is no
 # host-side loop), but the web UI, logins, settings, projects and the TUI all

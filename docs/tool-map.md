@@ -5,7 +5,7 @@ frontmatter and `backend/agent/tools/toolsections.py`; do not edit by hand
 (tests/test_toolcatalog.py fails when it is stale). The Tools page shows the same
 list, and searching it by an old name finds the action.
 
-The model can be offered **28 tools with 86 actions** (1 of the actions is switched off in its folder).
+The model can be offered **28 tools with 87 actions** (1 of the actions is switched off in its folder).
 2 more tools with 4 more actions are internal (`plan_status`, `plan_fix`, `plan_report`, `inbox_fetch`): the harness grants or calls them, and the model is not offered them on a normal turn. A TOOL.md marks one with `internal: true`; nothing else reads the key, so it changes what the Tools page lists and nothing about what is granted.
 
 A turn lists only the core tools (at most 11 names, with `tools`) until the model loads a section with `tools(section=...)`. Every old name still works when called directly, and a transcript's tool call keeps its old name.
@@ -101,7 +101,7 @@ See and operate the operator's connected computer.
 
 ## git
 
-The project's git: status, diff, commit, pull request, GitHub remote.
+The project's git: status, diff, commit, pull request, issue, GitHub remote.
 
 | Old name | The model calls | Core | Gating |
 | --- | --- | --- | --- |
@@ -110,6 +110,7 @@ The project's git: status, diff, commit, pull request, GitHub remote.
 | `git_commit_request` | `git(action="commit")` |  | needs project |
 | `git_push_request` | `git(action="push")` |  | needs project |
 | `git_remote_request` | `git(action="remote")` |  | needs project |
+| `gitea_issue` | `git(action="issue")` |  | needs project, needs setup |
 
 ## services
 

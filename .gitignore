@@ -37,3 +37,18 @@ collection-claude-code-source-code/
 /.jarvis-instance
 # a named install's marker in its checkout (scripts/install.sh --name)
 /.cntrl-instance
+
+# The block below is the one CNTRL writes into every project's .gitignore. It is
+# here too, word for word, so a project cloned from this repo (dev-agent-setup)
+# starts with a clean tree and can fast-forward from the checkout
+# (tests/test_devagent.py checks the two match).
+# >>> CNTRL harness files: managed by CNTRL (rewritten on load); your own rules go outside this block
+.staging/
+.workspace.json
+.context.json
+.todo.md
+.todo-archive.md
+/.plan.json
+/runs/*/*.md
+data/
+# <<< CNTRL harness files

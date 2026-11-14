@@ -18,6 +18,8 @@
   python -m backend.cli docker-setup [--dry-run] [--rebuild] [--yes]  # build + enable Docker boxes
   python -m backend.cli doctor [--json]              # how far the install got; the next fix per stage
   python -m backend.cli import-skill <folder|https-git-url[#subdir]|clawhub:slug> [--name N] [--replace]
+  python -m backend.cli dev-agent-setup [--refresh]   # the dev install's dev-agent project + skill
+                                   # --refresh: also bring its copy of the code up to the checkout
 """
 import asyncio
 import getpass
@@ -190,6 +192,9 @@ def main() -> None:
         sys.exit(doctor.run(sys.argv[2:]))
     elif len(sys.argv) >= 2 and sys.argv[1] == "import-skill":
         import_skill_command(sys.argv[2:])
+    elif len(sys.argv) >= 2 and sys.argv[1] == "dev-agent-setup":
+        from . import devagent
+        sys.exit(devagent.run(sys.argv[2:]))
     elif len(sys.argv) >= 2 and sys.argv[1] in ("migrate-state", "backup", "restore"):
         state_command(sys.argv[1], sys.argv[2:])
     else:

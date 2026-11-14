@@ -259,3 +259,137 @@ def test_an_existing_named_instance_keeps_the_state_dir_it_has_been_using(tmp_pa
     assert _state_dir_of(tmp_path, "--name", "x") == str(tmp_path / ".local/share/cntrl")
     (cfg / "env").write_text(f"CNTRL_STATE_DIR={tmp_path}/own\n")
     assert _state_dir_of(tmp_path, "--name", "x") == str(tmp_path / "own")
+
+
+# --- --dev (docs/DEV-INSTALL.md) ---------------------------------------------------
+
+def _json_check(tmp_path, *args):
+    import json
+    return json.loads(run(tmp_path, "--check", "--json", *args).stdout)
+
+
+@needs_bash
+def test_a_named_dev_instance_gets_its_own_state_dir(tmp_path):
+    d = _json_check(tmp_path, "--dev", "--name", "dev", "--port", "8781")
+    assert d["dev"] is True and d["unit"] == "cntrl-dev" and d["port"] == 8781
+    assert d["state_dir"] == str(tmp_path / ".local/share/cntrl-dev")
+    assert d["config_dir"] == str(tmp_path / ".config/cntrl-dev")
+
+
+@needs_bash
+def test_a_new_named_instance_gets_its_own_state_with_or_without_dev(tmp_path):
+    # since 96d08e7 every NEW named instance has its own state dir, not only --dev ones
+    d = _json_check(tmp_path, "--name", "dev")
+    assert d["dev"] is False and d["state_dir"] == str(tmp_path / ".local/share/cntrl-dev")
+    assert _json_check(tmp_path, "--dev")["state_dir"] == str(tmp_path / ".local/share/cntrl")
+
+
+@needs_bash
+def test_help_names_dev(tmp_path):
+    out = run(tmp_path, "--help").stdout
+    assert "--dev" in out and "dev-agent" in out
+
+
+def test_the_dev_agent_step_comes_after_setup_gitea_and_docker():
+    body = _fn("user_phase")
+    order = [body.index(s) for s in ("first_run_setup", "gitea_step", "docker_step",
+                                     "dev_agent_step")]
+    assert order == sorted(order)
+    step = _fn("dev_agent_step")
+    assert '[ "$DEV" = 1 ] || return 0' in step and "dev-agent-setup" in step
+
+
+def _line_fn(name) -> str:
+    text = SCRIPT.read_text()
+    start = text.index(f"{name}() {{")
+    return text[start:text.index("\n", start) + 1]
+
+
+def _named_ports(tmp_path, new_named, taken=()):
+    """install.sh's named_ports() alone, with `ss` stubbed to report `taken`."""
+    stub = tmp_path / "bin"
+    stub.mkdir(exist_ok=True)
+    (stub / "ss").write_text("#!/bin/sh\nfor p in " + " ".join(taken) +
+                             '; do case "$*" in *":$p"*) echo LISTEN; exit 0;; esac; done\n')
+    (stub / "ss").chmod(0o755)
+    cfg = tmp_path / "cfg"
+    cfg.mkdir(exist_ok=True)
+    (cfg / "env").touch()
+    prog = ("set -euo pipefail\nhave(){ command -v \"$1\" >/dev/null 2>&1; }\n"
+            "ok(){ echo ok \"$*\"; }\n"
+            f"NEW_NAMED={new_named} PORT=8781 CFG_DIR='{cfg}'\n"
+            + _line_fn("port_taken") + _fn("named_ports") + "named_ports\n")
+    subprocess.run([BASH, "-c", prog], check=True, capture_output=True, text=True,
+                   env={"PATH": f"{stub}:/usr/bin:/bin"})
+    return (cfg / "env").read_text()
+
+
+@needs_bash
+def test_a_new_named_instance_takes_free_pages_and_gitea_ports(tmp_path):
+    env = _named_ports(tmp_path, 1, taken=("8091",))
+    assert env == "CNTRL_PAGES_PORT=8092\nCNTRL_GITEA_PORT=3001\n"
+    assert _named_ports(tmp_path, 1) == env          # recorded once, kept on a re-run
+
+
+@needs_bash
+def test_ports_stay_default_for_the_default_or_an_existing_named_instance(tmp_path):
+    assert _named_ports(tmp_path, 0) == ""
+
+
+# --- bootstrap --dev -----------------------------------------------------------------
+
+def _upstream(tmp_path) -> Path:
+    """A repo with main and dev whose scripts/install.sh only says how it ran."""
+    up = tmp_path / "upstream"
+    (up / "scripts").mkdir(parents=True)
+    (up / "scripts" / "install.sh").write_text(
+        'echo "ARGS:$*"\necho "BRANCH:$(git -C "$(dirname "$0")/.." branch --show-current)"\n')
+    g = ["git", "-C", str(up), "-c", "user.name=t", "-c", "user.email=t@x"]
+    subprocess.run(["git", "init", "-q", "-b", "main", str(up)], check=True)
+    subprocess.run(g + ["add", "-A"], check=True)
+    subprocess.run(g + ["commit", "-q", "-m", "main"], check=True)
+    subprocess.run(g + ["branch", "dev"], check=True)
+    return up
+
+
+def _bootstrap(tmp_path, up, *args):
+    home = tmp_path / "home"
+    home.mkdir(exist_ok=True)
+    env = {"HOME": str(home), "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+           "CNTRL_REPO": str(up)}
+    return subprocess.run(["sh", str(ROOT / "scripts" / "bootstrap.sh"), *args],
+                          capture_output=True, text=True, env=env, timeout=60,
+                          stdin=subprocess.DEVNULL)
+
+
+def _branch(d) -> str:
+    return subprocess.run(["git", "-C", str(d), "branch", "--show-current"],
+                          capture_output=True, text=True).stdout.strip()
+
+
+def test_bootstrap_dev_clones_the_dev_branch_beside_a_stable_checkout(tmp_path):
+    up = _upstream(tmp_path)
+    r = _bootstrap(tmp_path, up, "--dev", "--name", "dev", "--port", "8781")
+    assert r.returncode == 0, r.stderr
+    assert "ARGS:--dev --name dev --port 8781" in r.stdout and "BRANCH:dev" in r.stdout
+    assert _branch(tmp_path / "home" / "cntrl-dev") == "dev"
+    assert not (tmp_path / "home" / "cntrl").exists()
+
+
+def test_bootstrap_dev_moves_an_existing_dev_checkout_onto_dev(tmp_path):
+    up = _upstream(tmp_path)
+    (tmp_path / "home").mkdir()
+    subprocess.run(["git", "clone", "-q", str(up), str(tmp_path / "home" / "cntrl-dev")],
+                   check=True)
+    assert _branch(tmp_path / "home" / "cntrl-dev") == "main"
+    r = _bootstrap(tmp_path, up, "--dev")
+    assert r.returncode == 0, r.stderr
+    assert "switching" in r.stderr and _branch(tmp_path / "home" / "cntrl-dev") == "dev"
+
+
+def test_bootstrap_without_dev_is_as_before(tmp_path):
+    up = _upstream(tmp_path)
+    r = _bootstrap(tmp_path, up, "--no-image")
+    assert r.returncode == 0, r.stderr
+    assert "ARGS:--no-image" in r.stdout and "BRANCH:main" in r.stdout
+    assert not (tmp_path / "home" / "cntrl-dev").exists()

@@ -11,6 +11,12 @@
 #                checkout at ~/jarvis from before the rename, updated in place)
 # Each also answers to its old name (JARVIS_REPO, JARVIS_REF, JARVIS_DIR).
 #
+# --dev (docs/DEV-INSTALL.md) is for developers and testers: the `dev` branch
+# instead of the default one (CNTRL_REF still wins), a checkout of its own at
+# ~/cntrl-dev (CNTRL_DIR still wins) so a stable checkout at ~/cntrl is never
+# switched, and an existing checkout there is moved onto that branch first.
+# The flag goes on to install.sh, which adds the dev-agent project.
+#
 # Run it as the user the server will run as, not root: the checkout, the venv
 # and the systemd --user unit all belong to that user. The few steps that need
 # root stay in install.sh's --root-phase, and install.sh prints that one sudo
@@ -24,10 +30,15 @@
 set -eu
 
 main() {
+  dev=0
+  for a in "$@"; do [ "$a" != "--dev" ] || dev=1; done
   repo="${CNTRL_REPO:-${JARVIS_REPO:-https://github.com/Grindlewalt/cntrl.git}}"
   ref="${CNTRL_REF:-${JARVIS_REF:-}}"
+  [ -n "$ref" ] || [ "$dev" = 0 ] || ref=dev
   dir="${CNTRL_DIR:-${JARVIS_DIR:-}}"
-  if [ -z "$dir" ]; then
+  if [ -z "$dir" ] && [ "$dev" = 1 ]; then
+    dir="$HOME/cntrl-dev"
+  elif [ -z "$dir" ]; then
     dir="$HOME/cntrl"
     [ -e "$dir" ] || [ ! -d "$HOME/jarvis/.git" ] || dir="$HOME/jarvis"
   fi
@@ -60,6 +71,11 @@ main() {
 
   if [ -d "$dir/.git" ]; then
     say "updating $dir"
+    if [ "$dev" = 1 ] && [ "$(git -C "$dir" symbolic-ref --short -q HEAD || true)" != "$ref" ]; then
+      say "switching $dir to $ref"
+      git -C "$dir" fetch -q origin "$ref" || die "could not fetch $ref from $(git -C "$dir" remote get-url origin 2>/dev/null || echo origin)"
+      git -C "$dir" checkout -q "$ref" || die "could not switch $dir to $ref — it has local changes; sort them out, then re-run"
+    fi
     git -C "$dir" pull --ff-only -q || die "could not fast-forward $dir — it has local changes; sort them out, then re-run"
   elif [ -e "$dir" ] && [ -n "$(ls -A "$dir" 2>/dev/null)" ]; then
     die "$dir exists and is not a checkout — move it aside or set CNTRL_DIR"

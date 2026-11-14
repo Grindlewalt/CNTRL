@@ -210,8 +210,9 @@ the first free ports from 8091 for published pages and 3001 for Gitea),
 `--state-dir <dir>`, `--config-dir <dir>`,
 `--from <host:path>` (copy state from another install first; `--force`
 overwrites local state), `--no-image`, `--no-build`, `--no-gitea`,
-`--gitea-dry-run`, `--no-docker`, `--yes` (no questions) and `--rename-only`
-(see [Upgrading from Jav3](#upgrading-from-jav3)). `bash scripts/install.sh
+`--gitea-dry-run`, `--no-docker`, `--yes` (no questions), `--rename-only`
+(see [Upgrading from Jav3](#upgrading-from-jav3)) and `--dev` (a dev install
+for testing, see [For developers](#for-developers)). `bash scripts/install.sh
 --help` lists them all.
 
 A coding agent can do the install for you: paste the prompt at the end of
@@ -412,6 +413,15 @@ capability.
   named after box numbers, which can repeat across instances.
 - **Docker is weaker isolation** than a VM, and computer and browser use act
   with your own accounts and sessions on the sites and apps you grant.
+
+## For developers
+
+`main` is the stable branch, and it is what the install above gives you. `dev`
+is where changes are tested before they reach `main`: it is for developers and
+testers, not for everyday use, and it can break. The dev install puts it on a
+machine (or beside a stable install) with a ready-made project, `dev-agent`,
+in which a CNTRL agent works through every feature and reports what to
+improve. See [docs/DEV-INSTALL.md](docs/DEV-INSTALL.md).
 
 ## Development
 
