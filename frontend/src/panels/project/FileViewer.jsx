@@ -97,7 +97,7 @@ export default function FileViewer({ slug, path, mode: initialMode = 'view', onB
   } else if (file.binary) {
     body = <EmptyState pad>A binary file of {human(file.size)}. Download it to open it elsewhere.</EmptyState>
   } else if (kind === 'md') {
-    body = <div className="md-preview pp-md"><Md text={file.content || ''} /></div>
+    body = <div className="pp-md"><Md text={file.content || ''} /></div>
   } else {
     body = <Tinted text={file.content || ''} path={path} />
   }

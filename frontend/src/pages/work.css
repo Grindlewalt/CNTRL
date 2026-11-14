@@ -452,8 +452,8 @@
 .pp-mode.on .pp-mode-name { font-weight: 600; }
 .pp-mode-hint { grid-column: 1; font-size: var(--fs-sm); color: var(--slate); margin-top: var(--sp-1); }
 .pp-mode .pp-check { grid-column: 2; grid-row: 1; color: var(--accent); align-self: center; }
-.pp-mode.danger .pp-mode-name { color: var(--bad); }
-.pp-mode.danger.on .pp-check { color: var(--bad); }
+.pp-mode.pp-danger .pp-mode-name { color: var(--bad); }
+.pp-mode.pp-danger.on .pp-check { color: var(--bad); }
 
 /* recent decisions */
 .pp-decs li { list-style: none; }
@@ -501,7 +501,12 @@
 .pp-md { padding: var(--sp-6) var(--sp-8); }
 .pp-editor { flex: 1; min-height: 0; margin: 0; border: 0; border-radius: 0; resize: none; }
 .pp-code { margin: 0; padding: var(--sp-6) var(--sp-8); font: var(--fs-sm)/1.6 var(--mono);
-  white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; color: var(--ink); background: none; }
+  white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; color: var(--ink);
+  background: none; border: 0; border-radius: 0; }
+.pp-md { line-height: 1.55; }
+.pp-md > :first-child { margin-top: 0; }
+/* the Run panel inside the viewer: the scratch pad is a strip, the file run and its result get the room */
+.pp-viewer .pane-col .md-editor.code { flex: 0 0 120px; min-height: 0; }
 .pp-tok-c { color: var(--faint); font-style: italic; }
 .pp-tok-s { color: var(--ok); }
 .pp-tok-n { color: var(--warn); }

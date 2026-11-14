@@ -54,7 +54,7 @@ function ModePicker({ cid, value, onChange }) {
         {PERMISSION_MODES.map((m) => (
           <li key={m}>
             <button type="button" role="radio" aria-checked={m === value}
-                    className={`pp-mode${m === value ? ' on' : ''}${m === 'yolo' ? ' danger' : ''}`}
+                    className={`pp-mode${m === value ? ' on' : ''}${m === 'yolo' ? ' pp-danger' : ''}`}
                     onClick={() => pick(m)}>
               <span className="pp-mode-name">{MODE_SHORT[m]}</span>
               {m === value && <span className="pp-mode-hint">{MODE_HINT[m]}</span>}

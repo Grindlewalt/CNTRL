@@ -121,11 +121,11 @@ export default function FilesTab({
   // the scope Select: follow / none / pin:<slug>
   const scopeValue = scope ? (scope.mode === 'pin' ? `pin:${scope.value}` : scope.mode) : ''
   const scopeOptions = [
-    { value: 'follow', label: 'Follow the loaded project',
+    !scope?.noFollow && { value: 'follow', label: 'Follow the loaded project',
       sub: loaded ? (projects.find((p) => p.slug === loaded)?.name || loaded) : 'nothing is loaded' },
     { value: 'none', label: 'No project', sub: 'files stay with this chat' },
     ...projects.map((p) => ({ value: `pin:${p.slug}`, label: p.name, group: 'Pin to a project' })),
-  ]
+  ].filter(Boolean)
   const pickScope = (v) => {
     if (v.startsWith('pin:')) scope.onPick('pin', v.slice(4))
     else scope.onPick(v, '')
