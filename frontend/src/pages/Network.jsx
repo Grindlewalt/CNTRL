@@ -3,7 +3,7 @@ import { api, subscribeSse } from '../api.js'
 import { notifyError } from '../notify.js'
 import { useAsk } from '../ask.jsx'
 import { HostRequest, useEgressDecide } from '../EgressDecide.jsx'
-import { AUTO_ALLOW_LABEL, AUTO_ALLOW_LEDE, WAITING_LEDE } from '../securityCopy.js'
+import { AUTO_ALLOW_LABEL, AUTO_ALLOW_LEDE } from '../securityCopy.js'
 import { human, tsShort } from '../format.js'
 import { Link } from 'react-router-dom'
 import { updateProfile } from '../boxes/api/profiles.js'
@@ -129,7 +129,7 @@ function AutoToggle({ project, onChange }) {
     <div className="nw-auto">
       <Toggle checked={!!mode?.effective} disabled={!mode} label={AUTO_ALLOW_LABEL}
               onText={AUTO_ALLOW_LABEL} offText={AUTO_ALLOW_LABEL} onChange={flip} />
-      <p>{AUTO_ALLOW_LEDE} {scope}</p>
+      <HelpTip label="About auto-allow">{AUTO_ALLOW_LEDE} {scope}</HelpTip>
     </div>
   )
 }
@@ -155,16 +155,19 @@ function Counts({ project, tick }) {
 // always trains the allowlist up (the project's own list); Allow 1 h lets it
 // through for an hour on no list; Deny keeps it out. WAITING_LEDE says so on
 // the page, and useEgressDecide (shared with the Queue) does the asking.
+const WAITING_TIP = 'Sites a box tried to reach that no list covers yet. "Allow always" adds the site '
+  + "to the always-allow list of that project's profile, so every project on the profile gets it. "
+  + '"Allow 1 h" lets it through for an hour and writes no list. Deny keeps it blocked.'
+
 function Waiting({ project, names, lastTry, tick, onDecided }) {
   const [pending, reload] = usePoll(`/api/egress/pending${q(project)}`, (r) => r.pending || [])
   useEffect(() => { reload() }, [tick]) // eslint-disable-line
   const { decide, picker } = useEgressDecide(() => { reload(); onDecided?.() }, { project, names })
   const rows = pending || []
   return (
-    <Section title="Waiting for you" count={rows.length} lede={WAITING_LEDE}>
-      {pending && rows.length === 0 && (
-        <p className="sq-lede">Nothing is waiting. A site no list covers shows up here when a box
-          tries to reach it.</p>)}
+    <Section title="Waiting for you" count={rows.length}
+             actions={<HelpTip label="About waiting sites" align="right">{WAITING_TIP}</HelpTip>}>
+      {pending && rows.length === 0 && <p className="sq-lede">Nothing is waiting.</p>}
       {rows.length > 0 && (
         <Group>
           {rows.map((p) => {
