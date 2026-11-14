@@ -117,8 +117,9 @@
   padding: var(--sp-5); border-radius: var(--radius-md); display: flex; flex-wrap: wrap;
   gap: var(--sp-3); align-items: center; }
 .skill-add .tool-drop.over { border-color: var(--accent); background: var(--wash); }
-.skill-add .row { display: flex; gap: var(--sp-3); align-items: center; }
-.skill-add .row .field { flex: 1; margin: 0; }
+.skills-aside .skill-add .row { display: flex; flex-direction: column; gap: var(--sp-3); align-items: stretch; }
+.skill-add .row .field { margin: 0; }
+.skill-add .tool-drop .grow { flex-basis: 100%; }
 .split-idle { display: grid; place-items: start center; }
 
 /* ---- Memory ---- */
