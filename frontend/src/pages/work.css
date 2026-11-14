@@ -538,6 +538,7 @@
   .pp-bar-btn .pp-v.ellipsis { max-width: 120px; }
   .pp-kv-k { flex-basis: 72px; }
   .pp-more { opacity: 1; }
+}
 
 /* ================= project home (pages/ProjectHome.jsx) =================== */
 /* The name, a composer that starts a chat in the project, its chats; a card
