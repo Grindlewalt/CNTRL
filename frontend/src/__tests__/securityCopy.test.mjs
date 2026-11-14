@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict'
 import {
   ALLOW_ALWAYS_TIP, ALLOW_ONCE_TIP, AUTO_ALLOW_LABEL, AUTO_ALLOW_LEDE, AUTO_REVIEW_LEDE,
-  AUTO_REVIEW_LINE, PERSISTENT_LEGEND, SECURITY_LEDE_LINES, SECURITY_LEDES, VMS_LEDES, WAITING_LEDE,
+  AUTO_REVIEW_LINE, PERSISTENT_LEGEND, SECURITY_LEDE_LINES, SECURITY_LEDES, VMS_LEDE_LINES, VMS_LEDES,
+  WAITING_LEDE,
   allowedLine, baselineAsk,
   askAge, askKindText, decidedText, dockerLead, dockerMemoryUnlimited, faultText, ledeFor, plural,
   IMPORT_TIP, TOOLS_LEDE, builtinState, postureItems, ramLabel, secretChecklist, tallyLine,
@@ -31,6 +32,8 @@ assert.notEqual(ledeFor(SECURITY_LEDES, '/security/logs'), SECURITY_LEDES['/secu
 assert.equal(ledeFor(SECURITY_LEDES, undefined), '')
 for (const tab of ['/vms', '/vms/images', '/vms/catalogue']) {
   assert.ok(ledeFor(VMS_LEDES, tab).length > 30, `lede for ${tab}`)
+  const line = ledeFor(VMS_LEDE_LINES, tab)
+  assert.ok(line.length > 10 && line.length <= 60 && line.endsWith('.'), `short line for ${tab}`)
 }
 assert.notEqual(ledeFor(VMS_LEDES, '/vms/images'), ledeFor(VMS_LEDES, '/vms'))
 

@@ -44,6 +44,13 @@ export const VMS_LEDES = {
     + 'what you decided, and which image each package went into.',
 }
 
+// ...and the VMs page's short lines, the same way
+export const VMS_LEDE_LINES = {
+  '/vms': 'Every box CNTRL runs, and what is working in it.',
+  '/vms/images': 'The disk images boxes start from.',
+  '/vms/catalogue': 'What agents asked to install, and what you decided.',
+}
+
 // The lede for a pathname, or '' for a tab with none. Exact match only (a
 // trailing slash is ignored): the queue's key is a prefix of every other tab,
 // so a prefix fallback would hand its line to Secrets and to a typo.
