@@ -189,7 +189,7 @@ async def test_package_request_full_approves_and_safe_waits(db, monkeypatch):
 
     full = await _conv(db, "yolo-full")
     with in_conv(full):
-        out = await handler.run(manager="pip", package="rich", reason="r")
+        out = await handler.run(summary="Test request.", manager="pip", package="rich", reason="r")
     import asyncio
     await asyncio.sleep(0)
     assert "approved unasked (yolo)" in out and approved == [7]
@@ -197,7 +197,7 @@ async def test_package_request_full_approves_and_safe_waits(db, monkeypatch):
 
     safe = await _conv(db, "yolo")
     with in_conv(safe):
-        out = await handler.run(manager="pip", package="rich", reason="r")
+        out = await handler.run(summary="Test request.", manager="pip", package="rich", reason="r")
     assert "pending" in out and approved == [7] and kicks == [1]
     assert len(await _events(db)) == 1
 
@@ -277,14 +277,14 @@ async def test_service_request_full_approves_with_requested_ports(db, monkeypatc
 
     full = await _conv(db, "yolo-full")
     with in_conv(full):
-        out = await handler.run(name="web", command=["x"], reason="r")
+        out = await handler.run(summary="Test request.", name="web", command=["x"], reason="r")
     assert "approved unasked (yolo)" in out
     assert calls == [(4, "per_project", [{"port": 8080, "bind": "loopback"}], "yolo")]
     assert len(await _events(db)) == 1
 
     safe = await _conv(db, "safe-yolo")
     with in_conv(safe):
-        out = await handler.run(name="web", command=["x"], reason="r")
+        out = await handler.run(summary="Test request.", name="web", command=["x"], reason="r")
     assert "Nothing runs until the operator approves" in out and len(calls) == 1
 
 
@@ -310,12 +310,12 @@ async def test_environment_request_full_vs_safe(db, monkeypatch):
     monkeypatch.setattr(handler, "active_slug", lambda: _aw("proj"))
     full = await _conv(db, "yolo-full")
     with in_conv(full):
-        out = await handler.run(name="pyenv", packages=["pip rich"], reason="r")
+        out = await handler.run(summary="Test request.", name="pyenv", packages=["pip rich"], reason="r")
     await asyncio.sleep(0)
     assert "approved unasked (yolo)" in out and done == [2]
     safe = await _conv(db, "yolo")
     with in_conv(safe):
-        out = await handler.run(name="pyenv", packages=["pip rich"], reason="r")
+        out = await handler.run(summary="Test request.", name="pyenv", packages=["pip rich"], reason="r")
     assert "pending" in out and done == [2]
     assert len(await _events(db)) == 1
 
@@ -335,7 +335,7 @@ async def test_environment_use_kind_is_approved_inline(db, monkeypatch):
     monkeypatch.setattr(environments, "yolo_approve", fake_yolo)
     monkeypatch.setattr(handler, "active_slug", lambda: _aw("proj"))
     with in_conv(await _conv(db, "yolo-full")):
-        out = await handler.run(use="img", reason="r")
+        out = await handler.run(summary="Test request.", use="img", reason="r")
     assert "approved unasked (yolo)" in out
 
 
@@ -357,10 +357,10 @@ async def test_skill_request_full_installs_safe_waits(db, monkeypatch):
     monkeypatch.setattr(skillrequests, "yolo_approve", fake_yolo)
     monkeypatch.setattr(handler, "active_slug", lambda: _aw("proj"))
     with in_conv(await _conv(db, "yolo-full")):
-        out = await handler.run(source="github.com/a/b", reason="r")
+        out = await handler.run(summary="Test request.", source="github.com/a/b", reason="r")
     assert "approved unasked (yolo)" in out and calls == [5]
     with in_conv(await _conv(db, "yolo")):
-        out = await handler.run(source="github.com/a/b", reason="r")
+        out = await handler.run(summary="Test request.", source="github.com/a/b", reason="r")
     assert "pending" in out and calls == [5]
 
 
@@ -461,7 +461,7 @@ async def test_commit_handler_tells_the_agent(db, monkeypatch):
     monkeypatch.setattr(handler, "ensure_repo", noop)
     monkeypatch.setattr(handler, "create_request", fake_create)
     monkeypatch.setattr(handler, "yolo_decide", fake_decide)
-    out = await handler.run("m")
+    out = await handler.run("m", summary="Test request.")
     assert "approved unasked (yolo)" in out and "c0ffee1234" in out
 
 

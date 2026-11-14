@@ -4,16 +4,20 @@ Validation, the canonical command and the catalogue row all live in
 backend/packages.py. The agent's install_command is stored, never run."""
 import asyncio
 
-from backend import packages, runtime
+from backend import packages, reqsummary, runtime
 from backend.agent.tools.toolctx import active_slug
 from backend.config import settings
 from backend.db import get_db
 
 
 async def run(manager: str = "", package: str = "", install_command: str = "",
-              reason: str = "", version: str | None = None) -> str:
+              reason: str = "", summary: str = "", version: str | None = None) -> str:
     if not settings.vm_boxes_enabled:
         return "error: package requests need boxes (vm_boxes_enabled is off)."
+    try:
+        summary = reqsummary.check(summary)
+    except reqsummary.SummaryError as e:
+        return reqsummary.refusal(e)
     slug = await active_slug()
     db = await get_db()
     try:
@@ -21,6 +25,7 @@ async def run(manager: str = "", package: str = "", install_command: str = "",
             db, manager=manager, package=package, version=version,
             install_command=install_command, reason=reason, project=slug,
             conversation_id=runtime.conversation_id.get(), source="agent")
+        await reqsummary.store(db, "package_catalogue", row["id"], summary)
     except packages.PackageError as e:
         return f"error: {e}"
     finally:

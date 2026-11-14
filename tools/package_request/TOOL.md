@@ -25,7 +25,10 @@ parameters:
     reason:
       type: string
       description: What the package is for and why it must persist.
-  required: [manager, package, install_command, reason]
+    summary:
+      type: string
+      description: What this request does and why, in at most two sentences. The operator reads it first.
+  required: [manager, package, install_command, reason, summary]
 ---
 The host builds its own install command from the validated name and version;
 index/registry flags, URLs and VCS references are refused. An approved package

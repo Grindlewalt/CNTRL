@@ -125,7 +125,7 @@ async def test_loading_a_project_ensures_the_block(client):
 async def test_harness_files_never_ride_a_commit(client):
     _write_harness_files()
     (_pdir() / "keep.txt").write_text("k\n")
-    await registry.dispatch("git_commit_request", {"message": "add keep"})
+    await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "add keep"})
     await _approve(client)
     names = await _committed()
     assert "keep.txt" in names
@@ -139,7 +139,7 @@ async def test_they_stay_out_even_when_the_agent_replaced_the_gitignore(client):
     (_pdir() / ".gitignore").write_text("*.pyc\n")
     _write_harness_files()
     (_pdir() / "keep.txt").write_text("k\n")
-    await registry.dispatch("git_commit_request", {"message": "add keep"})
+    await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "add keep"})
     await _approve(client)
     names = await _committed()
     assert "keep.txt" in names and ".plan.json" not in names
@@ -152,7 +152,7 @@ async def test_a_projects_own_runs_data_can_still_be_committed(client):
     (_pdir() / "runs" / "results.csv").write_text("a,b\n")
     (_pdir() / "runs" / "exp1").mkdir()
     (_pdir() / "runs" / "exp1" / "metrics.json").write_text("{}")
-    await registry.dispatch("git_commit_request", {"message": "results"})
+    await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "results"})
     await _approve(client)
     names = await _committed()
     assert "runs/results.csv" in names and "runs/exp1/metrics.json" in names
@@ -177,7 +177,7 @@ async def test_a_tracked_harness_file_is_not_staged_and_reported_once(client):
     (_pdir() / "runs" / "abc123" / "654-head.md").write_text("rollup, grown\n")
     (_pdir() / "keep.txt").write_text("k\n")
 
-    out = await registry.dispatch("git_commit_request", {"message": "add keep"})
+    out = await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "add keep"})
     assert ".workspace.json is tracked; run `git rm --cached .workspace.json` to stop committing it" in out
     assert "runs/abc123/654-head.md is tracked; run `git rm --cached runs/abc123/654-head.md`" in out
     await _approve(client)
@@ -190,7 +190,7 @@ async def test_a_tracked_harness_file_is_not_staged_and_reported_once(client):
     assert ".workspace.json" in await _committed()
 
     (_pdir() / "more.txt").write_text("m\n")
-    again = await registry.dispatch("git_commit_request", {"message": "more"})
+    again = await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "more"})
     assert "is tracked" not in again, "said once, not on every request"
     await _approve(client)
     _, changed, _ = await gitgate.run_git("demo", "show", "--name-only", "--format=", "HEAD", check=True)
@@ -200,7 +200,7 @@ async def test_a_tracked_harness_file_is_not_staged_and_reported_once(client):
 async def test_only_tracked_harness_changes_is_nothing_to_commit(client):
     await _track_old_harness_files()
     (_pdir() / ".workspace.json").write_text('{"changed": true}')
-    out = await registry.dispatch("git_commit_request", {"message": "state"})
+    out = await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "state"})
     assert out.startswith("error: nothing to commit")
 
 

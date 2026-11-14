@@ -2,12 +2,17 @@
 
 Validation and the table live in backend/skillrequests.py. Nothing is fetched
 here: the operator's Fetch button is the only thing that contacts the source."""
-from backend import permissions, runtime, skillrequests
+from backend import permissions, reqsummary, runtime, skillrequests
 from backend.agent.tools.toolctx import active_slug
 from backend.db import get_db
 
 
-async def run(source: str = "", reason: str = "", name: str | None = None) -> str:
+async def run(source: str = "", reason: str = "", summary: str = "",
+              name: str | None = None) -> str:
+    try:
+        summary = reqsummary.check(summary)
+    except reqsummary.SummaryError as e:
+        return reqsummary.refusal(e)
     slug = await active_slug()
     db = await get_db()
     yolo_err = None
@@ -15,6 +20,7 @@ async def run(source: str = "", reason: str = "", name: str | None = None) -> st
         row = await skillrequests.file_request(
             db, source=source, name=name, reason=reason, project=slug,
             conversation_id=runtime.conversation_id.get())
+        await reqsummary.store(db, "skill_requests", row["id"], summary)
         if await permissions.auto_approve(
                 "skill_request", project=slug, summary=f"skill {row['source']}",
                 detail={"request_id": row["id"], "source": row["source"]}):

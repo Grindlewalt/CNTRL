@@ -425,7 +425,7 @@ def row_json(row: dict) -> dict:
             "artifact_sha256", "definition_sha256", "placement", "expose_ports",
             "status", "desired_state", "supersedes_id", "last_reported_at",
             "created_at", "decided_at", "decided_by", "decision_note",
-            "requested_by", "conversation_id")
+            "requested_by", "conversation_id", "agent_summary", "call_id")
     out = {k: row.get(k) for k in keys}
     out["box_id"] = box_id_of(row) if row["status"] == "approved" else None
     out["state"] = state_of(row)

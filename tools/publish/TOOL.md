@@ -15,7 +15,10 @@ parameters:
     name:
       type: string
       description: A short name the operator sees in the approval.
-  required: [path, name]
+    summary:
+      type: string
+      description: What this request does and why, in at most two sentences. The operator reads it first.
+  required: [path, name, summary]
 ---
 Static files only; scripts in a page run sandboxed with no login. A snapshot
 is copied at approval, so later edits are not live until published again.
