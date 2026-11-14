@@ -1,5 +1,5 @@
 /* CNTRL's web app, styled to match the public site: cream paper, ink, one green
-   accent, warm charcoal in the dark. The tokens in :root are the site's
+   accent, warm near-black in the dark. The tokens in :root are the site's
    (jav3-site/public/style.css) under the names the site uses; the "app
    aliases" below them are the names this file's 4,500 lines were written
    against, mapped onto the site's values so every page renders on the new
@@ -30,6 +30,15 @@
   --ok: #557241; --bad: #a8322d; --warn: #8a6212;
   --accent: #557241;         /* the one accent: links, focus, on-states */
   --accent-ink: #faf7ef;     /* text on an accent surface */
+  /* ---- the neutral states: green left these (2026-11-14). Green is for a
+     switch that is on, an allowed/done/healthy word, and the one primary
+     action a screen may have. Everything that is merely current, focused,
+     selected, linked or running is ink. ---- */
+  --focus: var(--ink);       /* the keyboard focus ring; a field's focus border */
+  --active: var(--ink);      /* the current nav item, tab, menu row, window */
+  --select: rgba(70, 50, 20, 0.12);  /* a selected row or option: a warm wash */
+  --link: var(--ink);        /* links: ink, underlined */
+  --live: var(--ink);        /* running, busy, live: a dot or spinner in ink */
   --glass: rgba(255, 252, 245, 0.72);    /* the nav only */
   --glass-line: rgba(70, 50, 20, 0.08);
   /* Select's list and sheet: glass you can read. The paper at 88% under a
@@ -147,7 +156,7 @@
   /* the guest terminal: dark in both themes (shell programs assume a dark
      canvas), warm, with the accent as the cursor. xterm paints a canvas, so
      these are read by JS (termTheme) and must stay plain literals. */
-  --term-bg: #15170f;
+  --term-bg: #131110;
   --term-fg: #f4f4ef;
   --term-cursor: #a3bd8c;
   --term-selection: rgba(163, 189, 140, 0.3);
@@ -160,41 +169,45 @@
   --btn-off-bg: #d9d2c2;
   --btn-off-ink: #756f63;
 }
-/* warm charcoal, sage accent: the site's dark, which the operator likes as is */
+/* near-black with a warm, brownish undertone (the operator's call, 2026-11-14:
+   darker, brown-ish with the ish heavy, less green). Hairlines, washes and
+   the glass take their warmth from one tint, rgba(255, 230, 200, a), over a
+   paper that is itself warm, so the family holds on every surface. */
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --paper: #11130f;
-  --ink: #f4f4ef;
-  --slate: #a3a69b;
-  --faint: #8e9186;
-  --surface: #1a1d17;
-  --line: rgba(255, 255, 255, 0.1);
-  --line-strong: rgba(255, 255, 255, 0.24);
-  --wash: rgba(255, 255, 255, 0.08);
+  --paper: #100e0c;          /* the page: near-black, warm */
+  --ink: #f0eae0;            /* text: warm off-white, 16:1 on paper */
+  --slate: #aaa196;          /* 7.6:1 on paper, 7.1:1 on surface */
+  --faint: #918879;          /* 5.5:1 on paper, 5.2:1 on surface */
+  --surface: #191512;        /* one step up: cards, the sidebar, code */
+  --line: rgba(255, 230, 200, 0.09);
+  --line-strong: rgba(255, 230, 200, 0.2);
+  --wash: rgba(255, 230, 200, 0.07);
+  --select: rgba(255, 230, 200, 0.11);
   --ok: #9ec48a; --bad: #e27d6f; --warn: #d9b36a;
   --accent: #a3bd8c;
-  --accent-ink: #11130f;
-  --glass: rgba(26, 29, 23, 0.72);
-  --glass-line: rgba(255, 255, 255, 0.08);
+  --accent-ink: #100e0c;
+  --glass: rgba(25, 21, 18, 0.72);
+  --glass-line: rgba(255, 230, 200, 0.08);
   --bg-soft: color-mix(in srgb, var(--paper) 55%, var(--surface));
-  --field-bg: #0d0f0b;
-  --orb-1: #f4f4ef; --orb-2: #c9cbc2; --orb-3: #8e9186;
-  --orb-glow: rgba(244, 244, 239, 0.18);
-  --glow: 163 189 140;
+  --field-bg: #0b0a08;
+  --orb-1: #f0eae0; --orb-2: #c7bfb3; --orb-3: #918879;
+  --orb-glow: rgba(240, 234, 224, 0.18);
+  --glow: 190 165 130;       /* composer underglow: warm, not green */
   --shadow-rgb: 0 0 0;
   --shadow-pop: 0 12px 32px -8px rgb(var(--shadow-rgb) / 0.55),
                 0 2px 6px rgb(var(--shadow-rgb) / 0.3);
   --shadow-win: 0 40px 100px -30px rgb(var(--shadow-rgb) / 0.8),
                 0 2px 8px rgb(var(--shadow-rgb) / 0.4);
   --shadow-thumb: 0 1px 2px rgb(var(--shadow-rgb) / 0.5);
-  --overlay: rgba(0, 0, 0, 0.6);
-  --statusbar-bg: #0d0f0b;
+  --overlay: rgba(0, 0, 0, 0.65);
+  --statusbar-bg: #0b0a08;
   --danger-fill: #b5453b;
-  --knob: #f4f4ef;
-  --track-off: #2a2e26;
+  --knob: #f0eae0;
+  --track-off: #2a2521;
   --track-off-ring: var(--line-strong);
-  --btn-off-bg: #2a2e26;
-  --btn-off-ink: #8e9186;
+  --btn-off-bg: #2a2521;
+  --btn-off-ink: #918879;
 }
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
