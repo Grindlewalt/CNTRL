@@ -8,7 +8,9 @@ import { useAsk } from '../ask.jsx'
 import { useIsPhone } from '../breakpoints.js'
 import Md from '../Md.jsx'
 import ModelPicker from '../ModelPicker.jsx'
-import { PermissionModeSelect, usePermissionMode } from '../AskUser.jsx'
+import { MODE_SHORT, PermissionModeSelect, usePermissionMode } from '../AskUser.jsx'
+import { useFilesSummary } from '../panels/project/FilesTab.jsx'
+import { useSecuritySummary } from '../panels/project/SecurityTab.jsx'
 import { wireMode } from '../askUser.js'
 import { onProjectsChanged } from '../projectsChanged.js'
 import { SendGlyph, UiGlyph } from '../shell/glyphs.jsx'
@@ -28,8 +30,13 @@ import './work.css'
 // and uploads through the write chokepoint onto the always-loaded list,
 // schedules through /api/schedules, chats through /api/chat.
 //
-// ProjectHomeBody is the page without the route: Work hosts it in its main
-// area for /project/:slug and keeps the chat sidebar beside it.
+// ProjectHomeBody is the page without the route: Work hosts it in Chat's main
+// area for /project/:slug, and as what a new chat in a project shows, with the
+// chat's bar over it. Chat hands it `ctl` (pages/Chat.jsx): the composer
+// starts the chat in Chat itself, a recent chat opens there, and the Files
+// and Security rows open Chat's side panel (panels/project) at their tab.
+// StartHome is the same layout for a new chat with no project, and for an
+// agent (pages/Agents.jsx): a title, the composer, recents.
 
 const enc = encodeURIComponent
 
@@ -38,7 +45,7 @@ export default function ProjectHome() {
   return <ProjectHomeBody key={slug} slug={slug} />
 }
 
-export function ProjectHomeBody({ slug }) {
+export function ProjectHomeBody({ slug, ctl = null }) {
   const [home, setHome] = useState(null)   // GET /home; false = no such project
   const refresh = useCallback(() => api(`/api/projects/${enc(slug)}/home`)
     .then(setHome)
@@ -76,10 +83,13 @@ export function ProjectHomeBody({ slug }) {
         <div className="ph-head">
           <h1 className="ph-title">{home.name}</h1>
           {summary && <p className="ph-lede">{summary}</p>}
-          <Composer slug={slug} name={home.name} />
+          <Composer slug={slug} label={`New chat in ${home.name}`} ctl={ctl} />
+          {ctl?.approvals}
         </div>
         <aside className="ph-side" aria-label={`About ${home.name}`}>
           <ul className="ph-card list-divided">
+            {ctl && <FilesRow slug={slug} chatIds={ctl.chatIds} onOpen={() => ctl.openPanel('files')} />}
+            {ctl && <SecurityRow slug={slug} mode={ctl.mode} onOpen={() => ctl.openPanel('security')} />}
             <InstructionsRow slug={slug} name={home.name} ins={home.instructions}
                              onSaved={(instructions) => { patch({ instructions }); refresh() }} />
             <ContextRow slug={slug} ctx={home.context} onChange={(context) => patch({ context })} />
@@ -87,7 +97,28 @@ export function ProjectHomeBody({ slug }) {
             <ScheduledRow slug={slug} name={home.name} list={home.schedules} onChanged={refresh} />
           </ul>
         </aside>
-        <Recents chats={home.chats} name={home.name} onChanged={refresh} />
+        <Recents chats={home.chats} empty={`No chats in ${home.name} yet. Start one above.`}
+                 onChanged={() => { refresh(); ctl?.refresh() }} onOpen={ctl?.openChat} />
+      </div>
+    </div>
+  )
+}
+
+// A new chat's home where there is no project (Work), or an agent's (Agents):
+// the same layout as a project's, without the project's column. `chats` are
+// the recents to show; `lede` one line under the title at most.
+export function StartHome({ title, lede, placeholder, chats, empty, ctl }) {
+  return (
+    <div className="ph-page">
+      <div className="ph-grid ph-grid-solo">
+        <div className="ph-head">
+          <h1 className="ph-title">{title}</h1>
+          {lede && <p className="ph-lede">{lede}</p>}
+          <Composer label={placeholder} ctl={ctl} />
+          {ctl.approvals}
+        </div>
+        <Recents chats={chats} empty={empty} onChanged={ctl.refresh} onOpen={ctl.openChat}
+                 max={SOLO_RECENTS} />
       </div>
     </div>
   )
@@ -140,14 +171,18 @@ function openChat(navigate, id) {
   navigate(`/c/${id}`)
 }
 
-function Composer({ slug, name }) {
+// With `ctl` (hosted in Chat) the send is Chat's own: the chat opens in place
+// and streams, and the mode is Chat's. Without it (the bare route), it starts
+// the chat here and navigates to it. `slug` pins the chat to the project.
+function Composer({ slug = null, label, ctl = null }) {
   const navigate = useNavigate()
   const phone = useIsPhone()
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState(null)
   const [multi, setMulti] = useState(false)
-  const [mode, setMode] = usePermissionMode(null)
+  const [ownMode, setOwnMode] = usePermissionMode(null)
+  const [mode, setMode] = ctl ? [ctl.mode, ctl.setMode] : [ownMode, setOwnMode]
   const box = useRef(null)
 
   // the draft grows to the CSS max-height; past one line the pill relaxes
@@ -162,6 +197,10 @@ function Composer({ slug, name }) {
   async function send() {
     const message = text.trim()
     if (!message || sending) return
+    if (ctl) {
+      ctl.send(message, slug ? { project: slug } : {})
+      return
+    }
     setSending(true)
     setError(null)
     try {
@@ -176,7 +215,6 @@ function Composer({ slug, name }) {
     }
   }
 
-  const label = `New chat in ${name}`
   return (
     <div className="ph-start">
       <form className="ph-composer" onSubmit={(e) => { e.preventDefault(); send() }}>
@@ -212,18 +250,22 @@ function Composer({ slug, name }) {
 // stays a few rows away instead of under every chat the project has.
 const PHONE_RECENTS = 8
 
-function Recents({ chats, name, onChanged }) {
+// (a home with no project column lists more before "Show all")
+const SOLO_RECENTS = 20
+
+function Recents({ chats, empty, onChanged, onOpen, max = null }) {
   const phone = useIsPhone()
   const [all, setAll] = useState(false)
-  const shown = phone && !all ? chats.slice(0, PHONE_RECENTS) : chats
+  const cap = phone ? PHONE_RECENTS : max
+  const shown = cap && !all ? chats.slice(0, cap) : chats
   return (
     <section className="ph-recents" aria-labelledby="ph-recents-h">
       <h2 id="ph-recents-h" className="ph-h">Recents</h2>
       {chats.length === 0
-        ? <EmptyState className="ph-empty">No chats in {name} yet. Start one above.</EmptyState>
+        ? <EmptyState className="ph-empty">{empty}</EmptyState>
         : (
           <ul className="list-divided ph-chats">
-            {shown.map((c) => <ChatRow key={c.id} c={c} onChanged={onChanged} />)}
+            {shown.map((c) => <ChatRow key={c.id} c={c} onChanged={onChanged} onOpen={onOpen} />)}
           </ul>
         )}
       {shown.length < chats.length && (
@@ -234,10 +276,10 @@ function Recents({ chats, name, onChanged }) {
   )
 }
 
-function ChatRow({ c, onChanged }) {
+function ChatRow({ c, onChanged, onOpen }) {
   const navigate = useNavigate()
   const ask = useAsk()
-  const open = () => openChat(navigate, c.id)
+  const open = () => (onOpen ? onOpen(c.id) : openChat(navigate, c.id))
   async function rename() {
     const next = await ask.prompt('Rename this chat', c.summary || '', { confirmLabel: 'Rename' })
     if (next === null || !next.trim()) return
@@ -287,6 +329,44 @@ const ICONS = {
   // the nav's memory book and schedules calendar (nav.jsx)
   memory: <path d="M12 6.6C10.4 5.3 8.4 4.7 5 4.7v12.9c3.4 0 5.4.6 7 1.9 1.6-1.3 3.6-1.9 7-1.9V4.7c-3.4 0-5.4.6-7 1.9Zm0 0v12.9" />,
   schedules: <><rect x="3.5" y="5.2" width="17" height="15.3" rx="2.2" /><path d="M3.5 10h17M8 3.5v3.4M16 3.5v3.4M8.4 14.3h3" /></>,
+  // a folder: everything the project holds
+  files: <path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z" />,
+  // a shield: how chats here ask, run and reach out
+  security: <path d="M12 3.5 5 6.2v5.3c0 4.3 2.9 7.6 7 9 4.1-1.4 7-4.7 7-9V6.2Z" />,
+}
+
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+
+// Files: a count of what the side panel's Files tab lists for the project
+// (its files, its chats' artifacts, its published pages); Open goes there.
+function FilesRow({ slug, chatIds, onOpen }) {
+  const n = useFilesSummary({ slug, chatIds })
+  const parts = n.files === null ? null : [
+    plural(n.files, 'file'),
+    n.artifacts > 0 && plural(n.artifacts, 'artifact'),
+    plural(n.pages, 'published page'),
+  ].filter(Boolean)
+  return (
+    <SideRow icon="files" label="Files" action="Open" actionLabel="Open the files"
+             onAction={onOpen}>
+      <p className="ph-sub">{parts ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : 'Loading…'}</p>
+    </SideRow>
+  )
+}
+
+// Security: how a chat started here asks, where the project's chats run, and
+// whether its profile lets the network on; Open goes to the Security tab.
+function SecurityRow({ slug, mode, onOpen }) {
+  const { where, network } = useSecuritySummary(slug)
+  const line = where === null || network === null ? 'Loading…'
+    : [`${MODE_SHORT[mode] || mode} mode`, where && `runs in ${where}`,
+      network && `network ${network}`].filter(Boolean).join(', ')
+  return (
+    <SideRow icon="security" label="Security" action="Open" actionLabel="Open security"
+             onAction={onOpen}>
+      <p className="ph-sub">{line.charAt(0).toUpperCase() + line.slice(1)}</p>
+    </SideRow>
+  )
 }
 
 function PhIcon({ name }) {

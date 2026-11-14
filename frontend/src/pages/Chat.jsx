@@ -22,65 +22,57 @@ import { useApprovals, placeApprovals } from '../shell/approvals.js'
 import ApprovalRow from '../shell/ApprovalRow.jsx'
 import ProjectPanel from '../panels/project/ProjectPanel.jsx'
 import { SendGlyph, UiGlyph } from '../shell/glyphs.jsx'
-import { MODE_HINT } from '../askUser.js'
 import { MODE_SHORT } from '../AskUser.jsx'
 import { clearMsgAnchor, findTextRange, peekMsgAnchor, setMsgAnchor } from '../chatAnchor.js'
 import './work.css'
 
-// A new chat's empty state: what this chat is scoped to, how it will ask,
-// and a few first messages that fill the composer. Plain words, no greeting.
-const STARTERS = {
-  project: [
-    'What does this project do, and what is unfinished?',
-    'What changed in the last few commits?',
-    'Plan the next step before writing anything',
-  ],
-  none: [
-    'What can you do here, and what needs my approval?',
-    'Help me start a new project',
-    'Write a note I can keep in this chat',
-  ],
-}
-
-function ChatHome({ temporary, projectName, mode, onStart, children }) {
-  const starters = projectName ? STARTERS.project : STARTERS.none
+// The empty thread a new chat shows when no home stands in for it (a
+// temporary chat, or a host that passes no freshHome): one heading, one line.
+function ChatHome({ temporary, projectName, children }) {
   return (
     <div className="chat-home">
-      <h1>{temporary ? 'Temporary chat' : projectName ? projectName : 'New chat'}</h1>
+      <h1>{temporary ? 'Temporary chat' : projectName || 'New chat'}</h1>
       <p className="chat-home-lede">
         {temporary
           ? 'Nothing from this chat is written to disk. It is gone once you leave it.'
-          : projectName
-            ? `Files this chat writes go to ${projectName}. Commits, pushes and new network hosts wait for your approval.`
-            : 'Not tied to a project. Files this chat writes stay with the chat; pick a project to work in one.'}
+          : projectName ? `Files this chat writes go to ${projectName}.`
+            : 'Files this chat writes stay with the chat.'}
       </p>
-      <dl className="chat-home-facts">
-        <dt>Mode</dt>
-        <dd><b>{MODE_SHORT[mode] || mode}</b> <span className="dim">{MODE_HINT[mode]}</span></dd>
-      </dl>
       {children}
-      <div className="chat-home-h">Start with</div>
-      <ul className="chat-home-starters">
-        {starters.map((s) => (
-          <li key={s}>
-            <button type="button" onClick={() => onStart(s)}>{s}</button>
-          </li>
-        ))}
-      </ul>
     </div>
   )
 }
 
-// Work (work/Work.jsx) hosts this page and adds its windows beside it. Every
-// prop is optional, so Chat on its own renders exactly as it always has:
+// Work (work/Work.jsx) hosts this page and adds its windows beside it; the
+// Agents page hosts it for one agent. Every prop is optional, so Chat on its
+// own renders exactly as it always has:
 //   toolbarExtra     rendered at the end of the chat toolbar (Work's +)
+//   toolbarStart     rendered at its start (the Agents page's way back on a phone)
 //   beside           rendered after <main>, inside .chat-layout (the windows)
 //   onProjectChange  called with the slug this chat's work goes to, or null
-//   controlRef       filled with { pickProject(slug), openProject(slug) }
+//   controlRef       filled with { pickProject(slug), openProject(slug),
+//                    openChat(id), newChat(), openPanel(tab) }
+//   home             a node, or a function of `ctl` (below), shown in the main
+//                    area instead of the chat (a project's home); the chat
+//                    stays mounted under it. homeProject: that home's project,
+//                    which the bar's buttons and the side panel then show
+//   freshHome        a function of `ctl`: what a new, empty chat shows in place
+//                    of the empty thread (a project home, a new-chat home)
+//   agent            {slug, name, project}: new chats run as this agent (the
+//                    POST carries `agent`), start in its project, and the side
+//                    panel's Files tab adds its outputs
+//   sidebar          false: no chat list (the host has its own)
+//   remember         false: don't resume or remember the last chat
+//   openId           a chat to open (a deep link); onConversation(id | null)
+//                    hears every change of the open chat
+// `ctl`, for a home: { project, conversations, projects, mode, setMode,
+// approvals, send(text, {project}), openChat(id), openPanel(tab), refresh() }.
 const NEEDS_POLL_MS = 15000
 
 export default function Chat({
   toolbarExtra = null, beside = null, onProjectChange, controlRef, home = null, onLeaveHome,
+  homeProject = null, freshHome = null, agent = null, sidebar = true, remember = true,
+  openId = null, onConversation, toolbarStart = null,
 } = {}) {
   const [conversations, setConversations] = useState([])
   const [conversationId, setConversationId] = useState(null)
@@ -92,8 +84,9 @@ export default function Chat({
   const [multiline, setMultiline] = useState(false)   // composer past one line
   const ask = useAsk()
   // project chosen for a chat that doesn't exist yet; sent with the first turn
-  const [pendingProject, setPendingProject] = useState('')
-  const [pendingMode, setPendingMode] = useState('follow')
+  // (an agent's chat starts in the agent's project, as the server would put it)
+  const [pendingProject, setPendingProject] = useState(agent?.project || '')
+  const [pendingMode, setPendingMode] = useState(agent?.project ? 'pin' : 'follow')
   // a temporary chat persists nothing: no conversation row, no transcript.
   // Doesn't repaint the GUI — the toolbar switch and the composer placeholder
   // carry it.
@@ -106,9 +99,15 @@ export default function Chat({
   const [needsPoke, setNeedsPoke] = useState(0)
   const asks = useOperatorAsks(conversationId, busy)   // ask_user / permission asks
   const [permMode, setPermMode] = usePermissionMode(conversationId)
+  // the mode a chat started from a home gets, while a saved chat stays open
+  // under that home (with none open, the new chat's mode is permMode itself)
+  const [newMode, setNewMode] = usePermissionMode(null)
+  // the scope the last new-chat send asked for: { mode, project }
+  const newScope = useRef(null)
   // on a phone the list is an overlay, so it starts closed unless the operator
   // has explicitly opened it before; on desktop it stays open by default
   const [sideOpen, setSideOpen] = useState(() => {
+    if (!sidebar) return false
     const saved = localStorage.getItem('jarvis.chat.side')
     if (saved) return saved !== 'closed'
     return !isPhone()
@@ -141,7 +140,7 @@ export default function Chat({
   // Read during render, before any effect: the persistence effect below fires
   // on mount with a null id and would clear the key before a restore effect
   // could read it.
-  const resumeId = useRef(Number(localStorage.getItem('jarvis.chat.last')) || null)
+  const resumeId = useRef(remember ? Number(localStorage.getItem('jarvis.chat.last')) || null : null)
 
   const refreshConvos = () =>
     api('/api/conversations').then((r) => setConversations(r.conversations))
@@ -158,7 +157,7 @@ export default function Chat({
       // drawer's "Chat history" row just asked for it, and closing it here
       // shut the list the operator had opened a frame earlier.
       if (id && r.conversations.some((c) => c.id === id)) openConversation(id, { resume: true })
-      else localStorage.removeItem('jarvis.chat.last')
+      else if (remember) localStorage.removeItem('jarvis.chat.last')
     }).catch(() => {})
     api('/api/projects').then((r) => { setActive(r.active); setProjects(r.projects) })
     // the Projects sheet made a change: the sidebar's Projects list is this copy
@@ -175,9 +174,25 @@ export default function Chat({
   // actually means "new". Resuming makes the two distinct: ＋ is now the only
   // way to start one.
   useEffect(() => {
+    if (!remember) return
     if (conversationId) localStorage.setItem('jarvis.chat.last', String(conversationId))
     else localStorage.removeItem('jarvis.chat.last')
-  }, [conversationId])
+  }, [conversationId, remember])
+
+  // A host that routes chats (the Agents page: /agents/<slug>/c/<id>) passes
+  // the id in the URL and hears every change: changes only, so the first
+  // render's empty chat doesn't navigate a deep link away before it opens.
+  const reported = useRef(conversationId)
+  useEffect(() => {
+    if (conversationId === reported.current) return
+    reported.current = conversationId
+    onConversation?.(conversationId)
+  }, [conversationId])   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (openId && openId !== conversationId) openConversation(openId)
+    // the URL lost its chat (Back): show a new one, as the URL says
+    else if (!openId && conversationId && onConversation) newConversation()
+  }, [openId])   // eslint-disable-line react-hooks/exhaustive-deps
 
 
   useEffect(() => {
@@ -267,26 +282,20 @@ export default function Chat({
   }
   useEffect(autoGrow, [input])
 
-  // a starting point from the empty state: into the composer, not sent
-  function startWith(text) {
-    setInput(text)
-    inputRef.current?.focus({ preventScroll: true })
-  }
-
   // One handler for both paths: the live POST stream and a resumed tail.
   // token/tool/tool_result/job fold into the streaming message's parts (text
   // tokens batched: turnEvents.makeTurnFolder); final swaps in the reply with
   // the activity collapsed above it; an error keeps the run and appends itself.
   // `mine` is the counter value the stream started under: once the view has
   // moved to another chat (gen bumped) the stream is stale and says nothing.
-  function handleTurnEvent(ev, mine = gen.current) {
+  function handleTurnEvent(ev, mine = gen.current, ephemeral = temporary) {
     if (mine !== gen.current) return
     slash.onEvent(ev)
     asks.onEvent(ev)
     if (ev.type === 'start') {
       liveId.current = ev.conversation_id
       // temporary: never adopt the id, or the chat becomes a saved one
-      if (!temporary) {
+      if (!ephemeral) {
         setConversationId(ev.conversation_id)
         adoptConversation(ev.conversation_id)
       }
@@ -300,10 +309,12 @@ export default function Chat({
   // swapped to the WRONG project's board for the whole turn, and back when it
   // ended. Give the row what the send asked for now, then fetch the real one.
   function adoptConversation(id) {
+    const { mode, project } = newScope.current || { mode: pendingMode, project: pendingProject }
     setConversations((cs) => (cs.some((c) => c.id === id) ? cs : [{
       id, summary: '', running: true,
-      project_slug: pendingMode === 'pin' ? (pendingProject || null) : null,
-      project_locked: pendingMode === 'follow' ? 0 : 1,
+      project_slug: mode === 'pin' ? (project || null) : null,
+      project_locked: mode === 'follow' ? 0 : 1,
+      agent_slug: agent?.slug || null,
     }, ...cs]))
     refreshConvos()
   }
@@ -395,8 +406,8 @@ export default function Chat({
     setConversationId(null)
     setMessages([])
     setChatJobs([])
-    setPendingProject('')
-    setPendingMode('follow')
+    setPendingProject(agent?.project || '')
+    setPendingMode(agent?.project ? 'pin' : 'follow')
     setTemporary(false)
   }
 
@@ -460,6 +471,10 @@ export default function Chat({
         setPendingMode('pin')
         setPendingProject(slug)
       },
+      openChat: (id) => { leaveHome(); openConversation(id) },
+      newChat: () => { leaveHome(); newConversation() },
+      openPanel: (tab) => setPanel(tab),
+      refresh: refreshConvos,
     }
   }
 
@@ -473,10 +488,13 @@ export default function Chat({
   }
 
   // `url` sends somewhere other than /api/chat: the resume endpoint, which
-  // refuses (409) unless the chat's last turn really died
-  async function send(resend = null, url = undefined) {
+  // refuses (409) unless the chat's last turn really died. `fresh` (a home's
+  // composer) starts a new chat whatever this view held a moment ago, with
+  // `fields` over the new-chat defaults.
+  async function send(resend = null, url = undefined, { fresh = false, fields = null } = {}) {
     const text = (resend ?? input).trim()
-    if (!text || busy) return
+    if (!text || (busy && !fresh)) return
+    const cid = fresh ? null : conversationId
     const mine = gen.current
     let started = false   // the turn began (a `start` arrived)
     let settled = false   // it ended (a `final` or `error` arrived)
@@ -485,18 +503,21 @@ export default function Chat({
     if (!resend) setInput('')
     setMessages((m) => [...m, ...newTurn(text)])
     follow.jump()   // sending is a request to see the answer
+    // only meaningful when the conversation is being created by this turn
+    const created = cid ? {} : {
+      project: pendingProject || null, project_mode: pendingMode,
+      ...(agent ? { agent: agent.slug } : {}), ...slash.newChatFields,
+      permission_mode: wireMode(permMode), ...fields,
+    }
+    if (!cid) newScope.current = { mode: created.project_mode, project: created.project || '' }
     try {
       await chatStream(
-        { message: text, conversation_id: conversationId,
-          ephemeral: temporary,
-          // only meaningful when the conversation is being created by this turn
-          ...(conversationId ? {} : { project: pendingProject || null,
-                                      project_mode: pendingMode, ...slash.newChatFields,
-                                      permission_mode: wireMode(permMode) }) },
+        { message: text, conversation_id: cid,
+          ephemeral: fresh ? false : temporary, ...created },
         (ev) => {
           if (ev.type === 'start') started = true
           if (ev.type === 'final' || ev.type === 'error') settled = true
-          handleTurnEvent(ev, mine)
+          handleTurnEvent(ev, mine, fresh ? false : temporary)
         },
         url,
       )
@@ -524,16 +545,16 @@ export default function Chat({
       // The stream ended without an ending (a dropped connection, a restart).
       // Rather than leave a placeholder spinning, pick the turn back up by
       // re-attaching; a temporary chat has nothing saved to re-attach to.
-      const id = conversationId ?? liveId.current
-      if (id && !temporary) { openConversation(id, { resume: true }); return }
+      const id = cid ?? liveId.current
+      if (id && (fresh || !temporary)) { openConversation(id, { resume: true }); return }
       folder.current.handle({ type: 'error', message: 'the connection dropped mid-turn' })
     }
     setBusy(false)
     api('/api/conversations').then((r) => setConversations(r.conversations))
     // a turn may have launched research, a team or a plan run: refresh the
     // Runs view's "this chat" list (a temporary chat has nothing to fetch)
-    const done = conversationId ?? liveId.current
-    if (done && !temporary) {
+    const done = cid ?? liveId.current
+    if (done && (fresh || !temporary)) {
       api(`/api/conversations/${done}/messages`)
         .then((r) => setChatJobs(r.jobs || [])).catch(() => {})
     }
@@ -614,40 +635,84 @@ export default function Chat({
   // the panel's store: the project, else a saved chat's own `chat-<id>` files
   const panelSlug = effectiveProject || (conversationId && !temporary ? `chat-${conversationId}` : null)
 
+  // A home in the main area: the host's (a project's home, over whatever chat
+  // is open; its project is homeProject) or the fresh one (what a new, empty
+  // chat shows, for the project it would work in). The bar and the side panel
+  // then describe the home's project, and a chat started there is a new one.
+  const onHome = !!home
+  const freshShown = !onHome && !!freshHome && fresh && !temporary
+  const homeSlug = onHome ? homeProject : freshShown ? effectiveProject : null
+  const [homeMode, setHomeMode] = conversationId ? [newMode, setNewMode] : [permMode, setPermMode]
+  const homeChatIds = homeSlug
+    ? conversations.filter((c) => c.project_slug === homeSlug).map((c) => c.id) : []
+  function startFresh(text, { project } = {}) {
+    if (conversationId || messages.length || temporary) newConversation()
+    leaveHome()
+    const fields = { permission_mode: wireMode(homeMode) }
+    if (project) {
+      setPendingMode('pin')
+      setPendingProject(project)
+      Object.assign(fields, { project, project_mode: 'pin' })
+    }
+    send(text, undefined, { fresh: true, fields })
+  }
+  const openFromHome = (id) => { leaveHome(); openConversation(id) }
+  const ctl = {
+    project: homeSlug, chatIds: homeChatIds, conversations, projects,
+    mode: homeMode, setMode: setHomeMode,
+    approvals: freshShown && approvalsTail.length > 0
+      ? <div className="chat-approvals">{approvalRows(approvalsTail)}</div> : null,
+    send: startFresh, openChat: openFromHome, openPanel: (tab) => setPanel(tab),
+    refresh: refreshConvos,
+  }
+  const homeNode = onHome ? (typeof home === 'function' ? home(ctl) : home)
+    : freshShown ? freshHome(ctl) : null
+
   // The bar's controls: plain buttons. Each names what it is and its value,
   // and opens the project panel at the tab that changes it (Project: Files,
   // Mode: Security, Runs: Runs). Temporary is the one toggle, pressed or not.
+  const barMode = onHome ? homeMode : permMode
+  const barRuns = onHome ? !!homeProject : runsOffered
   const barControls = (
     <>
-      <button type="button" className={`pp-bar-btn${scopeMode === 'pin' ? ' pinned' : ''}`}
+      <button type="button" className={`pp-bar-btn${onHome || scopeMode === 'pin' ? ' pinned' : ''}`}
               aria-haspopup="dialog" aria-expanded={panel === 'files'}
               onClick={() => setPanel(panel === 'files' ? null : 'files')}>
         <span className="pp-k">Project</span>
-        <span className="pp-v ellipsis">{scopeLabel}</span>
+        <span className="pp-v ellipsis">{onHome ? projectName(homeProject) : scopeLabel}</span>
       </button>
-      {!conversationId && (
+      {!conversationId && !onHome && (
         <button type="button" className={`pp-bar-btn pp-toggle${temporary ? ' on' : ''}`}
                 aria-pressed={temporary} onClick={() => setTemporary((t) => !t)}>
           {temporary && <UiGlyph name="check" size={14} />}
           <span className="pp-v">Temporary chat</span>
         </button>
       )}
-      <button type="button" className={`pp-bar-btn mode-${permMode}`}
+      <button type="button" className={`pp-bar-btn mode-${barMode}`}
               aria-haspopup="dialog" aria-expanded={panel === 'security'}
               onClick={() => setPanel(panel === 'security' ? null : 'security')}>
         <span className="pp-k">Mode</span>
-        <span className="pp-v">{MODE_SHORT[permMode] || permMode}</span>
+        <span className="pp-v">{MODE_SHORT[barMode] || barMode}</span>
       </button>
-      {runsOffered && (
+      {barRuns && (
         <button type="button" className="pp-bar-btn"
                 aria-haspopup="dialog" aria-expanded={panel === 'runs'}
                 onClick={() => setPanel(panel === 'runs' ? null : 'runs')}>
           <span className="pp-v">Runs</span>
-          {runningJobs > 0 && <span className="chat-runs-count">{runningJobs}</span>}
+          {!onHome && runningJobs > 0 && <span className="chat-runs-count">{runningJobs}</span>}
         </button>
       )}
     </>
   )
+  // what the side panel describes: the home's project, or this chat's scope
+  const panelProps = onHome
+    ? { cid: null, temporary: false, slug: homeProject, isProject: !!homeProject, scope: null,
+        permMode: homeMode, onPermMode: setHomeMode, runs: !!homeProject, chatJobs: [],
+        chatIds: homeChatIds }
+    : { cid: conversationId, temporary, slug: panelSlug, isProject: !!effectiveProject,
+        scope: { mode: scopeMode, value: scopeValue, onPick: pickScope },
+        permMode, onPermMode: setPermMode, runs: runsOffered, chatJobs,
+        chatIds: freshShown ? homeChatIds : undefined }
 
   const slash = useSlash({
     input, setInput, busy, conversationId, turnId: () => conversationId ?? liveId.current,
@@ -662,9 +727,10 @@ export default function Chat({
   })
 
   return (
-    <div className="chat-layout"
-         onTouchStart={onEdgeTouchStart} onTouchMove={onEdgeTouchMove}>
-      <aside className={sideOpen ? '' : 'collapsed'}>
+    <div className={`chat-layout${sidebar ? '' : ' no-side'}`}
+         onTouchStart={sidebar ? onEdgeTouchStart : undefined}
+         onTouchMove={sidebar ? onEdgeTouchMove : undefined}>
+      {sidebar && <aside className={sideOpen ? '' : 'collapsed'}>
         <div className="side-head">
           <button type="button" className="icon-btn"
                   title={sideOpen ? 'collapse sidebar' : 'expand sidebar'}
@@ -682,20 +748,34 @@ export default function Chat({
                     onRename={(c) => renameConversation(c.id, c.summary)}
                     onDelete={(c) => deleteConversation(c.id)}
                     onChanged={refreshConvos} />
-      </aside>
-      {sideOpen && (
+      </aside>}
+      {sidebar && sideOpen && (
         <div className="chat-scrim" onClick={() => setSideOpen(false)} />
       )}
-      {/* a project's home (Work, /project/:slug) takes the main area; the chat
-          stays mounted under it, hidden, so a running turn and its scroll
-          position are there when the operator goes back */}
-      {home && <main className="chat-home-main">{home}</main>}
-      <main hidden={!!home}>
+      {/* a home takes the main area: a project's (Work, /project/:slug), with
+          the chat mounted under it, hidden, so a running turn and its scroll
+          position are there when the operator goes back; or a new chat's.
+          The bar rides on top of it as it does on a chat. */}
+      {homeNode && (
+        <main className="chat-home-main">
+          <div className="chat-toolbar chat-home-bar">
+            {toolbarStart}
+            <span className="grow" />
+            <div className="chat-meta">
+              {barControls}
+              {toolbarExtra}
+            </div>
+          </div>
+          {homeNode}
+        </main>
+      )}
+      <main hidden={!!homeNode}>
         {/* the one home for the project state — except a fresh chat on a
             phone, where the controls sit in the empty state and the bar
             itself would just be an empty strip */}
         {(!phone || !fresh) && (
           <div className="chat-toolbar">
+            {toolbarStart}
             {conversationId
               ? <span className="chat-title ellipsis">
                   {openConvo?.summary || `Chat #${conversationId}`}</span>
@@ -712,12 +792,12 @@ export default function Chat({
         <div className="messages" ref={scrollRef}>
           {messages.length === 0 ? (
             <div className="chat-empty">
-              <ChatHome temporary={temporary} mode={permMode} onStart={startWith}
+              <ChatHome temporary={temporary}
                         projectName={effectiveProject
                           ? (projects.find((p) => p.slug === effectiveProject)?.name || effectiveProject)
                           : null}>
                 {phone && fresh && (
-                  <div className="empty-controls">{barControls}</div>
+                  <div className="empty-controls">{toolbarStart}{barControls}</div>
                 )}
                 {approvalsTail.length > 0 && (
                   <div className="chat-approvals">{approvalRows(approvalsTail)}</div>
@@ -773,8 +853,8 @@ export default function Chat({
               // a phone's bar is ~230px of text: the long form wrapped onto a
               // second line the one-row box then clipped
               placeholder={temporary
-                ? (phone ? 'Temporary message' : 'Message CNTRL (temporary chat)')
-                : 'Message CNTRL'}
+                ? (phone ? 'Temporary message' : `Message ${agent?.name || 'CNTRL'} (temporary chat)`)
+                : `Message ${agent?.name || 'CNTRL'}`}
               rows={1}
             />
             <ModelPicker chip="model-chip" wrap="composer-model" />
@@ -788,13 +868,10 @@ export default function Chat({
       </main>
       {beside}
       <ProjectPanel open={panel !== null} tab={panel || 'files'} onTab={setPanel}
-                    onClose={() => setPanel(null)}
-                    cid={conversationId} temporary={temporary}
-                    slug={panelSlug} isProject={!!effectiveProject}
-                    projects={projects} loaded={active}
-                    scope={{ mode: scopeMode, value: scopeValue, onPick: pickScope }}
-                    permMode={permMode} onPermMode={setPermMode}
-                    runs={runsOffered} chatJobs={chatJobs} />
+                    onClose={() => setPanel(null)} projects={projects} loaded={active}
+                    {...panelProps}
+                    agent={agent ? { slug: agent.slug, name: agent.name } : null}
+                    onOpenChat={openFromHome} />
     </div>
   )
 }

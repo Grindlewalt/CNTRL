@@ -28,6 +28,24 @@ const Projects = lazy(() => import('../pages/Projects.jsx'))
 // chat sidebar kept beside it, as Claude.ai's project pages keep theirs
 const ProjectHomeBody = lazy(() => import('../pages/ProjectHome.jsx')
   .then((m) => ({ default: m.ProjectHomeBody })))
+// a new chat with no project: the same layout, a title, the composer, recents
+const StartHome = lazy(() => import('../pages/ProjectHome.jsx')
+  .then((m) => ({ default: m.StartHome })))
+const homePending = <div className="route-pending" aria-busy="true" />
+
+// What a new, empty chat shows (Chat's freshHome): the home of the project it
+// would work in, else a plain new-chat home. The same on a cold load of / as
+// after any click, because it follows the chat's state, not the route.
+function freshHome(ctl) {
+  return (
+    <Suspense fallback={homePending}>
+      {ctl.project
+        ? <ProjectHomeBody key={ctl.project} slug={ctl.project} ctl={ctl} />
+        : <StartHome title="New chat" placeholder="Message CNTRL" ctl={ctl}
+                     chats={ctl.conversations} empty="No chats yet. Start one above." />}
+    </Suspense>
+  )
+}
 
 // Work: the chat (pages/Chat.jsx, unchanged in look and behaviour) with the
 // chat's project's windows beside it — the old project board's cards as a
@@ -454,11 +472,12 @@ export default function Work({ openProjects = false, projectHome = false }) {
         <Chat controlRef={chatCtl} onProjectChange={onProjectChange}
               toolbarExtra={<><StopMenu project={project} />{phone ? null : plus}</>}
               beside={homeSlug ? null : beside}
-              home={homeSlug && (
-                <Suspense fallback={<div className="route-pending" aria-busy="true" />}>
-                  <ProjectHomeBody key={homeSlug} slug={homeSlug} />
+              home={homeSlug && ((ctl) => (
+                <Suspense fallback={homePending}>
+                  <ProjectHomeBody key={homeSlug} slug={homeSlug} ctl={ctl} />
                 </Suspense>
-              )}
+              ))}
+              homeProject={homeSlug} freshHome={freshHome}
               onLeaveHome={() => navigate('/')} />
         {picker && (
           <WindowPicker anchor={picker.anchor} project={project} projects={projects}

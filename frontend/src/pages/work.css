@@ -222,7 +222,7 @@
 .turn-status-now { font: var(--fs-xs)/1 var(--mono); color: var(--slate); }
 .turn-status-dot { background: var(--ok); }
 
-/* ---- a new chat: what it is scoped to, how it asks, where to start ---- */
+/* ---- an empty thread with no home in front of it (a temporary chat) ---- */
 .chat-empty {
   height: auto; min-height: 100%; display: block; max-width: 760px; margin: 0 auto;
   padding: 9vh 0 calc(var(--dock-h, 104px) + var(--sp-9)); animation: none;
@@ -230,21 +230,9 @@
 .chat-home h1 { margin: 0 0 var(--sp-4); font-size: var(--fs-2xl); font-weight: 600;
   letter-spacing: var(--track-head); max-width: none; text-align: left; }
 .chat-home-lede { margin: 0 0 var(--sp-8); color: var(--slate); font-size: var(--fs-lg); max-width: 60ch; }
-.chat-home-facts { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-2) var(--sp-7);
-  margin: 0 0 var(--sp-10); font-size: var(--fs-base); max-width: 60ch; }
-.chat-home-facts dt { color: var(--slate); }
-.chat-home-facts dd { margin: 0; }
-.chat-home-facts b { font-weight: 600; }
-.chat-home-h { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); font-weight: 600; color: var(--slate); }
-.chat-home-starters { list-style: none; margin: 0 0 var(--sp-9); padding: 0; max-width: 60ch; }
-.chat-home-starters li { border-top: 1px solid var(--line); }
-.chat-home-starters li:last-child { border-bottom: 1px solid var(--line); }
-.chat-home-starters button {
-  display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 0;
-  padding: var(--sp-5) var(--sp-2); color: var(--ink); font-size: var(--fs-base); font-weight: 400;
-  min-height: 0; transition: background 0.15s;
-}
-.chat-home-starters button:hover:not(:disabled) { background: var(--wash); filter: none; transform: none; }
+/* a home's bar: the chat's bar over the home, nothing to its left */
+.chat-home-main { display: flex; flex-direction: column; }
+.chat-home-main > :not(.chat-toolbar) { flex: 1; min-height: 0; }
 .chat-empty .empty-controls { flex-direction: row; flex-wrap: wrap; align-items: center;
   gap: var(--sp-3); margin: 0 0 var(--sp-9); }
 .chat-empty .chat-approvals { width: auto; max-width: 60ch; margin: 0 0 var(--sp-9); }
@@ -551,6 +539,10 @@
   grid-template-areas: "head side" "recents side"; grid-template-rows: auto 1fr;
   align-items: start;
 }
+/* a new chat's or an agent's home: no project column, one reading width */
+.ph-grid.ph-grid-solo { max-width: 800px; grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "head" "recents"; }
+.ph-head > .chat-approvals { width: auto; margin: var(--sp-8) 0 0; }
 .ph-head { grid-area: head; min-width: 0; }
 .ph-side { grid-area: side; min-width: 0; }
 .ph-recents { grid-area: recents; min-width: 0; margin-top: var(--sp-11); }
