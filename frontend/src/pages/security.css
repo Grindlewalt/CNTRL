@@ -557,3 +557,17 @@
 .pf-host .field, .pf-host input { flex: 1; min-width: 0; }
 .pf-never { display: block; }
 @media (max-width: 560px) { .pf-two { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- nw-: the All decisions page and the decision drawer ---- */
+.nw-all-head { display: flex; align-items: baseline; gap: var(--sp-6); flex-wrap: wrap; }
+.nw-all-head h3 { margin: 0; }
+.nw-filters { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-5); }
+.nw-pager { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-6); }
+.nw-facts { margin: 0; display: flex; flex-direction: column; }
+.nw-facts > div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: var(--sp-5);
+  padding: var(--sp-4) 0; border-top: 1px solid var(--line); }
+.nw-facts > div:first-child { border-top: 0; }
+.nw-facts dt { color: var(--slate); font-size: var(--fs-md); }
+.nw-facts dd { margin: 0; overflow-wrap: anywhere; font-size: var(--fs-md); }
+.nw-facts dd.mono { font-size: var(--fs-sm); }
+@media (max-width: 640px) { .nw-filters { grid-template-columns: minmax(0, 1fr); } }

@@ -63,6 +63,7 @@ const Review = lazy(() => import('./pages/Review.jsx'))
 const ReviewHome = lazy(() => import('./pages/Review.jsx')
   .then((m) => ({ default: m.ReviewHome })))
 const Network = lazy(() => import('./pages/Network.jsx'))
+const NetworkAll = lazy(() => import('./pages/Network.jsx').then((m) => ({ default: m.NetworkAll })))
 const Logs = lazy(() => import('./pages/Logs.jsx'))
 const SecretsPanel = lazy(() => import('./SecretsPanel.jsx'))
 const Persistent = lazy(() => import('./pages/Persistent.jsx'))
@@ -150,6 +151,7 @@ export default function AppRoutes({ onLogin, onSetup, authed }) {
           <Route index element={<ReviewHome />} />
           <Route path="persistent" element={<Persistent />} />
           <Route path="network" element={<Network />} />
+          <Route path="network/all" element={<NetworkAll />} />
           <Route path="profiles" element={<Profiles />} />
           <Route path="logs" element={<Logs />} />
           <Route path="secrets" element={<SecretsPanel />} />
