@@ -214,6 +214,7 @@ export default function Chat({
     if (!el || !box) return          // not drawn yet: the next messages change tries again
     try { sessionStorage.removeItem('jarvis.chat.step') } catch { /* private mode */ }
     const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop
+    follow.leave()                   // stay on it as later rows or approvals grow the list
     box.scrollTop = Math.max(0, top - box.clientHeight / 3)
     el.classList.add('step-hit')
     setTimeout(() => el.classList.remove('step-hit'), 3600)
@@ -234,6 +235,7 @@ export default function Chat({
     const range = findTextRange(el, a.q)
     const at = (range && range.getBoundingClientRect().height ? range : el).getBoundingClientRect()
     const top = at.top - box.getBoundingClientRect().top + box.scrollTop
+    follow.leave()                   // stay on it as later rows or approvals grow the list
     box.scrollTop = Math.max(0, top - box.clientHeight / 3)
     el.classList.add('step-hit')
     setTimeout(() => el.classList.remove('step-hit'), 3600)

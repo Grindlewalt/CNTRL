@@ -121,7 +121,8 @@ export function useFollow(ref, { mark = 0, resetKey = null } = {}) {
   // another transcript: start following it
   useLayoutEffect(() => { stuck.current = true; setPinned(true); toEnd() }, [resetKey, toEnd])
 
-  return { pinned, away: pinned ? 0 : Math.max(0, mark - leftAt.current), follow, jump }
+  // leave: stop following now (a jump to a step or a message the reader asked for)
+  return { pinned, away: pinned ? 0 : Math.max(0, mark - leftAt.current), follow, jump, leave }
 }
 
 // The composer floats over the bottom of the thread, and what rides with it
