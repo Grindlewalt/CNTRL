@@ -18,6 +18,7 @@ See backend/agent/tools/imported.py for what the registry does with the pin.
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import os
@@ -229,6 +230,55 @@ def _fetch_clawhub(spec: str, tmp: Path) -> tuple[Path, dict]:
     return dest, {"source": f"clawhub:{slug}", "ref": version or ""}
 
 
+def _fetch_http(source: str, tmp: Path) -> tuple[Path, dict]:
+    """A zip URL or a raw SKILL.md URL, fetched host-side behind the same SSRF
+    guard (a host in CNTRL_SKILL_IMPORT_ALLOW_HOSTS may be plain http), with a
+    hard size cap while streaming."""
+    _check_url(source)
+    allowed = _allowed_hosts()
+
+    def check(request: httpx.Request) -> None:
+        if (request.url.host or "").lower() in allowed:
+            return
+        try:
+            websec.is_safe_url(str(request.url))
+        except websec.UnsafeURL as e:
+            raise SkillImportError(f"refused: {e}") from None
+
+    buf = bytearray()
+    with httpx.Client(timeout=30, follow_redirects=True,
+                      event_hooks={"request": [check]}) as c:
+        with c.stream("GET", source) as r:
+            if r.status_code != 200:
+                raise SkillImportError(f"that link returned {r.status_code}")
+            for chunk in r.iter_bytes():
+                buf += chunk
+                if len(buf) > MAX_DOWNLOAD_BYTES:
+                    raise SkillImportError("download too large")
+    dest = tmp / "dl"
+    dest.mkdir()
+    if urlparse(source).path.lower().endswith(".zip"):
+        _extract_zip(bytes(buf), dest)
+        if not (dest / "SKILL.md").is_file():
+            tops = [p for p in dest.iterdir() if p.is_dir() and (p / "SKILL.md").is_file()]
+            if len(tops) != 1:
+                raise SkillImportError("archive has no SKILL.md")
+            dest = tops[0]
+    else:
+        (dest / "SKILL.md").write_bytes(bytes(buf))
+    return dest, {"source": source, "ref": hashlib.sha256(bytes(buf)).hexdigest()[:12]}
+
+
+def _is_file_link(source: str) -> bool:
+    """A zip anywhere, or a raw SKILL.md (a github.com blob link stays a repo link)."""
+    u = urlparse(source)
+    path = u.path.lower()
+    if path.endswith(".zip"):
+        return True
+    return path.endswith("/skill.md") and (u.hostname or "").lower() not in (
+        "github.com", "www.github.com")
+
+
 def _fetch(source: str, tmp: Path) -> tuple[Path, dict]:
     source = source.strip()
     if source.startswith("clawhub:"):
@@ -236,6 +286,8 @@ def _fetch(source: str, tmp: Path) -> tuple[Path, dict]:
     if re.match(r"^[a-z][a-z0-9+.-]*://", source, re.I) or source.startswith("git@"):
         if not source.lower().startswith(("https://", "http://")):
             raise SkillImportError("only https:// git URLs are accepted")
+        if _is_file_link(source):
+            return _fetch_http(source, tmp)
         return _fetch_git(source, tmp)
     path = Path(source).expanduser()
     if not path.is_dir():
