@@ -213,6 +213,11 @@ export default function Select({
   }, [open, active, uid])
 
   function onListKey(e) {
+    // While the list is open every key is the list's: the page's shortcuts
+    // (Agents' n, Work's Tab and arrows) skip a native <select> by tag name
+    // and would otherwise act on a key typed here. Escape is unaffected:
+    // useDismiss takes it on window, in the capture phase, before this.
+    e.stopPropagation()
     if (e.nativeEvent?.isComposing) return
     const k = e.key
     const plain = !e.ctrlKey && !e.metaKey && !e.altKey
@@ -259,10 +264,10 @@ export default function Select({
     if (disabled || open) return
     const k = e.key
     if (k === 'ArrowDown' || k === 'ArrowUp') {
-      e.preventDefault(); openList(); return
+      e.preventDefault(); e.stopPropagation(); openList(); return
     }
     if (k.length === 1 && k !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      e.preventDefault()
+      e.preventDefault(); e.stopPropagation()
       if (searchable) openList(k)
       else openList('', k)
     }
