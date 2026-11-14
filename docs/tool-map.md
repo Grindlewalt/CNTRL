@@ -5,7 +5,7 @@ frontmatter and `backend/agent/tools/toolsections.py`; do not edit by hand
 (tests/test_toolcatalog.py fails when it is stale). The Tools page shows the same
 list, and searching it by an old name finds the action.
 
-The model can be offered **28 tools with 87 actions** (1 of the actions is switched off in its folder).
+The model can be offered **26 tools with 87 actions** (1 of the actions is switched off in its folder).
 2 more tools with 4 more actions are internal (`plan_status`, `plan_fix`, `plan_report`, `inbox_fetch`): the harness grants or calls them, and the model is not offered them on a normal turn. A TOOL.md marks one with `internal: true`; nothing else reads the key, so it changes what the Tools page lists and nothing about what is granted.
 
 A turn lists only the core tools (at most 11 names, with `tools`) until the model loads a section with `tools(section=...)`. Every old name still works when called directly, and a transcript's tool call keeps its old name.
@@ -124,7 +124,7 @@ The project's long-running services: status, logs, request one.
 
 ## agents
 
-Run or define agents, agent teams, plan runs, message a running agent.
+Run or define agents, agent teams, plan runs, message a running agent, propose recurring headless runs (schedules).
 
 | Old name | The model calls | Core | Gating |
 | --- | --- | --- | --- |
@@ -134,6 +134,7 @@ Run or define agents, agent teams, plan runs, message a running agent.
 | `create_agent` | `agents(action="create")` |  |  |
 | `deploy_agents` | `agents(action="deploy")` |  | needs project |
 | `orchestrate` | `agents(action="orchestrate")` |  | needs project |
+| `schedule_update` | `agents(action="schedule")` |  |  |
 
 ## plans
 
@@ -144,14 +145,6 @@ The running plan: status, repairs, an item's report.
 | `plan_status` | `plans(action="status")` |  | needs project, plan items only, internal |
 | `plan_fix` | `plans(action="fix")` |  | needs project, plan items only, internal |
 | `plan_report` | `plans(action="report")` |  | plan items only, internal |
-
-## schedules
-
-Propose recurring headless runs.
-
-| Old name | The model calls | Core | Gating |
-| --- | --- | --- | --- |
-| `schedule_update` | `schedule_update` |  |  |
 
 ## memory
 
@@ -164,7 +157,7 @@ Your durable memory notes.
 
 ## media
 
-The operator's music (play, pause, volume, download), the clap songs, videos and web pages on their screen.
+The operator's music (play, pause, volume, download), the clap songs, videos and web pages on their screen, the projection mapper.
 
 | Old name | The model calls | Core | Gating |
 | --- | --- | --- | --- |
@@ -177,17 +170,10 @@ The operator's music (play, pause, volume, download), the clap songs, videos and
 | `open_website` | `media(action="website")` |  |  |
 | `play_movie` | `media(action="video")` |  |  |
 | `play_music` | `media(action="audio")` |  | disabled |
-
-## projector
-
-The projection mapper: surfaces, scenes, output window, universe.
-
-| Old name | The model calls | Core | Gating |
-| --- | --- | --- | --- |
-| `projector_show` | `projector(action="show")` |  | needs setup |
-| `projector_status` | `projector(action="status")` |  | needs setup |
-| `projector_output` | `projector(action="output")` |  | needs setup |
-| `projector_universe` | `projector(action="universe")` |  | needs setup |
+| `projector_output` | `media(action="projector_output")` |  | needs setup |
+| `projector_show` | `media(action="projector_show")` |  | needs setup |
+| `projector_status` | `media(action="projector_status")` |  | needs setup |
+| `projector_universe` | `media(action="projector_universe")` |  | needs setup |
 
 ## local
 
