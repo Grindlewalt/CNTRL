@@ -493,6 +493,12 @@
 .pp-more { width: 28px; height: 28px; margin-right: var(--sp-2); opacity: 0; }
 .pp-file:hover .pp-more, .pp-file.menu-open .pp-more, .pp-more:focus-visible, .pp-file:focus-within .pp-more { opacity: 1; }
 .pp-zip { font-size: var(--fs-sm); }
+/* an agent's outputs: a row per thread, its files indented under it */
+.pp-output-files { margin: 0 0 var(--sp-2) var(--sp-7); }
+/* the chats' artifact stores: one small heading per chat */
+.pp-store + .pp-store { margin-top: var(--sp-5); }
+.pp-store-h { display: flex; align-items: center; gap: var(--sp-4); margin: 0 0 var(--sp-2); }
+.pp-store-h .ellipsis { flex: 1; min-width: 0; }
 
 /* the viewer: the panel widens, the body fills */
 .pp-panel.viewing .side-panel-body { padding: 0; display: flex; flex-direction: column; }

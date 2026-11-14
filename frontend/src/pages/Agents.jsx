@@ -349,8 +349,9 @@ export function AgentDefinitions() {
                            { replace: true })
                 }}
                 toolbarStart={phone && (
-                  <Button variant="ghost" className="agent-back" onClick={() => navigate('/agents')}>
-                    ‹ Agents</Button>
+                  <button type="button" className="icon-btn agent-back" title="Agents"
+                          aria-label="Back to the agents" onClick={() => navigate('/agents')}>
+                    <UiGlyph name="left" /></button>
                 )}
                 toolbarExtra={(
                   <>

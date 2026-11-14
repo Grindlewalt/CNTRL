@@ -275,7 +275,8 @@ export default function Chat({
   // the pill relaxes into a rounded box — .multi is that threshold.
   function autoGrow() {
     const ta = inputRef.current
-    if (!ta) return
+    // hidden under a home it measures 0: measure once the home gives way
+    if (!ta || !ta.offsetParent) return
     ta.style.height = 'auto'
     ta.style.height = `${ta.scrollHeight}px`
     setMultiline(ta.scrollHeight > 48)
@@ -667,6 +668,8 @@ export default function Chat({
   }
   const homeNode = onHome ? (typeof home === 'function' ? home(ctl) : home)
     : freshShown ? freshHome(ctl) : null
+  const homeShown = !!homeNode
+  useLayoutEffect(() => { if (!homeShown) autoGrow() }, [homeShown])   // eslint-disable-line react-hooks/exhaustive-deps
 
   // The bar's controls: plain buttons. Each names what it is and its value,
   // and opens the project panel at the tab that changes it (Project: Files,

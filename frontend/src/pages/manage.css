@@ -124,6 +124,11 @@
 /* the chat with the picked agent: Chat itself, filling the pane */
 .split-layout > main.agent-chat-pane { display: flex; min-height: 0; padding: 0; }
 .agent-chat-pane > .chat-layout { flex: 1; min-width: 0; }
+/* phone: the way back shares a row with the chat's title, or with the bar */
+@media (max-width: 768px) {
+  .agent-chat-pane .chat-toolbar > .agent-back + .chat-title { flex-basis: 0; }
+  .agent-chat-pane .chat-toolbar > .agent-back + .grow + .chat-meta { width: auto; flex: 1 1 0; min-width: 0; }
+}
 /* the definition editor in its dialog */
 .agent-editor .agent-prompt { flex: none; width: 100%; height: auto; min-height: 240px; resize: vertical; }
 .agent-editor .agent-last { margin: 0; }
