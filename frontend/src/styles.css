@@ -1832,19 +1832,14 @@ kbd {
 .agent-row.inline .tag { flex-shrink: 0; max-width: 45%; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
 
-/* the detail: header, the prompt as the hero, one Settings card. The pane is
-   one column that fits 1440x900 as is; it only scrolls if the notes open. */
-.agent-detail { gap: var(--sp-4); overflow-y: auto; }
-.agent-head { display: flex; align-items: center; gap: var(--sp-4); flex-shrink: 0; }
-.agent-title { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-xl);
-  font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* the definition editor (a dialog over the agent's chat): the prompt, then
+   the settings in a grid */
 .agent-back { display: none; }
 .agent-last { margin-top: calc(-1 * var(--sp-3)); font-size: var(--fs-sm);
   color: var(--dim); }
 .agent-prompt-head { display: flex; align-items: center; justify-content: space-between;
   gap: var(--sp-4); margin-top: var(--sp-3); font-size: var(--fs-sm); color: var(--dim); }
 .agent-prompt { flex: 1 1 auto; min-height: 240px; resize: none; }
-.agent-settings { flex-shrink: 0; }
 .agent-grid { display: grid; grid-template-columns: 1fr 1fr;
   gap: var(--sp-6) var(--sp-8); }
 .agent-wide { grid-column: 1 / -1; }
@@ -1868,17 +1863,11 @@ kbd {
 .agent-note pre { margin: var(--sp-2) 0 0; padding: var(--pad-row);
   background: var(--bg-soft); border-radius: var(--radius-md);
   font: var(--fs-sm) / var(--lh-base) var(--font-mono); white-space: pre-wrap; }
-/* phone: the roster is the screen until an agent is picked, then the detail
-   replaces it (with a way back). The pane scrolls as one; the prompt takes the
-   first screen — the viewport less the bar, the page head with its wrapped
-   tabs, and the detail's header rows above the textarea (~320px) — and
-   Settings follows below it. */
+/* phone: the roster is the screen until an agent is picked, then its chat
+   replaces it (with a way back in the chat's bar) */
 @media (max-width: 768px) {
   .split-layout > aside.agents-aside.picked { display: none; }
   .agent-back { display: inline-flex; }
-  .agent-detail { padding-bottom: calc(var(--sp-8) + var(--sab)); }
-  .agent-prompt { flex: none;
-    height: max(240px, calc(100dvh - var(--nav-h) - var(--sat) - var(--sab) - 320px)); }
   .agent-grid { grid-template-columns: 1fr; }
 }
 
