@@ -208,7 +208,14 @@ function Composer({ slug, name }) {
 
 // ---- Recents --------------------------------------------------------------
 
+// On a phone the list comes before the card, so it starts short: the card
+// stays a few rows away instead of under every chat the project has.
+const PHONE_RECENTS = 8
+
 function Recents({ chats, name, onChanged }) {
+  const phone = useIsPhone()
+  const [all, setAll] = useState(false)
+  const shown = phone && !all ? chats.slice(0, PHONE_RECENTS) : chats
   return (
     <section className="ph-recents" aria-labelledby="ph-recents-h">
       <h2 id="ph-recents-h" className="ph-h">Recents</h2>
@@ -216,9 +223,13 @@ function Recents({ chats, name, onChanged }) {
         ? <EmptyState className="ph-empty">No chats in {name} yet. Start one above.</EmptyState>
         : (
           <ul className="list-divided ph-chats">
-            {chats.map((c) => <ChatRow key={c.id} c={c} onChanged={onChanged} />)}
+            {shown.map((c) => <ChatRow key={c.id} c={c} onChanged={onChanged} />)}
           </ul>
         )}
+      {shown.length < chats.length && (
+        <button type="button" className="ph-more-chats" onClick={() => setAll(true)}>
+          Show all {chats.length} chats</button>
+      )}
     </section>
   )
 }
@@ -307,7 +318,8 @@ function SideRow({ icon, label, action, actionLabel, onAction, className = '', c
 // Instructions: instructions.md, first on the always-loaded list.
 function InstructionsRow({ slug, name, ins, onSaved }) {
   const [editing, setEditing] = useState(false)
-  const preview = firstLine(ins.text, 160)
+  // the start of the text, two lines at most (CSS clamps it)
+  const preview = firstLine(String(ins.text || '').replace(/\s+/g, ' '), 240)
   return (
     <SideRow icon="instructions" label="Instructions" action="Edit" onAction={() => setEditing(true)}>
       {preview
@@ -438,11 +450,10 @@ function ContextRow({ slug, ctx, onChange }) {
         <span>Loaded into every prompt</span>
         <HelpTip label="About context files" align="right">
           These files ride every prompt in this project, after the journal and the instructions,
-          until {fmtTokens(ctx.budget)} tokens are used. A file past that is named to the model
-          to read when it needs it. Text files and PDFs (as their text). Only you can change
-          this list.
+          until {fmtTokens(ctx.budget)} tokens are used (the total counts all three). A file past
+          that is named to the model to read when it needs it. Text files and PDFs (as their
+          text). Only you can change this list.
         </HelpTip>
-        <span className="ph-meta ph-push">{fmtTokens(ctx.used)} of {fmtTokens(ctx.budget)} tokens</span>
       </p>
       {files.length > 0 && (
         <ul className="list-divided ph-files">
@@ -470,6 +481,9 @@ function ContextRow({ slug, ctx, onChange }) {
           </button>
         )}
       {drag && files.length > 0 && <p className="ph-sub ph-drop-hint">Drop to add</p>}
+      <p className="ph-total">
+        <span className="ph-meta">{fmtTokens(ctx.used)} of {fmtTokens(ctx.budget)} tokens</span>
+      </p>
     </SideRow>
   )
 }
