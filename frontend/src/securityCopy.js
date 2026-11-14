@@ -61,13 +61,19 @@ export function ledeFor(table, pathname) {
 
 // ---- waiting for you: egress requests (WEB-07) -----------------------------------
 
+// Always-allow lists belong to a PROFILE, not a project (backend/egress.py
+// _append_host): allowing a site for one project allows it for every project
+// on the same profile. Allow 1 h stays with the one project.
 export const WAITING_LEDE = 'Sites a box tried to reach that no list covers yet. '
-  + '"Allow always" puts the site on that project\'s always-allow list until you remove '
-  + 'it. "Allow 1 h" lets it through for an hour and writes no list. Deny keeps it blocked.'
+  + '"Allow always" puts the site on the always-allow list of the project\'s profile, so '
+  + 'every project on that profile can reach it until you remove it. "Allow 1 h" lets it '
+  + 'through for that project for an hour and writes no list. Deny keeps it blocked.'
 
 export const ALLOW_ALWAYS_TIP = (label) => (label
-  ? `Add this site to ${label}'s always-allow list, for good. Remove it later under Always allow.`
-  : "Add this site to the project's always-allow list, for good. You choose the project next.")
+  ? `Add this site to the always-allow list of ${label}'s profile, so every project on that `
+    + 'profile can reach it. Remove it later on Network.'
+  : 'Add this site to the always-allow list of the profile of the project you choose next, '
+    + 'so every project on that profile can reach it.')
 
 export const ALLOW_ONCE_TIP = 'Let this site through for one hour. It writes no list and '
   + 'comes back here if a box asks again after that.'
@@ -79,10 +85,12 @@ export const REFUSED_TAG = 'cannot be allowed'
 
 // ---- the toast after a decision --------------------------------------------------
 
-export function decidedText(host, verb, label) {
+// `profile`: the profile whose list it went on (the approve call answers it)
+export function decidedText(host, verb, label, profile = '') {
   if (verb === 'deny') return `${host} stays blocked`
   if (verb === 'once') return `${host} allowed for an hour${label ? ` for ${label}` : ''}`
-  return `${host} added to ${label ? `${label}'s` : 'the'} always-allow list`
+  if (profile) return `${host} added to the ${profile} profile's always-allow list`
+  return `${host} added to the always-allow list of ${label ? `${label}'s` : 'its'} profile`
 }
 
 // ---- the project picker for a row that came from no project ---------------------
@@ -94,7 +102,8 @@ export const PICK_BODY = (host, verb) => `${host} was requested from the shared 
   + 'with no project attached. '
   + (verb === 'once'
     ? 'Pick the project that may reach it for the next hour.'
-    : "Pick the project whose always-allow list it should go on.")
+    : "Pick a project. The site goes on its profile's always-allow list, for every "
+      + 'project on that profile.')
 
 // ---- the Persistent tab's words (WEB-06) ------------------------------------------
 
@@ -178,7 +187,7 @@ export function secretChecklist(choices, held, showInfra) {
 
 export const AUTO_REVIEW_LEDE = [
   'A separate model with no tools reads new items every few minutes. It puts well-known '
-    + "sites on their project's always-allow list and clears routine alerts; anything else "
+    + "sites on the always-allow list of their project's profile and clears routine alerts; anything else "
     + 'it flags for you. It only touches projects whose profile allows it.',
   'It uses the model, so each run costs tokens, up to a cap per run. It never handles '
     + 'alerts about processes, secrets, or service and package requests. Everything it does '

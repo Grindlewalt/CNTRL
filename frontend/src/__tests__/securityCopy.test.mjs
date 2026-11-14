@@ -37,16 +37,22 @@ for (const tab of ['/vms', '/vms/images', '/vms/catalogue']) {
 }
 assert.notEqual(ledeFor(VMS_LEDES, '/vms/images'), ledeFor(VMS_LEDES, '/vms'))
 
-// WEB-07: the words say what Allow does, and that it is permanent for the project
-assert.match(WAITING_LEDE, /always-allow list until you remove it/)
+// WEB-07: the words say what Allow does, and that "always" is per PROFILE:
+// every project on the profile gets it (backend/egress.py _append_host)
+assert.match(WAITING_LEDE, /always-allow list of the project's profile/)
+assert.match(WAITING_LEDE, /every project on that profile can reach it until you remove it/)
 assert.match(WAITING_LEDE, /1 h/)
-assert.match(ALLOW_ALWAYS_TIP('Snake'), /Snake's always-allow list, for good/)
-assert.match(ALLOW_ALWAYS_TIP(''), /You choose the project next/)
+assert.doesNotMatch(WAITING_LEDE, /that project's always-allow/)
+assert.match(ALLOW_ALWAYS_TIP('Snake'), /always-allow list of Snake's profile, so every project on that profile/)
+assert.match(ALLOW_ALWAYS_TIP(''), /the project you choose next/)
 assert.match(ALLOW_ONCE_TIP, /one hour/)
 assert.equal(decidedText('pypi.org', 'deny'), 'pypi.org stays blocked')
 assert.equal(decidedText('pypi.org', 'once', 'Snake'), 'pypi.org allowed for an hour for Snake')
-assert.equal(decidedText('pypi.org', 'allow', 'Snake'), "pypi.org added to Snake's always-allow list")
-assert.equal(decidedText('pypi.org', 'allow', ''), 'pypi.org added to the always-allow list')
+assert.equal(decidedText('pypi.org', 'allow', 'Snake', 'Scoped'),
+  "pypi.org added to the Scoped profile's always-allow list")
+assert.equal(decidedText('pypi.org', 'allow', 'Snake'),
+  "pypi.org added to the always-allow list of Snake's profile")
+assert.equal(decidedText('pypi.org', 'allow', ''), 'pypi.org added to the always-allow list of its profile')
 
 // WEB-02: the confirm names the program and the unit, says how far it reaches and how to undo
 const ask = baselineAsk({ exe: '/usr/local/bin/job', unit: 'weekly-job.service' }, 'program')
