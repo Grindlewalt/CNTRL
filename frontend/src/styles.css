@@ -178,7 +178,7 @@
   --paper: #100e0c;          /* the page: near-black, warm */
   --ink: #f0eae0;            /* text: warm off-white, 16:1 on paper */
   --slate: #aaa196;          /* 7.6:1 on paper, 7.1:1 on surface */
-  --faint: #918879;          /* 5.5:1 on paper, 5.2:1 on surface */
+  --faint: #978e7f;          /* 6.0:1 on paper, 5.6:1 on surface, 4.6:1 on a selected row */
   --surface: #191512;        /* one step up: cards, the sidebar, code */
   --line: rgba(255, 230, 200, 0.09);
   --line-strong: rgba(255, 230, 200, 0.2);
@@ -191,7 +191,7 @@
   --glass-line: rgba(255, 230, 200, 0.08);
   --bg-soft: color-mix(in srgb, var(--paper) 55%, var(--surface));
   --field-bg: #0b0a08;
-  --orb-1: #f0eae0; --orb-2: #c7bfb3; --orb-3: #918879;
+  --orb-1: #f0eae0; --orb-2: #c7bfb3; --orb-3: #978e7f;
   --orb-glow: rgba(240, 234, 224, 0.18);
   --glow: 190 165 130;       /* composer underglow: warm, not green */
   --shadow-rgb: 0 0 0;
@@ -207,7 +207,7 @@
   --track-off: #2a2521;
   --track-off-ring: var(--line-strong);
   --btn-off-bg: #2a2521;
-  --btn-off-ink: #918879;
+  --btn-off-ink: #978e7f;
 }
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }

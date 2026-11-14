@@ -1,7 +1,8 @@
 # CNTRL web app: the design system
 
-The app matches the public website: cream paper, ink, one green accent, warm
-charcoal in the dark. Everything here is already in `src/styles.css` (the
+The app matches the public website: cream paper, ink, one green accent used
+sparingly, warm near-black in the dark. Everything here is already in
+`src/styles.css` (the
 `:root` block at the top) and `src/components/`. This page says what the
 pieces are and how to use them, so a page restyled next week looks like one
 restyled today.
@@ -18,18 +19,31 @@ keep rendering and are not wrong to use.
 
 | Site name | Light | Dark | Alias | Use |
 |---|---|---|---|---|
-| `--paper` | `#faf7ef` | `#11130f` | `--bg` | the page, menus, modals, fields |
-| `--ink` | `#1b1a15` | `#f4f4ef` | `--text` | text, the primary button |
-| `--slate` | `#625c50` | `#a3a69b` | `--dim` | secondary text: ledes, labels, hints |
-| `--faint` | `#756f63` | `#8e9186` | | tertiary: timestamps, placeholders |
-| `--surface` | `#f2ece0` | `#1a1d17` | `--panel` | one step down: cards, the sidebar, code |
-| `--line` | `rgba(70,50,20,.11)` | `rgba(255,255,255,.1)` | `--border` | hairlines between things |
-| `--line-strong` | `rgba(70,50,20,.22)` | `rgba(255,255,255,.24)` | `--border-strong` | control borders (fields, ghost buttons) |
-| `--wash` | `rgba(70,50,20,.07)` | `rgba(255,255,255,.08)` | `--panel-2` | hover, the current tab or link, tag backgrounds |
-| `--accent` | `#557241` | `#a3bd8c` | | links, focus ring, a switch that is on, the current nav glyph |
-| `--ok` | `#557241` | `#9ec48a` | `--green` | done, allowed, healthy |
+| `--paper` | `#faf7ef` | `#100e0c` | `--bg` | the page, menus, modals, fields |
+| `--ink` | `#1b1a15` | `#f0eae0` | `--text` | text, the primary button |
+| `--slate` | `#625c50` | `#aaa196` | `--dim` | secondary text: ledes, labels, hints |
+| `--faint` | `#756f63` | `#978e7f` | | tertiary: timestamps, placeholders |
+| `--surface` | `#f2ece0` | `#191512` | `--panel` | one step up from paper: cards, the sidebar, code |
+| `--line` | `rgba(70,50,20,.11)` | `rgba(255,230,200,.09)` | `--border` | hairlines between things |
+| `--line-strong` | `rgba(70,50,20,.22)` | `rgba(255,230,200,.2)` | `--border-strong` | control borders (fields, ghost buttons) |
+| `--wash` | `rgba(70,50,20,.07)` | `rgba(255,230,200,.07)` | `--panel-2` | hover, the current tab or nav item, tag backgrounds |
+| `--select` | `rgba(70,50,20,.12)` | `rgba(255,230,200,.11)` | | a selected row, option or tab: one step past hover |
+| `--focus` | `= --ink` | `= --ink` | | the keyboard focus ring; a field's focus border |
+| `--active` | `= --ink` | `= --ink` | | the current nav glyph, menu check, tab, window |
+| `--link` | `= --ink` | `= --ink` | | links (the browser's underline tells them apart) |
+| `--live` | `= --ink` | `= --ink` | | running, busy, live: a dot, a spinner, a pulse |
+| `--accent` | `#557241` | `#a3bd8c` | | a switch or checkbox that is on; the one primary action a screen may give the colour to |
+| `--ok` | `#557241` | `#9ec48a` | `--green` | done, allowed, healthy, added |
 | `--warn` | `#8a6212` | `#d9b36a` | `--amber` | pending, waiting for you, untrusted |
 | `--bad` | `#a8322d` | `#e27d6f` | `--red` | failed, blocked, destructive |
+
+Dark is near-black with a warm, brownish undertone, never brown: the paper is
+`#100e0c`, and every hairline, wash and the nav glass is one tint,
+`rgba(255, 230, 200, a)`, so the family holds on every surface. Contrast,
+checked 2026-11-14 (WCAG AA for body text is 4.5): ink 16.1:1 on paper, 15.2
+on surface, 12.6 on a selected row; slate 7.6 / 7.1 / 5.9; faint 6.0 / 5.6 /
+4.6; the accent 9.4 on paper; warn 9.7; bad 6.8. In the light theme ink is
+16.3:1, slate 6.2, faint 4.7 on paper (4.2 on surface: keep faint off cards).
 
 Other tokens: `--field-bg` (what an input sits on), `--bubble` (the
 operator's chat message), `--overlay` (the modal scrim), `--shadow-pop`
@@ -37,7 +51,9 @@ operator's chat message), `--overlay` (the modal scrim), `--shadow-pop`
 `--glass-pop` (the Select list and sheet: paper at 88% under a 24px blur, the
 only other glass).
 
-Theme: light is the default. `index.html` stamps `data-theme` on `<html>`
+Theme: light is the default; dark is the warm near-black above (the
+operator's call, 2026-11-14: "darker, brownish with the ish heavy, less
+green"). `index.html` stamps `data-theme` on `<html>`
 before first paint from `localStorage['jarvis.theme']`, else the OS's
 `prefers-color-scheme`. The toggle in the nav (`useTheme` in `App.jsx`) flips
 and remembers it. Dark is `:root[data-theme='dark']`; there is no second
@@ -81,7 +97,9 @@ Shape is one radius per kind of thing:
 Pills are for things you press or read as a word; squarer corners are for
 things you type into or read in. A field must never look like a button.
 
-Focus: `:focus-visible` draws a 2px accent ring; don't remove or restyle it.
+Focus: `:focus-visible` draws a 2px `--focus` ring (ink, offset 2px, so it
+sits on paper around a filled button too); don't remove or restyle it. A
+field's focus is the same token: an ink border and a faint ink halo.
 
 ## Components (`src/components/`)
 
@@ -94,7 +112,8 @@ defines, so a page that adopts one changes no geometry.
   red fill; on a ghost, red text and a red hairline. `link` is bare text.
   No button lifts or brightens on hover; hover is a background change.
 - **Input / Checkbox**: label above, control on `--field-bg` with a
-  `--line-strong` border, accent on focus. Placeholders are sentence case and
+  `--line-strong` border, `--focus` (ink) on focus; a checked checkbox is the
+  accent. Placeholders are sentence case and
   say what goes in ("Project name"), not a question.
 - **Card** (`.card` / `.panel`): `--surface` on paper with a `--line` border.
   Cards group a set of controls or a list; they do not wrap one line of text.
@@ -103,13 +122,15 @@ defines, so a page that adopts one changes no geometry.
   with a 24px title; a full-height page (`split` / `fill`) has a 60px header
   bar with an 18px title and the page's tabs on the right.
 - **Tabs**: pills with no track; the current one is ink on a wash, the same
-  idiom as the nav. Use for a page's sub-views only.
+  idiom as the nav (the current nav glyph is `--active`, ink, not green). Use
+  for a page's sub-views only.
 - **Tag / Badge**: a tag is a small pill on a wash for a quiet word
   ("in-guest"); `tone="pending" | "running" | "done" | "error" | "untrusted"`
   colours it by state token on a hairline. Badge is a count or a short ok word
   in the ok tint. One tag per row at most; a row with four tags has three
   words that belong in a column instead.
-- **Toggle**: a switch; on is the accent. Label beside it, sentence case.
+- **Toggle**: a switch; on is the accent, the one place green is routine.
+  Label beside it, sentence case.
 - **Menu / MenuItem / MenuSep**: a paper dropdown with a `--line-strong`
   border and `--shadow-pop`. No blur. `floating` portals it out of anything
   that clips; `at={{x, y}}` anchors it at a point (a right-click);
@@ -263,8 +284,17 @@ pick inside it never reads as a click outside the layer beneath.
 ## Do and don't
 
 Do
-- One accent. Green is for links, focus, on, and the current nav glyph. State
-  colours (`--ok` / `--warn` / `--bad`) are for state, by token.
+- One accent, and rarely. Green (`--accent`) is for a switch or checkbox that
+  is on, and at most one primary action on a screen that wants it. State
+  colours (`--ok` / `--warn` / `--bad`) are for state, by token: an allowed
+  site, a done step, an added line are `--ok`.
+- Everything that is merely current, focused, selected, linked or running is
+  ink, by its token: `--active` (the current nav glyph, tab, menu check,
+  focused window), `--focus` (rings, field borders, drop targets), `--select`
+  (a selected row's wash), `--link` (links, underlined), `--live` (a running
+  dot, a spinner, a busy mark). Agent names, hunk headers, counts, legend
+  keys and info rows are ink or slate, never green. Grep `var(--accent` before
+  adding one: the operator's words were "too much green".
 - Say state in words next to the colour ("blocked", "waiting for you"), so
   it reads without colour.
 - Keep the operator's copy plain and specific: sentence case, active voice,
