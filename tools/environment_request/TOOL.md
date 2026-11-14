@@ -40,7 +40,10 @@ parameters:
     reason:
       type: string
       description: What the environment is for and why it must persist.
-  required: [reason]
+    summary:
+      type: string
+      description: What this request does and why, in at most two sentences. The operator reads it first.
+  required: [reason, summary]
 ---
 With `use`, the operator approves a move onto an image that already exists;
 the project then gets its own box on it (a project on the shared box does not

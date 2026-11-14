@@ -593,6 +593,10 @@ async def init_db() -> None:
         if "autonomy" not in cols:
             # autonomy dial: read_only|stage|gated|full (NULL == full, unrestricted)
             await db.execute("ALTER TABLE projects ADD COLUMN autonomy TEXT")
+        if "pinned_at" not in cols:
+            # sidebar pins: when the operator pinned the project, NULL = not
+            # pinned. Server-side so a pin follows them across browsers.
+            await db.execute("ALTER TABLE projects ADD COLUMN pinned_at TEXT")
         if "persist_approved" not in cols:
             # approved persistence inside the guest VM: the operator's opt-in
             # (GUI only) for a project's /persist disk. In the DB, not
@@ -850,6 +854,7 @@ async def init_db() -> None:
         await _migrate_secnotify(db)
         await _migrate_boxlog(db)
         await _migrate_pages(db)
+        await _migrate_req_summary(db)
         await _detach_orphan_usage(db)
         # after _migrate_turnstats: the trigger names that table
         await _migrate_usage_detach(db)
@@ -1263,6 +1268,16 @@ async def _lineage_slugs(db: aiosqlite.Connection, cid: int) -> list | None:
         "SELECT slug FROM up ORDER BY d", (cid,)) as cur:
         rows = await cur.fetchall()
     return [r["slug"] for r in rows] if rows else None
+
+
+async def _migrate_req_summary(db: aiosqlite.Connection) -> None:
+    """The agent's two-sentence summary on every request the operator decides,
+    and the model's call id that filed it (backend/reqsummary.py): the Queue
+    shows the summary first, and Inspect opens the chat at that call's step.
+    NULL on rows filed before this, or over HTTP. Idempotent."""
+    from .reqsummary import TABLES
+    for table in TABLES:
+        await _add_columns(db, table, (("agent_summary", "TEXT"), ("call_id", "TEXT")))
 
 
 async def _migrate_pages(db: aiosqlite.Connection) -> None:

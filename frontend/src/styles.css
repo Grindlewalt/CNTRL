@@ -32,6 +32,9 @@
   --accent-ink: #faf7ef;     /* text on an accent surface */
   --glass: rgba(255, 252, 245, 0.72);    /* the nav only */
   --glass-line: rgba(70, 50, 20, 0.08);
+  /* Select's list and sheet: glass you can read. The paper at 88% under a
+     24px blur; one rule for both themes, because --paper flips. */
+  --glass-pop: color-mix(in srgb, var(--paper) 88%, transparent);
   --sans: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
   --mono: "Martian Mono", ui-monospace, Menlo, monospace;
 
@@ -242,6 +245,9 @@ button, a, input, select, textarea, label { touch-action: manipulation; }
 @keyframes scrim-in { from { opacity: 0; } }
 /* the upward twin of drop-in, for a menu that opens above its trigger */
 @keyframes rise-in { from { opacity: 0; transform: translateY(6px) scale(0.97); } }
+/* a bottom sheet or a side panel arriving from its edge */
+@keyframes sheet-up { from { transform: translateY(100%); } }
+@keyframes panel-in { from { transform: translateX(100%); } }
 
 .app { display: flex; flex-direction: column; height: 100vh; }
 
@@ -642,6 +648,7 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
   box-shadow: var(--shadow-win); overflow: hidden;
   animation: drop-in 0.16s cubic-bezier(0.21, 1.02, 0.55, 1) both;
 }
+.modal:focus { outline: none; }   /* it takes focus on open; the ring would frame the screen */
 .modal-head { display: flex; align-items: center; gap: var(--sp-5);
   padding: 13px var(--sp-8); border-bottom: 1px solid var(--border);
   font-size: var(--fs-base); }
@@ -651,6 +658,8 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
 .modal-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-8);
   font-size: var(--fs-md); }
 .modal-body > p:first-child { margin-top: 0; }
+/* a form dialog's fields, straight in the body, get the field rhythm */
+.modal-body > .field + .field { margin-top: var(--sp-6); }
 .modal-foot { display: flex; align-items: center; justify-content: flex-end;
   gap: var(--sp-4); padding: var(--sp-6) var(--sp-8);
   border-top: 1px solid var(--border); }
@@ -709,6 +718,169 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
 .menu-item .m-sub { font-size: var(--fs-xs); color: var(--dim); }
 .menu-item .m-check { color: var(--accent); font-size: var(--fs-xs); }
 .menu-sep { height: 1px; margin: 5px 8px; background: var(--border); }
+
+/* ---- select (components/Select.jsx) ----
+   The trigger is a field: the input's paper, hairline, corner and focus ring,
+   never a pill. It is as wide as its longest option (the hidden sizer shares
+   its grid cell), as a native select is, so a pick never moves the layout.
+   The list is glass: paper at 88% (--glass-pop) under a 24px blur, so the page
+   behind is a soft wash and the text keeps ink-on-paper contrast. */
+.sel { display: inline-flex; min-width: 0; max-width: 100%; vertical-align: middle; }
+.sel-trigger {
+  display: inline-flex; align-items: center; gap: var(--sp-4); width: 100%; min-width: 0;
+  background: var(--field-bg); color: var(--text); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md); padding: var(--pad-field); font: inherit;
+  font-size: var(--fs-base); font-weight: 400; line-height: var(--lh-tight);
+  text-align: left; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.sel-trigger:hover:not(:disabled) { opacity: 1; border-color: var(--slate); }
+.sel-trigger:focus-visible, .sel.open .sel-trigger { outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.sel-trigger:disabled { opacity: 0.55; cursor: default; }
+.sel-value { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.sel-value > * { grid-area: 1 / 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel-sizer { visibility: hidden; height: 0; }
+.sel-ph { color: var(--faint); }
+.sel-chev { flex-shrink: 0; color: var(--slate); transition: transform 0.15s; }
+.sel.open .sel-chev { transform: rotate(180deg); }
+.field > .sel { width: 100%; }
+
+.sel-pop {
+  position: fixed; z-index: 5000; display: flex; flex-direction: column;
+  min-width: max(var(--sel-w, 0px), 220px); width: max-content;
+  max-width: min(420px, calc(100vw - 2 * var(--sp-8)));
+  background: var(--glass-pop); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-pop); overflow: hidden;
+  backdrop-filter: blur(24px) saturate(1.2); -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  transform-origin: top left; animation: drop-in 0.14s cubic-bezier(0.21, 1.02, 0.55, 1) both;
+}
+.sel-pop[data-side='up'] { transform-origin: bottom left; animation-name: rise-in; }
+.sel-search { display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--line); color: var(--slate); }
+.sel-search input { flex: 1; min-width: 0; border: 0; background: none; box-shadow: none;
+  padding: var(--sp-3) 0; font-size: var(--fs-base); color: var(--ink); }
+/* the list's active row is the focus cue; a ring inside the panel is noise */
+.sel-search input:focus, .sel-search input:focus-visible { box-shadow: none; outline: none; }
+.sel-search-ico { flex-shrink: 0; }
+.sel-list { flex: 1; min-height: 0; max-height: 340px; overflow-y: auto; padding: var(--sp-3);
+  overscroll-behavior: contain; outline: none; }
+.sel-group { padding: var(--sp-4) var(--sp-5) var(--sp-2); font-size: var(--fs-sm);
+  font-weight: 600; color: var(--slate); }
+.sel-groupbox + .sel-groupbox, .sel-opt + .sel-groupbox { margin-top: var(--sp-2);
+  border-top: 1px solid var(--line); }
+.sel-opt {
+  display: flex; align-items: center; gap: var(--sp-4); padding: var(--pad-row);
+  border-radius: var(--radius-lg); font-size: var(--fs-md); color: var(--ink);
+  cursor: pointer; user-select: none;
+}
+.sel-opt.active { background: var(--wash); }
+.sel-opt.selected .sel-opt-label { font-weight: 600; }
+.sel-opt[aria-disabled='true'] { color: var(--faint); cursor: default; }
+.sel-opt-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sel-opt-label { overflow-wrap: anywhere; }
+.sel-opt-sub { font-size: var(--fs-xs); color: var(--slate); }
+.sel-check { flex-shrink: 0; color: var(--accent); }
+.sel-num { flex-shrink: 0; min-width: 20px; text-align: center; font-size: var(--fs-xs);
+  padding: 1px 4px; color: var(--slate); background: var(--wash); border: 1px solid var(--line);
+  border-radius: var(--radius-xs); }
+.sel-empty { padding: var(--sp-5); font-size: var(--fs-md); color: var(--slate); }
+
+/* the bottom sheet: phones and touch screens. Same list, same search. */
+.sel-layer { position: fixed; inset: 0; z-index: 5000; display: flex;
+  flex-direction: column; justify-content: flex-end; }
+.sel-scrim { position: absolute; inset: 0; background: var(--overlay); touch-action: none;
+  animation: scrim-in 0.14s ease both; }
+.sel-sheet {
+  position: relative; display: flex; flex-direction: column; max-height: min(78vh, 640px);
+  background: var(--glass-pop); border-top: 1px solid var(--line-strong);
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0; box-shadow: var(--shadow-win);
+  backdrop-filter: blur(24px) saturate(1.2); -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  padding-bottom: var(--sab); animation: sheet-up 0.2s cubic-bezier(0.21, 1.02, 0.55, 1) both;
+}
+.sel-sheet-head { display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-5) var(--sp-5) var(--sp-3) var(--sp-8); }
+.sel-sheet-title { flex: 1; min-width: 0; font-size: var(--fs-lg); font-weight: 600;
+  letter-spacing: var(--track-head); }
+.sel-sheet .sel-search { margin: 0 var(--sp-6) var(--sp-3); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md); background: var(--field-bg); }
+.sel-sheet .sel-search input { font-size: 16px; }
+.sel-sheet .sel-list { max-height: none; padding: var(--sp-3) var(--sp-6) var(--sp-6); }
+.sel-sheet .sel-opt { min-height: var(--tap); font-size: var(--fs-lg); }
+
+/* ---- row menu (components/RowMenu.jsx) ----
+   The ⋯ button sits in the row; the menu is a floating .menu. The wrapper
+   only keeps the row's own click and right-click away from the menu. */
+.row-menu { display: inline-flex; flex-shrink: 0; }
+
+/* ---- side panel (components/SidePanel.jsx) ----
+   Paper, a strong hairline on its open edge, the window shadow. Over the page
+   at 2500: above the page and its sheets' scrims, below toasts (3000), modals
+   (4000) and popovers (5000), so a dialog or a Select opened from it is on top. */
+.side-panel { display: flex; flex-direction: column; min-height: 0; background: var(--paper);
+  outline: none; }
+.side-panel.over {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 2500;
+  width: min(var(--side-w, 420px), 100vw); padding-top: var(--sat);
+  border-left: 1px solid var(--line-strong); box-shadow: var(--shadow-win);
+  animation: panel-in 0.22s cubic-bezier(0.21, 1.02, 0.55, 1) both;
+}
+.side-panel.beside { width: var(--side-w, 420px); max-width: 100%; height: 100%; flex-shrink: 0;
+  border-left: 1px solid var(--line); }
+.side-panel-head { display: flex; align-items: center; gap: var(--sp-4);
+  min-height: var(--page-band-h); padding: var(--sp-4) var(--sp-5) var(--sp-4) var(--sp-8);
+  border-bottom: 1px solid var(--line); }
+.side-panel-head h2 { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-lg); font-weight: 600;
+  letter-spacing: var(--track-head); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-panel-tabs.tabs { align-self: flex-start; margin: var(--sp-5) var(--sp-6) 0; }
+.side-panel-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-8);
+  overscroll-behavior: contain; }
+.side-panel-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-8) max(var(--sp-6), var(--sab));
+  border-top: 1px solid var(--line); }
+@media (max-width: 768px) {
+  /* a phone: the whole screen, either mode */
+  .side-panel.over, .side-panel.beside { position: fixed; inset: 0; z-index: 2500; width: 100%;
+    height: auto; border: 0; padding-top: var(--sat); }
+  .side-panel-head { padding-left: max(var(--sp-8), env(safe-area-inset-left)); }
+  /* the queue pill lives in the top bar the panel covers: it sat on the
+     panel's title. It waits (paused, not drained) until the panel closes */
+  body:has(.side-panel.over, .side-panel.beside) .notice-pill { display: none; }
+}
+
+/* ---- help tip (components/HelpTip.jsx) ----
+   A small ringed `?`, slate until hovered; the popover is paper with a strong
+   hairline, prose at --fs-md. The hit area is 34px around an 18px mark. */
+.help-tip { display: inline-flex; vertical-align: middle; margin-left: var(--sp-3); }
+.help-tip-btn {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; min-width: 0; min-height: 0; flex: none; padding: 0;
+  border-radius: var(--radius-round);
+  background: none; border: 1px solid var(--line-strong); color: var(--slate);
+  font-family: var(--sans); font-size: var(--fs-xs); font-weight: 600; line-height: 1;
+  cursor: help;
+}
+.help-tip-btn::after { content: ''; position: absolute; inset: -8px; }
+@media (max-width: 768px) { .help-tip-btn::after { inset: -13px; } }   /* a 44px target */
+.help-tip-btn:hover:not(:disabled), .help-tip-btn[aria-expanded='true'] { opacity: 1;
+  color: var(--ink); border-color: var(--slate); background: var(--wash); }
+.help-tip-pop {
+  position: fixed; z-index: 5100; width: max-content;
+  max-width: min(var(--tip-w, 280px), calc(100vw - 2 * var(--sp-8)));
+  padding: var(--sp-5) var(--sp-6); background: var(--paper); color: var(--ink);
+  border: 1px solid var(--line-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-pop);
+  font-size: var(--fs-md); font-weight: 400; line-height: var(--lh-base); text-align: left;
+  white-space: normal; animation: drop-in 0.12s ease both;
+}
+.help-tip-pop[data-side='up'] { animation-name: rise-in; }
+.help-tip-pop > p { margin: 0 0 var(--sp-3); }
+.help-tip-pop > :last-child { margin-bottom: 0; }
+
+/* ---- divided lists ----
+   A hairline between rows, the full width of the row, and nothing else: no
+   boxes, no zebra. On the list (ul, ol or any container); each direct child
+   is a row. The Work and Agents sidebars and every list use it. */
+.list-divided { list-style: none; margin: 0; padding: 0; }
+.list-divided > * + * { border-top: 1px solid var(--line); }
 
 /* ---- tabs ----
    .voice-tier-switch's segmented pill, written once: a glass track with the
@@ -834,7 +1006,7 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
    for a floating VM chip that lives in the nav bar now, so the last row was
    cut mid-text above an empty band; the list's own bottom padding lets the
    final row scroll clear of the edge instead. */
-.chat-layout aside {
+.chat-layout > aside {
   width: 260px; padding: 12px 12px 0; border-right: 1px solid var(--border);
   display: flex; flex-direction: column; gap: 10px; background: var(--bg-soft);
   /* above the composer's bottom fade, which spans the whole chat layout and
@@ -851,7 +1023,7 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
    the sidebar, and `hidden` clipped it into nothing — it measured as visible
    and on-screen but no click ever reached it. z-index lifts it over <main>,
    which otherwise paints on top by DOM order. */
-.chat-layout aside.collapsed {
+.chat-layout > aside.collapsed {
   width: 56px; padding: 12px 9px 54px;
   overflow: visible; position: relative; z-index: 30;
 }
@@ -864,8 +1036,8 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
    the middle of the sidebar instead of at its foot.
    The title keeps display:none — it is `flex: 1`, so merely hiding it would
    still have it claim height and shove the head's buttons apart. */
-.chat-layout aside.collapsed .side-title { display: none; }
-.chat-layout aside.collapsed .convo-list {
+.chat-layout > aside.collapsed .side-title { display: none; }
+.chat-layout > aside.collapsed .convo-list {
   opacity: 0; pointer-events: none; transition: opacity 0.15s ease;
   position: absolute; left: 9px; right: 9px; top: 62px; bottom: 54px;
 }
@@ -874,10 +1046,10 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
    across the whole collapse, fighting the flight that was already carrying
    them down from the bar. Fixed width, and they are in their final place from
    the first frame. */
-.chat-layout aside.collapsed .side-head,
-.chat-layout aside.collapsed .side-nav { width: 38px; align-self: flex-start; }
+.chat-layout > aside.collapsed .side-head,
+.chat-layout > aside.collapsed .side-nav { width: 38px; align-self: flex-start; }
 .side-head { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.chat-layout aside.collapsed .side-head { flex-direction: column; gap: 10px; }
+.chat-layout > aside.collapsed .side-head { flex-direction: column; gap: 10px; }
 .side-head .side-title { flex: 1; }
 .icon-btn {
   background: none; border: 0; color: var(--dim); width: 34px; height: 34px;
@@ -1107,6 +1279,10 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
    with it. Same reason on .messages. */
 .chat-layout main { flex: 1; display: flex; flex-direction: column; min-width: 0;
   min-height: 0; position: relative; }
+/* a project's home in the main area (Work, /project/:slug): the chat's own
+   main stays mounted, hidden, under it */
+.chat-layout main[hidden] { display: none; }
+.chat-layout main.chat-home-main { overflow: hidden; }
 .messages { flex: 1; min-height: 0; overflow-y: auto; padding: 0 24px;
   overscroll-behavior: contain; }
 /* the trailing padding is the composer's clearance: the last message scrolls to
@@ -1695,13 +1871,13 @@ kbd {
 .skill-param { margin: 0; flex-wrap: nowrap; }
 /* the argument row's bare inputs matched the base 15px; everything else in
    the form is the field size */
-.skill-param input, .skill-param select { font-size: var(--fs-md); padding: 6px 9px; }
+.skill-param input, .skill-param select, .skill-param .sel-trigger { font-size: var(--fs-md); padding: 6px 9px; }
 .skill-param-name { width: 110px; }
 .skill-param .grow { min-width: 0; }
 
 /* ---- agent outputs ---- */
 .outputs-pane { overflow-y: auto; gap: var(--sp-6); }
-.outputs-bar select { min-width: 180px; }
+.outputs-bar :is(select, .sel) { min-width: 180px; }
 .outputs-list { display: flex; flex-direction: column; gap: var(--sp-5); }
 .output-card { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
 .output-card.running { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
@@ -1806,7 +1982,7 @@ kbd {
 
 /* ---- schedules ---- */
 .sched-form { display: flex; flex-direction: column; gap: 8px; }
-.sched-form input, .sched-form select, .sched-form textarea {
+.sched-form input, .sched-form select, .sched-form .sel, .sched-form textarea {
   width: 100%; box-sizing: border-box; }
 .sched-form label.mini { display: flex; flex-direction: column; gap: 3px;
   font-size: 12px; color: var(--dim); }
@@ -2120,7 +2296,7 @@ button.sched-more { align-self: flex-start; margin-left: 0; font-size: var(--fs-
 
   /* iOS zooms the whole page when a focused control is under 16px — the
      single biggest "it doesn't feel like an app" offender. Phone only. */
-  input, textarea, select, .composer textarea { font-size: 16px; }
+  input, textarea, select, .composer textarea, .sel-trigger { font-size: 16px; }
   /* the one-size rule above outranks the bare element rule; restate it */
   .field > :where(input, select),
   .window-body :where(input, select) { font-size: 16px; }
@@ -2148,7 +2324,7 @@ button.sched-more { align-self: flex-start; margin-left: 0; font-size: var(--fs-
      It used to sit stacked above the thread at 34vh, so a third of the
      screen was a chat list cut off mid-row before you could read a reply. */
   .chat-layout { flex-direction: column; position: relative; }
-  .chat-layout aside {
+  .chat-layout > aside {
     position: absolute; z-index: 20; top: 0; bottom: 0; left: 0;
     width: min(300px, 84vw); max-height: none;
     padding: 10px 10px calc(10px + var(--sab));
@@ -2160,13 +2336,13 @@ button.sched-more { align-self: flex-start; margin-left: 0; font-size: var(--fs-
      mirrored into the chat toolbar */
   /* visibility (delayed so the slide-out still animates) takes the off-canvas
      list out of the tab order — otherwise Tab walks into invisible controls */
-  .chat-layout aside {
+  .chat-layout > aside {
     transition: transform 0.24s ease, visibility 0s linear 0s;
   }
-  .chat-layout aside.collapsed {
+  .chat-layout > aside.collapsed {
     /* position must be restated here: the desktop rail rule sets
        `aside.collapsed { position: relative }` at higher specificity than
-       the plain `.chat-layout aside` overlay above, which put the collapsed
+       the plain `.chat-layout > aside` overlay above, which put the collapsed
        list back in flow and shoved the whole thread below the fold */
     position: absolute;
     width: min(300px, 84vw); padding: 10px 10px calc(10px + var(--sab));
@@ -2174,17 +2350,17 @@ button.sched-more { align-self: flex-start; margin-left: 0; font-size: var(--fs-
     visibility: hidden; transition: transform 0.24s ease,
       visibility 0s linear 0.24s;
   }
-  .chat-layout aside.collapsed .side-title,
-  .chat-layout aside.collapsed .convo-list { display: flex; }
-  .chat-layout aside.collapsed .side-title { display: block; }
-  .chat-layout aside.collapsed .side-head { flex-direction: row; }
+  .chat-layout > aside.collapsed .side-title,
+  .chat-layout > aside.collapsed .convo-list { display: flex; }
+  .chat-layout > aside.collapsed .side-title { display: block; }
+  .chat-layout > aside.collapsed .side-head { flex-direction: row; }
   /* the desktop rail's geometry must not follow the list into the phone
      drawer: collapsed there means off-canvas at full width, not a 38px rail */
-  .chat-layout aside.collapsed .convo-list {
+  .chat-layout > aside.collapsed .convo-list {
     position: static; opacity: 1; pointer-events: auto;
   }
-  .chat-layout aside.collapsed .side-head,
-  .chat-layout aside.collapsed .side-nav { width: auto; align-self: auto; }
+  .chat-layout > aside.collapsed .side-head,
+  .chat-layout > aside.collapsed .side-nav { width: auto; align-self: auto; }
   .chat-scrim {
     position: absolute; inset: 0; z-index: 19; background: var(--overlay);
     animation: scrim-in 0.18s ease both;
@@ -2301,7 +2477,7 @@ button.sched-more { align-self: flex-start; margin-left: 0; font-size: var(--fs-
   /* the create fields stack: full-width each, not one narrow name field
      above two stretched ones */
   .sched-head button, .sbx-actions button { min-height: 38px; }
-  .sched-form select { min-height: 38px; }
+  .sched-form :is(select, .sel-trigger) { min-height: 38px; }
   /* visually hidden, not display:none — the word stays the button's name */
   .ws-head .ws-btn-word { position: absolute; width: 1px; height: 1px;
     overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -2572,6 +2748,11 @@ body.jarvis-float { margin: 0; height: 100vh; overflow: hidden; }
 /* Chat's composer owns the bottom edge (its send button sits under the
    corner), so there the stack rides above it */
 .app:has(form.composer) .notices { bottom: calc(var(--sab) + 104px); }
+/* ...and an open side panel owns the right edge: the stack sits left of it
+   (a 420px panel, the default; a wider viewer can still be crossed) */
+@media (min-width: 769px) {
+  body:has(.side-panel.over) .notices { right: calc(420px + 16px); }
+}
 .notice {
   position: relative; overflow: hidden; display: block; width: 100%;
   text-align: left; background: var(--glass); color: var(--text);
@@ -2953,7 +3134,7 @@ pre > .copy-btn, .device-login-line > .copy-btn {
 .desk-dot.on { background: var(--green); }
 .desk-grants, .desk-allow { display: flex; flex-wrap: wrap; align-items: center;
   gap: var(--sp-4) var(--sp-6); }
-.settings-page .desk-grants select { min-width: 0; }
+.settings-page .desk-grants :is(select, .sel) { min-width: 0; }
 .desk-pattern { display: inline-flex; align-items: center; gap: var(--sp-2); margin-left: 0; }
 .desk-pattern code { font-size: var(--fs-xs); }
 .desk-pattern-x { background: none; border: 0; padding: 0 var(--sp-1); color: var(--dim);
@@ -3040,11 +3221,11 @@ pre > .copy-btn, .device-login-line > .copy-btn {
 .settings-page .card { margin-bottom: var(--sp-7); }
 .settings-page .card > .card-head { margin-bottom: var(--sp-5); }
 .settings-page .card > .stack, .settings-page .card .stack { gap: var(--sp-5); }
-.settings-page :is(input, select, textarea) { font-size: var(--fs-md); }
-.settings-page :is(input, select) { height: var(--ctl-h); padding-block: 0; }
+.settings-page :is(input, select, textarea, .sel-trigger) { font-size: var(--fs-md); }
+.settings-page :is(input, select, .sel-trigger) { height: var(--ctl-h); padding-block: 0; }
 .settings-page .card button:not(.toggle):not(.copy-btn):not(.link) {
   min-height: var(--ctl-h); }
-.settings-page select { min-width: 220px; max-width: 100%; }
+.settings-page :is(select, .sel) { min-width: 220px; max-width: 100%; }
 .settings-page :not(.tabs) > a { color: var(--accent); }
 /* prose inside a card: the card's gap does the spacing, not the <p> margins */
 .settings-note { margin: 0; }
@@ -3066,7 +3247,7 @@ pre > .copy-btn, .device-login-line > .copy-btn {
   /* 16px text is the iOS no-zoom floor; the page rule above must not undo the
      phone's global one */
   .settings-page { --ctl-h: 40px; }
-  .settings-page :is(input, select, textarea) { font-size: 16px; }
+  .settings-page :is(input, select, textarea, .sel-trigger) { font-size: 16px; }
   .settings-inline > input { flex-basis: 100%; }
   .device-row { align-items: flex-start; }
 }
@@ -4197,7 +4378,7 @@ a:has(> .nav-dot) { position: relative; }
 /* Git page */
 .git-page > .card, .git-page > .git-bar, .git-page > p { margin-bottom: var(--sp-7); }
 .git-bar { display: flex; align-items: center; gap: var(--sp-5); flex-wrap: wrap; }
-.git-bar select { max-width: 100%; }
+.git-bar :is(select, .sel) { max-width: 100%; }
 .git-refresh { display: flex; justify-content: flex-end; margin-bottom: var(--sp-3); }
 .git-note { margin: var(--sp-4) 0 0; }
 .git-card-link { margin-left: auto; color: var(--dim); }
@@ -4225,7 +4406,7 @@ a:has(> .nav-dot) { position: relative; }
 .git-commits + button { margin-top: var(--sp-5); }
 .git-access { display: flex; flex-wrap: wrap; gap: var(--sp-4) var(--sp-8); }
 .git-access li { display: flex; align-items: center; gap: var(--sp-4); }
-.git-access select { width: auto; }
+.git-access :is(select, .sel) { width: auto; }
 @media (max-width: 768px) {
   .git-pull-row { flex-wrap: wrap; }
   .git-pull-row > strong { flex-basis: 100%; order: 2; white-space: normal; }
@@ -4257,7 +4438,10 @@ a:has(> .nav-dot) { position: relative; }
 .srun.sev-crit { border-left-color: var(--red); }
 
 /* "Open chat at step": the step the chat scrolled to */
-.tool-row.step-hit, .tool-fold.step-hit { animation: step-hit 3.5s ease-out; }
+/* …and a deep-search hit: the message, with the matched text highlighted */
+.tool-row.step-hit, .tool-fold.step-hit, .msg.step-hit { animation: step-hit 3.5s ease-out; }
+.msg.step-hit { border-radius: var(--radius-lg); }
+::highlight(chat-hit) { background: color-mix(in srgb, var(--warn) 30%, transparent); color: inherit; }
 @keyframes step-hit {
   0%, 60% { box-shadow: 0 0 0 2px var(--accent); }
   100% { box-shadow: 0 0 0 2px transparent; }

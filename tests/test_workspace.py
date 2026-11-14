@@ -88,3 +88,79 @@ async def test_memory_api(client):
     assert r.json()["content"] == "remember this"
     r = await client.get("/api/memory/file", params={"path": "../../etc/passwd"})
     assert r.status_code == 400
+
+
+async def test_gui_save_goes_through_the_write_chokepoint(client):
+    """The operator's PUT /file lands through writes.apply_write: a file holding
+    a real secret value is refused (and nothing is written), a protected path is
+    refused, and a clean save lands with no exec bit."""
+    from backend import secrets
+
+    secrets.save({"DEMO_KEY": "sk-live-abcdef123456"})
+    r = await client.put("/api/projects/demo/file",
+                         json={"path": "notes/leak.md", "content": "key: sk-live-abcdef123456"})
+    assert r.status_code == 400
+    assert "secret" in r.json()["detail"]
+    assert not (settings.projects_dir / "demo" / "notes" / "leak.md").exists()
+
+    r = await client.put("/api/projects/demo/file",
+                         json={"path": ".context.json", "content": "{}"})
+    assert r.status_code == 400
+
+    r = await client.put("/api/projects/demo/file",
+                         json={"path": "code/tool.py", "content": "print(1)\n"})
+    assert r.status_code == 200
+    assert "flags" in r.json()
+    mode = (settings.projects_dir / "demo" / "code" / "tool.py").stat().st_mode & 0o777
+    assert mode == 0o644
+
+
+async def test_zip_has_the_listed_files_and_needs_login(client):
+    import io
+    import zipfile
+
+    await client.put("/api/projects/demo/file", json={"path": "notes/a.md", "content": "# a"})
+    await client.put("/api/projects/demo/file", json={"path": "code/b.py", "content": "print()"})
+    (settings.projects_dir / "demo" / ".hidden").write_text("no")
+    r = await client.get("/api/projects/demo/zip")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/zip"
+    assert 'filename="demo.zip"' in r.headers["content-disposition"]
+    names = set(zipfile.ZipFile(io.BytesIO(r.content)).namelist())
+    listed = {f["path"] for f in (await client.get("/api/projects/demo/files")).json()["files"]}
+    assert names == listed
+    assert {"notes/a.md", "code/b.py", "project.md"} <= names
+    assert ".hidden" not in names
+
+    assert (await client.get("/api/projects/nope/zip")).status_code == 404
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as anon:
+        assert (await anon.get("/api/projects/demo/zip")).status_code == 401
+
+
+async def test_upload_and_move_work_when_the_state_dir_is_a_symlink(client, tmp_env, monkeypatch):
+    # macOS /tmp, and an upgraded install that left its old state path as a
+    # symlink: the project dir is reached through a link, safe_join resolves it,
+    # and every compare must be resolved on both sides
+    import io
+    import zipfile
+    link = tmp_env / "state-link"
+    link.symlink_to(settings.projects_dir, target_is_directory=True)
+    monkeypatch.setattr(settings, "projects_dir", link)
+    r = await client.post("/api/projects/demo/upload", params={"dest": "docs"},
+                          files={"file": ("brief.txt", b"hello", "text/plain")})
+    assert r.status_code == 200, r.text
+    assert r.json()["path"] == "docs/brief.txt"
+    assert (link / "demo" / "docs" / "brief.txt").read_bytes() == b"hello"
+    # the journal stays at the root: that guard compares resolved paths too
+    r = await client.post("/api/projects/demo/move",
+                          json={"src": "project.md", "dest": "old/project.md"})
+    assert r.status_code == 400 and "project root" in r.json()["detail"]
+    # a zip lands and says where, relative to the project
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("a.txt", "x")
+    r = await client.post("/api/projects/demo/upload_archive", data={"dest": "code"},
+                          files={"file": ("a.zip", buf.getvalue(), "application/zip")})
+    assert r.status_code == 200, r.text
+    assert r.json()["dest"] == "code"

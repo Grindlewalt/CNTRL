@@ -33,8 +33,9 @@ keep rendering and are not wrong to use.
 
 Other tokens: `--field-bg` (what an input sits on), `--bubble` (the
 operator's chat message), `--overlay` (the modal scrim), `--shadow-pop`
-(dropdowns, toasts) and `--shadow-win` (windows, modals), `--glass` (the nav
-only; nothing else blurs).
+(dropdowns, toasts) and `--shadow-win` (windows, modals), `--glass` (the nav),
+`--glass-pop` (the Select list and sheet: paper at 88% under a 24px blur, the
+only other glass).
 
 Theme: light is the default. `index.html` stamps `data-theme` on `<html>`
 before first paint from `localStorage['jarvis.theme']`, else the OS's
@@ -92,7 +93,7 @@ defines, so a page that adopts one changes no geometry.
   the secondary: a hairline pill, filled on hover. `danger` on a primary is a
   red fill; on a ghost, red text and a red hairline. `link` is bare text.
   No button lifts or brightens on hover; hover is a background change.
-- **Input / Checkbox / Select**: label above, control on `--field-bg` with a
+- **Input / Checkbox**: label above, control on `--field-bg` with a
   `--line-strong` border, accent on focus. Placeholders are sentence case and
   say what goes in ("Project name"), not a question.
 - **Card** (`.card` / `.panel`): `--surface` on paper with a `--line` border.
@@ -110,15 +111,154 @@ defines, so a page that adopts one changes no geometry.
   words that belong in a column instead.
 - **Toggle**: a switch; on is the accent. Label beside it, sentence case.
 - **Menu / MenuItem / MenuSep**: a paper dropdown with a `--line-strong`
-  border and `--shadow-pop`. No blur.
-- **Modal**: paper, `--radius-2xl`, `--shadow-win`, head / body / foot. Full
-  bleed on a phone.
+  border and `--shadow-pop`. No blur. `floating` portals it out of anything
+  that clips; `at={{x, y}}` anchors it at a point (a right-click);
+  `autoFocus` puts the focus on the first item. Arrow keys, Home and End walk
+  the items in every menu.
+- **Modal**: see "Form dialogs" below. Full bleed on a phone.
 - **EmptyState**: a slate line that says what would be here and how to get
   it ("No projects yet. Create one above."). Never a mood ("all clear ✓"),
   never a slogan.
 - **Wordmark**: the pixel CNTRL, drawn as the site draws it. It appears in the
   nav and on the login and setup cards and nowhere else. It is the app's one
   flourish.
+
+## The UI v2 foundation
+
+Every dropdown, row menu, explanation and side panel uses these. Phase 1
+pages build on them; don't hand-roll a second version.
+
+### Select (dropdowns)
+
+Never a native `<select>`. The trigger is a field (paper, hairline, 8px
+corner, accent ring); the list is glass (`--glass-pop`). The trigger is as
+wide as its longest option, as a native select is.
+
+```jsx
+<Select label="Model" value={model} onChange={(e) => setModel(e.target.value)}
+        options={models.map((m) => ({ value: m.id, label: m.label, sub: m.caption }))} />
+<Select aria-label="Merge into project" value="" placeholder="Merge into project"
+        recentKey="project" onChange={(e) => merge(e.target.value)} options={projectOptions} />
+```
+
+- Props: `label`, `hint`, `options` (strings or `{value, label, sub?,
+  disabled?, group?}`), `<option>`/`<optgroup>` children (listed after
+  `options`), `placeholder` (shown while the value is `''`, never a choice),
+  `value` or `defaultValue`, `onChange(e)` with `e.target.value` a string as a
+  native select gives it, `disabled`, `className` (on the control), `name` (a
+  hidden input), `id`, `aria-*`, `title`. New: `recentKey` (which list's
+  recents; defaults to the label or aria-label; `false` turns them off) and
+  `searchPlaceholder`.
+- A value that matches no option shows the first enabled option, as a native
+  select does. Picking the current value again fires no onChange.
+- More than 6 options: a search field, focused on open; every word typed must
+  match the label, value, sub line or group.
+- Recents: in a list of more than 6, the 9 most recent picks come first under
+  "Recent", numbered; 1 to 9 pick them while the search is empty. A list of 6
+  or fewer keeps its own order (often a meaning: ask, allow, off) and 1 to 6
+  pick by position. Recents live in localStorage (`cntrl.select.recents`),
+  are only written for long lists, and a storage failure just means none.
+  Lists of the same thing share a key: every project picker uses
+  `recentKey="project"`, the Work panels' file pickers `"file"`.
+- Keys: arrows, Page Up/Down, Home/End, Enter, Escape (one layer), Tab
+  closes. A list without search has native typeahead.
+- ARIA: the trigger is `role=combobox`; the list `role=listbox` with
+  `aria-activedescendant` (on the search field when there is one).
+- On a phone or a touch screen it opens as a bottom sheet with the same
+  search, not focused (the keyboard would cover the list); typing still goes
+  to it.
+
+### Row menus (right-click = ⋯)
+
+Every sidebar row's right-click opens exactly its ⋯ menu. Call the hook in the
+row component:
+
+```jsx
+function ProjectRow({ p }) {
+  const { rowProps, menu, open } = useRowMenu([
+    { label: p.pinned ? 'Unpin' : 'Pin', onSelect: () => pin(p) },
+    { label: 'Rename', onSelect: () => rename(p) },
+    '-',
+    { label: 'Delete', danger: true, onSelect: () => remove(p) },
+  ], { label: 'Project actions' })
+  return <li {...rowProps} className={open ? 'menu-open' : undefined}>{p.name}{menu}</li>
+}
+```
+
+Items: `{ label, onSelect, danger?, disabled?, checked?, sub?, keepOpen? }`,
+`'-'` for a hairline, `{ caption }` for a group heading, falsy entries
+skipped. The menu closes before `onSelect` runs. Right-click opens at the
+cursor, ⋯ at the button, the ContextMenu key or Shift+F10 at the button;
+Shift+right-click leaves the browser's menu alone. Clicks in the menu never
+reach the row. A list that keeps one "open row" state can render
+`<RowMenu items open at onOpen onClose />` itself. Opts and RowMenu props:
+`label`, `width` (220), `align` ('right'), `buttonClassName` ('win-btn'),
+`icon`.
+
+### SidePanel
+
+```jsx
+<SidePanel open={open} onClose={() => setOpen(false)} title="Harbor dashboard"
+           tabs={[{ id: 'security', label: 'Security' }, { id: 'files', label: 'Files' }]}
+           tab={tab} onTab={setTab}>
+  {(t) => (t === 'security' ? <SecurityTab /> : <FilesTab />)}
+</SidePanel>
+```
+
+Slides in from the right. `mode="over"` (default) floats over the page edge;
+`mode="beside"` renders in the page's flow so a flex row gives it a column.
+Both are full screen on a phone. Escape (one layer) and × close it; a click
+outside doesn't. Focus moves in on open, Tab cycles inside, and focus goes
+back on close. Props: `open`, `onClose`, `title`, `tabs`, `tab`/`onTab` or
+`defaultTab`, `mode`, `width` (420), `footer`, `className`; children may be a
+function of the tab id.
+
+### HelpTip
+
+Settings show one short line at most; the rest goes behind a `?`.
+
+```jsx
+<span>Network <HelpTip label="About network">A site on neither list waits for you.</HelpTip></span>
+```
+
+Hover or keyboard focus shows it, a click pins it, Escape or a click
+elsewhere closes it. Props: `children`, `label` (the button's name; say what
+it explains), `align` ('left'), `width` (280), `className`.
+
+### Divided lists
+
+`.list-divided` on a list: a `--line` hairline between rows, the full row
+width, nothing else. The Work and Agents sidebars and any list use it.
+
+```jsx
+<ul className="list-divided">{rows.map((r) => <Row key={r.id} r={r} />)}</ul>
+```
+
+### Form dialogs (Modal)
+
+```jsx
+<Modal title="Edit profile" help="Projects share profiles." onClose={close}
+       onSubmit={save} submitLabel="Save" submitDisabled={!dirty} busy={saving}
+       closeOnScrim={false} footerStart={<Button variant="link" onClick={del}>Delete</Button>}>
+  <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+  <Select label="Box" value={box} onChange={(e) => setBox(e.target.value)} options={BOXES} />
+</Modal>
+```
+
+Head, a body that is the only scroller, and a foot that stays put. With
+`submitLabel` and no `footer`, the foot is Cancel (ghost) then the primary,
+refuse before approve; `danger` makes the primary red, `busy` turns both
+off. Enter in a field submits (the box is a form). Fields straight in the
+body get the field rhythm. `closeOnScrim={false}` for an editor holding
+unsaved typing. Focus moves into the box, Tab cycles inside, and focus goes
+back to the opener. `footer` replaces the standard foot entirely.
+
+### Layers
+
+Page, then the side panel (2500), toasts (3000), modals (4000), popovers:
+floating menus and Select (5000), help tips (5100), and ask dialogs (6000).
+A popover portalled out of a dialog or panel stops its own pointerdown, so a
+pick inside it never reads as a click outside the layer beneath.
 
 ## Do and don't
 
@@ -134,8 +274,10 @@ Do
   ("`web_read` failed on `example.com`").
 
 Don't
-- No gradients, no glass outside the nav, no blur on menus, no hover lifts,
-  no glow. No emoji or decorative glyphs in UI text; an SVG icon or a word.
+- No gradients, no glass outside the nav and the Select list, no blur on
+  menus, no hover lifts, no glow. No emoji or decorative glyphs in UI text; an
+  SVG icon or a word.
+- No native `<select>`; no explanation paragraphs under settings (a HelpTip).
 - No tracked all-caps labels. No "A · B · C" meta strings; use a sentence or
   a list.
 - No `color-mix` to invent a new colour for one place. If a tint is needed

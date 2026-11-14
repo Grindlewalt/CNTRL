@@ -3,6 +3,7 @@ import { api } from '../api.js'
 import { useAsk } from '../ask.jsx'
 import Md from '../Md.jsx'
 import EmptyState from '../components/EmptyState.jsx'
+import Select from '../components/Select.jsx'
 import { SaveButton } from '../components/Button.jsx'
 import { TEXT_EXT } from './shared.js'
 
@@ -49,10 +50,9 @@ export default function EditorPanel({ slug, state, setState }) {
   return (
     <div className="pane-col">
       <div className="row">
-        <select className="grow" value={path} onChange={(e) => setState({ path: e.target.value })}>
-          <option value="">— pick a file —</option>
-          {files.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
+        <Select className="grow" value={path} placeholder="Pick a file" aria-label="File to edit"
+                recentKey="file" onChange={(e) => setState({ path: e.target.value })}
+                options={files} />
         <button className="ghost" onClick={refresh} title="refresh">↻</button>
         <button className="ghost" onClick={newFile}>+ new</button>
         {previewable && (

@@ -2,18 +2,26 @@
 import assert from 'node:assert/strict'
 import {
   ALLOW_ALWAYS_TIP, ALLOW_ONCE_TIP, AUTO_ALLOW_LABEL, AUTO_ALLOW_LEDE, AUTO_REVIEW_LEDE,
-  PERSISTENT_LEGEND, SECURITY_LEDES, VMS_LEDES, WAITING_LEDE, allowedLine, baselineAsk,
+  AUTO_REVIEW_LINE, PERSISTENT_LEGEND, SECURITY_LEDE_LINES, SECURITY_LEDES, VMS_LEDE_LINES, VMS_LEDES,
+  WAITING_LEDE,
+  allowedLine, baselineAsk,
   askAge, askKindText, decidedText, dockerLead, dockerMemoryUnlimited, faultText, ledeFor, plural,
   IMPORT_TIP, TOOLS_LEDE, builtinState, postureItems, ramLabel, secretChecklist, tallyLine,
   tabTitle, variantBuilds, variantSource,
 } from '../securityCopy.js'
 
 // WEB-12: every Security tab that has no line of its own gets one, found by path
-for (const tab of ['/security', '/security/persistent', '/security/network',
-  '/security/profiles', '/security/logs']) {
+// UI v2: one short line on screen, the full lede behind a ? beside it; Profiles
+// has neither (its page heading carries its own ?)
+for (const tab of ['/security', '/security/persistent', '/security/network', '/security/logs']) {
   const t = ledeFor(SECURITY_LEDES, tab)
   assert.ok(t.length > 30 && t.endsWith('.'), `lede for ${tab}`)
+  const line = ledeFor(SECURITY_LEDE_LINES, tab)
+  assert.ok(line.length > 10 && line.length <= 60 && line.endsWith('.'), `short line for ${tab}`)
 }
+assert.equal(ledeFor(SECURITY_LEDES, '/security/profiles'), '')
+assert.equal(ledeFor(SECURITY_LEDE_LINES, '/security/profiles'), '')
+assert.ok(AUTO_REVIEW_LINE.length <= 60)
 assert.equal(ledeFor(SECURITY_LEDES, '/security/network/'), SECURITY_LEDES['/security/network'])
 // Secrets keeps its panel's own line; an unknown tab has none (the queue's key
 // is a prefix of every other tab, and must not leak onto them)
@@ -24,19 +32,27 @@ assert.notEqual(ledeFor(SECURITY_LEDES, '/security/logs'), SECURITY_LEDES['/secu
 assert.equal(ledeFor(SECURITY_LEDES, undefined), '')
 for (const tab of ['/vms', '/vms/images', '/vms/catalogue']) {
   assert.ok(ledeFor(VMS_LEDES, tab).length > 30, `lede for ${tab}`)
+  const line = ledeFor(VMS_LEDE_LINES, tab)
+  assert.ok(line.length > 10 && line.length <= 60 && line.endsWith('.'), `short line for ${tab}`)
 }
 assert.notEqual(ledeFor(VMS_LEDES, '/vms/images'), ledeFor(VMS_LEDES, '/vms'))
 
-// WEB-07: the words say what Allow does, and that it is permanent for the project
-assert.match(WAITING_LEDE, /always-allow list until you remove it/)
+// WEB-07: the words say what Allow does, and that "always" is per PROFILE:
+// every project on the profile gets it (backend/egress.py _append_host)
+assert.match(WAITING_LEDE, /always-allow list of the project's profile/)
+assert.match(WAITING_LEDE, /every project on that profile can reach it until you remove it/)
 assert.match(WAITING_LEDE, /1 h/)
-assert.match(ALLOW_ALWAYS_TIP('Snake'), /Snake's always-allow list, for good/)
-assert.match(ALLOW_ALWAYS_TIP(''), /You choose the project next/)
+assert.doesNotMatch(WAITING_LEDE, /that project's always-allow/)
+assert.match(ALLOW_ALWAYS_TIP('Snake'), /always-allow list of Snake's profile, so every project on that profile/)
+assert.match(ALLOW_ALWAYS_TIP(''), /the project you choose next/)
 assert.match(ALLOW_ONCE_TIP, /one hour/)
 assert.equal(decidedText('pypi.org', 'deny'), 'pypi.org stays blocked')
 assert.equal(decidedText('pypi.org', 'once', 'Snake'), 'pypi.org allowed for an hour for Snake')
-assert.equal(decidedText('pypi.org', 'allow', 'Snake'), "pypi.org added to Snake's always-allow list")
-assert.equal(decidedText('pypi.org', 'allow', ''), 'pypi.org added to the always-allow list')
+assert.equal(decidedText('pypi.org', 'allow', 'Snake', 'Scoped'),
+  "pypi.org added to the Scoped profile's always-allow list")
+assert.equal(decidedText('pypi.org', 'allow', 'Snake'),
+  "pypi.org added to the always-allow list of Snake's profile")
+assert.equal(decidedText('pypi.org', 'allow', ''), 'pypi.org added to the always-allow list of its profile')
 
 // WEB-02: the confirm names the program and the unit, says how far it reaches and how to undo
 const ask = baselineAsk({ exe: '/usr/local/bin/job', unit: 'weekly-job.service' }, 'program')

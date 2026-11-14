@@ -552,7 +552,7 @@ async def _default():
         await db.close()
 
 
-SAFE = {"network": "ask", "placement": "shared", "services": False, "packages": False}
+SAFE = {"network": "ask", "placement": "shared", "services": True, "packages": True}
 
 
 def test_cli_setup_non_interactive_creates_the_safe_default(tmp_env, monkeypatch,

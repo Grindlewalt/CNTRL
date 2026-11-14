@@ -53,9 +53,12 @@ export function useEgressDecide(onDone, { project = null, names = NO_NAMES } = {
           proj = await pick(row, verb)
           if (!proj) return
         }
-        await approvePending(row.id, needsProject(row) ? proj : null, { once: verb === 'once' })
+        const res = await approvePending(row.id, needsProject(row) ? proj : null,
+                                         { once: verb === 'once' })
         const slug = needsProject(row) ? proj : (row.project_slug || row.project)
-        notify(decidedText(row.host, verb, projectLabel(slug, names)), { life: 6 })
+        // Allow always went on a profile's list (every project on it): name it
+        notify(decidedText(row.host, verb, projectLabel(slug, names),
+                           verb === 'allow' ? res?.profile || '' : ''), { life: 6 })
       }
       onDone?.()
     } catch (err) { notifyError(err) }
@@ -133,7 +136,7 @@ function ProjectPicker({ host, verb, onPick }) {
       {slugs && slugs.length === 0 && (
         <div className="dim small">No projects yet, so there is nothing to attach it to.</div>)}
       {slugs && slugs.length > 0 && (
-        <Select aria-label="project" value={slug} placeholder="Choose a project"
+        <Select aria-label="project" value={slug} placeholder="Choose a project" recentKey="project"
                 onChange={(e) => setSlug(e.target.value)}
                 options={slugs.map((s) => ({ value: s, label: names[s] || s }))} />
       )}

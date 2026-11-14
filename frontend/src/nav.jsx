@@ -16,7 +16,7 @@
 // absent — their routes still work, they are just not advertised — and
 // Network and Logs are Review's sub-tabs now, not destinations of their own.
 import { createContext, useEffect } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { badge } from './format.js'
 import { tabTitle } from './securityCopy.js'
 
@@ -94,7 +94,8 @@ export const MoreIcon = () => (
 // "Projects…" sheet. `count` names the live count the item wears (App.jsx's
 // notices).
 export const NAV_ITEMS = [
-  { to: '/', label: 'Work', icon: 'chat', end: true, primary: true },
+  // `also`: more paths it stays lit on (a project's home is shown inside Work)
+  { to: '/', label: 'Work', icon: 'chat', end: true, primary: true, also: ['/project/'] },
   { to: '/agents', label: 'Agents', icon: 'agents', primary: true },
   { to: '/security', label: 'Security', icon: 'review', primary: true, count: 'review' },
   { to: '/vms', label: 'VMs', icon: 'vms', primary: true, dot: 'vms' },
@@ -127,9 +128,14 @@ export const NavSlotContext = createContext(() => {})
 export function NavItem({
   item, className, iconRef, count = 0, dot, onClick, tabIndex, role,
 }) {
+  const { pathname } = useLocation()
+  const lit = !!item.also?.some((p) => pathname.startsWith(p))
   return (
     <NavLink to={item.to} end={item.end} title={dot ? `${item.label} — ${DOT_TEXT[dot] || dot}` : item.label}
-             className={className} onClick={onClick} tabIndex={tabIndex} role={role}>
+             className={({ isActive }) => [className, (isActive || lit) && 'active']
+               .filter(Boolean).join(' ') || undefined}
+             aria-current={lit ? 'page' : undefined}
+             onClick={onClick} tabIndex={tabIndex} role={role}>
       <NavIcon name={item.icon} innerRef={iconRef} />
       {dot && <span className={`nav-dot ${dot}`} aria-hidden="true" />}
       <span className="nav-label">{item.label}</span>

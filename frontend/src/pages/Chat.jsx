@@ -3,7 +3,6 @@ import {
 } from 'react'
 import { api, chatStream, tailStream } from '../api.js'
 import { NavSlotContext } from '../nav.jsx'
-import { useDismiss } from '../useDismiss.js'
 import { onProjectsChanged } from '../projectsChanged.js'
 import { isPhone, useIsPhone } from '../breakpoints.js'
 import { MessageBody } from '../ToolActivity.jsx'
@@ -14,17 +13,18 @@ import ResumeBar from '../ResumeBar.jsx'
 import { RESUME_TEXT, resumable, resumeUrl } from '../resume.js'
 import { useAsk } from '../ask.jsx'
 import ModelPicker from '../ModelPicker.jsx'
-import { AskPanel, PermissionModeSelect, useOperatorAsks, usePermissionMode } from '../AskUser.jsx'
+import { AskPanel, useOperatorAsks, usePermissionMode } from '../AskUser.jsx'
 import { wireMode } from '../askUser.js'
 import ChatGroups from '../ChatGroups.jsx'
 import { useSlash } from '../slash/useSlash.jsx'
 import { subscribe } from '../events.js'
 import { useApprovals, placeApprovals } from '../shell/approvals.js'
 import ApprovalRow from '../shell/ApprovalRow.jsx'
-import RunsTab from '../shell/RunsTab.jsx'
+import ProjectPanel from '../panels/project/ProjectPanel.jsx'
 import { SendGlyph, UiGlyph } from '../shell/glyphs.jsx'
 import { MODE_HINT } from '../askUser.js'
 import { MODE_SHORT } from '../AskUser.jsx'
+import { clearMsgAnchor, findTextRange, peekMsgAnchor, setMsgAnchor } from '../chatAnchor.js'
 import './work.css'
 
 // A new chat's empty state: what this chat is scoped to, how it will ask,
@@ -71,72 +71,6 @@ function ChatHome({ temporary, projectName, mode, onStart, children }) {
   )
 }
 
-// The project control for the open chat, in the same glassy idiom as the model
-// chip. It also absorbed the old "project loaded: x" line that used to sit in
-// bright green in the sidebar's bottom corner, so there is one place project
-// state is read instead of two.
-//
-// Three states, not two. "follow" is the historic default — the chat uses
-// whatever project is loaded globally. "none" is a real answer: pinned to no
-// project, so file work lands in the chat's own artifact store instead of
-// silently inheriting the last project that happened to be open.
-function ProjectPicker({ projects, mode, value, global: loaded, onPick }) {
-  const [open, setOpen] = useState(false)
-  const close = useCallback(() => setOpen(false), [])
-  const ref = useDismiss(open, close)
-  const name = (slug) => projects.find((p) => p.slug === slug)?.name || slug
-  const label = mode === 'pin' ? name(value)
-    : mode === 'none' ? 'No project'
-    : (loaded ? name(loaded) : 'No project')
-  const pick = (m, slug) => { setOpen(false); onPick(m, slug || '') }
-  return (
-    <div className="proj-pick" ref={ref}>
-      <button type="button" className="proj-chip" aria-haspopup="menu"
-              aria-expanded={open}
-              title={mode === 'follow'
-                ? `following the loaded project${loaded ? ` (${loaded})` : ' — nothing loaded'}`
-                : mode === 'none'
-                  ? 'pinned to no project — files go to this chat’s artifacts'
-                  : 'pinned to this project'}
-              onClick={() => setOpen((o) => !o)}>
-        <span className={`proj-dot${mode === 'pin' ? ' pinned' : ''}`
-                         + (mode === 'none' ? ' none' : '')} aria-hidden="true" />
-        <span className="ellipsis">{label}</span>
-        {mode === 'follow' && loaded && <span className="proj-inherit">loaded</span>}
-        <span className={open ? 'chev open' : 'chev'} aria-hidden="true">›</span>
-      </button>
-      {open && (
-        <div className="proj-menu" role="menu">
-          <button type="button" role="menuitemradio" aria-checked={mode === 'follow'}
-                  onClick={() => pick('follow')}>
-            <span className="m-name">Follow loaded project
-              <span className="m-sub">{loaded ? `${name(loaded)} now; one setting for the whole server`
-                : 'nothing loaded'}</span></span>
-            {mode === 'follow' && <span className="m-check" aria-hidden="true"><UiGlyph name="check" size={14} /></span>}
-          </button>
-          <button type="button" role="menuitemradio" aria-checked={mode === 'none'}
-                  onClick={() => pick('none')}>
-            <span className="m-name">No project
-              <span className="m-sub">files go to this chat’s artifacts</span></span>
-            {mode === 'none' && <span className="m-check" aria-hidden="true"><UiGlyph name="check" size={14} /></span>}
-          </button>
-          <div className="proj-sep" />
-          {projects.map((p) => (
-            <button key={p.slug} type="button" role="menuitemradio"
-                    aria-checked={mode === 'pin' && p.slug === value}
-                    onClick={() => pick('pin', p.slug)}>
-              <span className="m-name">{p.name}
-                <span className="m-sub">{p.slug}</span></span>
-              {mode === 'pin' && p.slug === value
-                && <span className="m-check" aria-hidden="true"><UiGlyph name="check" size={14} /></span>}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // Work (work/Work.jsx) hosts this page and adds its windows beside it. Every
 // prop is optional, so Chat on its own renders exactly as it always has:
 //   toolbarExtra     rendered at the end of the chat toolbar (Work's +)
@@ -146,7 +80,7 @@ function ProjectPicker({ projects, mode, value, global: loaded, onPick }) {
 const NEEDS_POLL_MS = 15000
 
 export default function Chat({
-  toolbarExtra = null, beside = null, onProjectChange, controlRef,
+  toolbarExtra = null, beside = null, onProjectChange, controlRef, home = null, onLeaveHome,
 } = {}) {
   const [conversations, setConversations] = useState([])
   const [conversationId, setConversationId] = useState(null)
@@ -164,10 +98,10 @@ export default function Chat({
   // Doesn't repaint the GUI — the toolbar switch and the composer placeholder
   // carry it.
   const [temporary, setTemporary] = useState(false)
-  // the multi-agent jobs this chat launched (/messages `jobs`), and whether
-  // the Runs view is standing in for the transcript
+  // the multi-agent jobs this chat launched (/messages `jobs`)
   const [chatJobs, setChatJobs] = useState([])
-  const [runsView, setRunsView] = useState(false)
+  // the project side panel (panels/project): null, or the tab it is open at
+  const [panel, setPanel] = useState(null)
   // bumped when something may have joined the approval queue (see below)
   const [needsPoke, setNeedsPoke] = useState(0)
   const asks = useOperatorAsks(conversationId, busy)   // ask_user / permission asks
@@ -280,9 +214,46 @@ export default function Chat({
     if (!el || !box) return          // not drawn yet: the next messages change tries again
     try { sessionStorage.removeItem('jarvis.chat.step') } catch { /* private mode */ }
     const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop
+    follow.leave()                   // stay on it as later rows or approvals grow the list
     box.scrollTop = Math.max(0, top - box.clientHeight / 3)
     el.classList.add('step-hit')
     setTimeout(() => el.classList.remove('step-hit'), 3600)
+  }, [conversationId, messages])
+
+  // A deep-search hit (or /c/<id>?msg=<n>&q=…, kept by routes.jsx): once that
+  // message is drawn, scroll the list to the matching text in it (the message
+  // itself when the text can't be found, e.g. split by markdown), flash the
+  // message and mark the text with a CSS highlight (no DOM change under React).
+  useEffect(() => {
+    if (!conversationId || !messages.length) return
+    const a = peekMsgAnchor(conversationId)
+    if (!a) return
+    const el = document.getElementById(`msg-${a.mid}`)
+    const box = scrollRef.current
+    if (!el || !box) return          // not drawn yet: the next messages change tries again
+    clearMsgAnchor()
+    const range = findTextRange(el, a.q)
+    const at = (range && range.getBoundingClientRect().height ? range : el).getBoundingClientRect()
+    const top = at.top - box.getBoundingClientRect().top + box.scrollTop
+    follow.leave()                   // stay on it as later rows or approvals grow the list
+    box.scrollTop = Math.max(0, top - box.clientHeight / 3)
+    // mark it now and again shortly: on a fresh open the approvals that load
+    // next re-render the rows, which drops the class and collapses the range
+    const hl = typeof CSS !== 'undefined' && CSS.highlights && typeof Highlight === 'function'
+    const mark = () => {
+      const m = document.getElementById(`msg-${a.mid}`)
+      if (!m) return
+      m.classList.add('step-hit')
+      const r = findTextRange(m, a.q)
+      if (r && hl) CSS.highlights.set('chat-hit', new Highlight(r))
+    }
+    mark()
+    const again = [setTimeout(mark, 400), setTimeout(mark, 1200)]
+    setTimeout(() => {
+      again.forEach(clearTimeout)
+      document.getElementById(`msg-${a.mid}`)?.classList.remove('step-hit')
+      if (hl) CSS.highlights.delete('chat-hit')
+    }, 6000)
   }, [conversationId, messages])
 
   // the composer grows with the draft, up to the CSS max-height. Past one line
@@ -341,8 +312,16 @@ export default function Chat({
   const closeSideOnPhone = () => {
     if (isPhone()) setSideOpen(false)
   }
+  // picking a chat or a new chat in the sidebar while a project's home shows
+  // in the main area (Work, /project/:slug) goes back to the chat
+  const leaveHome = () => { if (home) onLeaveHome?.() }
+  // ...and a project row opening its home on a phone reveals it
+  useEffect(() => { if (home) closeSideOnPhone() }, [home])  // eslint-disable-line
 
-  async function openConversation(id, { resume = false, attempt = 0 } = {}) {
+  async function openConversation(id, { resume = false, attempt = 0, messageId = null,
+                                        query = '' } = {}) {
+    // a deep-search hit: open the chat AT that message (the effect below)
+    if (messageId) setMsgAnchor(id, messageId, query)
     tailAbort.current?.abort()
     folder.current.cancel()
     const mine = ++gen.current
@@ -416,7 +395,6 @@ export default function Chat({
     setConversationId(null)
     setMessages([])
     setChatJobs([])
-    setRunsView(false)
     setPendingProject('')
     setPendingMode('follow')
     setTemporary(false)
@@ -588,28 +566,21 @@ export default function Chat({
   }
 
   // a brand-new chat: no saved conversation, nothing sent yet. On a phone the
-  // toolbar disappears and its two controls move under the orb instead.
+  // toolbar disappears and its controls move under the orb instead.
   const fresh = !conversationId && messages.length === 0
-  const projectPicker = (
-    <ProjectPicker
-      projects={projects} global={active}
-      mode={conversationId ? convoMode(openConvo) : pendingMode}
-      value={conversationId ? (openConvo?.project_slug || '') : pendingProject}
-      onPick={(mode, slug) => {
-        if (conversationId) return assignProject(mode, slug)
-        setPendingMode(mode)
-        setPendingProject(slug)
-      }} />
-  )
-  const tempSwitch = (
-    <label className={`temp-switch${temporary ? ' on' : ''}`}
-           title="temporary chat: nothing is written to disk, and it is gone once you leave">
-      <input type="checkbox" checked={temporary}
-             onChange={(e) => setTemporary(e.target.checked)} />
-      <span className="temp-track"><span className="temp-knob" /></span>
-      <span className="temp-word">Temporary chat</span>
-    </label>
-  )
+  // The project scope this chat's work goes to, as the panel edits it: a saved
+  // chat's row, or a new chat's pending choice.
+  const scopeMode = conversationId ? convoMode(openConvo) : pendingMode
+  const scopeValue = conversationId ? (openConvo?.project_slug || '') : pendingProject
+  const pickScope = (mode, slug) => {
+    if (conversationId) return assignProject(mode, slug)
+    setPendingMode(mode)
+    setPendingProject(slug || '')
+  }
+  const projectName = (slug) => projects.find((p) => p.slug === slug)?.name || slug
+  const scopeLabel = scopeMode === 'pin' ? projectName(scopeValue)
+    : scopeMode === 'none' ? 'No project'
+    : (active ? projectName(active) : 'No project')
 
   // What is waiting on the operator in this chat's scope, inline in the
   // transcript as /shell shows it (shell/approvals.js). The scope is the
@@ -639,8 +610,44 @@ export default function Chat({
   ))
   // Runs is offered wherever there can be runs: a saved chat, or a project
   const runsOffered = !!(conversationId || effectiveProject) && !temporary
-  const showRuns = runsView && runsOffered
   const runningJobs = chatJobs.filter((j) => j.running).length
+  // the panel's store: the project, else a saved chat's own `chat-<id>` files
+  const panelSlug = effectiveProject || (conversationId && !temporary ? `chat-${conversationId}` : null)
+
+  // The bar's controls: plain buttons. Each names what it is and its value,
+  // and opens the project panel at the tab that changes it (Project: Files,
+  // Mode: Security, Runs: Runs). Temporary is the one toggle, pressed or not.
+  const barControls = (
+    <>
+      <button type="button" className={`pp-bar-btn${scopeMode === 'pin' ? ' pinned' : ''}`}
+              aria-haspopup="dialog" aria-expanded={panel === 'files'}
+              onClick={() => setPanel(panel === 'files' ? null : 'files')}>
+        <span className="pp-k">Project</span>
+        <span className="pp-v ellipsis">{scopeLabel}</span>
+      </button>
+      {!conversationId && (
+        <button type="button" className={`pp-bar-btn pp-toggle${temporary ? ' on' : ''}`}
+                aria-pressed={temporary} onClick={() => setTemporary((t) => !t)}>
+          {temporary && <UiGlyph name="check" size={14} />}
+          <span className="pp-v">Temporary chat</span>
+        </button>
+      )}
+      <button type="button" className={`pp-bar-btn mode-${permMode}`}
+              aria-haspopup="dialog" aria-expanded={panel === 'security'}
+              onClick={() => setPanel(panel === 'security' ? null : 'security')}>
+        <span className="pp-k">Mode</span>
+        <span className="pp-v">{MODE_SHORT[permMode] || permMode}</span>
+      </button>
+      {runsOffered && (
+        <button type="button" className="pp-bar-btn"
+                aria-haspopup="dialog" aria-expanded={panel === 'runs'}
+                onClick={() => setPanel(panel === 'runs' ? null : 'runs')}>
+          <span className="pp-v">Runs</span>
+          {runningJobs > 0 && <span className="chat-runs-count">{runningJobs}</span>}
+        </button>
+      )}
+    </>
+  )
 
   const slash = useSlash({
     input, setInput, busy, conversationId, turnId: () => conversationId ?? liveId.current,
@@ -666,11 +673,12 @@ export default function Chat({
             <UiGlyph name={sideOpen ? 'left' : 'right'} /></button>
           <span className="side-title">Chats</span>
           <button type="button" className="icon-btn" title="new chat" aria-label="new chat"
-                  onClick={newConversation}><UiGlyph name="plus" /></button>
+                  onClick={() => { leaveHome(); newConversation() }}><UiGlyph name="plus" /></button>
         </div>
         {!sideOpen && !phone && <div className="side-nav" ref={slotRef} />}
-        <ChatGroups conversations={conversations} activeId={conversationId}
-                    projects={projects} onOpen={openConversation}
+        <ChatGroups conversations={conversations} activeId={home ? null : conversationId}
+                    projects={projects}
+                    onOpen={(id, opts) => { leaveHome(); openConversation(id, opts) }}
                     onRename={(c) => renameConversation(c.id, c.summary)}
                     onDelete={(c) => deleteConversation(c.id)}
                     onChanged={refreshConvos} />
@@ -678,7 +686,11 @@ export default function Chat({
       {sideOpen && (
         <div className="chat-scrim" onClick={() => setSideOpen(false)} />
       )}
-      <main>
+      {/* a project's home (Work, /project/:slug) takes the main area; the chat
+          stays mounted under it, hidden, so a running turn and its scroll
+          position are there when the operator goes back */}
+      {home && <main className="chat-home-main">{home}</main>}
+      <main hidden={!!home}>
         {/* the one home for the project state — except a fresh chat on a
             phone, where the controls sit in the empty state and the bar
             itself would just be an empty strip */}
@@ -692,37 +704,12 @@ export default function Chat({
                 title is what gives way on a narrow screen */}
             <div className="chat-meta">
               {conversationId && <span className="tag">#{conversationId}</span>}
-              {projectPicker}
-              {/* beside the project control: both answer "where does this
-                  turn's work go". A switch, not a chip — it is a mode you
-                  leave set. Only offered while it can still apply: a saved
-                  chat can't retroactively not exist, and a disabled switch
-                  read as broken while crowding the phone toolbar. */}
-              {!conversationId && tempSwitch}
-              <PermissionModeSelect cid={conversationId} value={permMode} onChange={setPermMode} />
-              {runsOffered && (
-                <button type="button" className={`chat-runs-toggle${showRuns ? ' on' : ''}`}
-                        aria-pressed={showRuns}
-                        title={showRuns ? 'back to the conversation'
-                          : 'research, agent teams and plan runs around this chat'}
-                        onClick={() => setRunsView((v) => !v)}>
-                  {showRuns ? 'Chat' : 'Runs'}
-                  {!showRuns && runningJobs > 0 && (
-                    <span className="chat-runs-count">{runningJobs}</span>)}
-                </button>
-              )}
+              {barControls}
               {toolbarExtra}
             </div>
           </div>
         )}
-        {showRuns && (
-          <div className="chat-runs-view">
-            <RunsTab project={effectiveProject} chatJobs={chatJobs} />
-          </div>
-        )}
-        {/* hidden, not unmounted, under the Runs view: the scroll position
-            and the streaming placeholder survive a look at the runs */}
-        <div className="messages" ref={scrollRef} hidden={showRuns}>
+        <div className="messages" ref={scrollRef}>
           {messages.length === 0 ? (
             <div className="chat-empty">
               <ChatHome temporary={temporary} mode={permMode} onStart={startWith}
@@ -730,11 +717,7 @@ export default function Chat({
                           ? (projects.find((p) => p.slug === effectiveProject)?.name || effectiveProject)
                           : null}>
                 {phone && fresh && (
-                  <div className="empty-controls">
-                    {projectPicker}
-                    <PermissionModeSelect cid={conversationId} value={permMode} onChange={setPermMode} />
-                    {tempSwitch}
-                  </div>
+                  <div className="empty-controls">{barControls}</div>
                 )}
                 {approvalsTail.length > 0 && (
                   <div className="chat-approvals">{approvalRows(approvalsTail)}</div>
@@ -744,7 +727,8 @@ export default function Chat({
           ) : (
             <div className="thread">
               {messages.map((m, i) => (
-                <div key={i} className={`msg ${m.role}${m.midturn ? ` midturn ${m.midturn}` : ''}`}>
+                <div key={i} id={m.id ? `msg-${m.id}` : undefined}
+                     className={`msg ${m.role}${m.midturn ? ` midturn ${m.midturn}` : ''}`}>
                   {m.role === 'assistant' ? <MessageBody m={m} />
                     : <pre>{m.content || (m.streaming ? '…' : '')}</pre>}
                 </div>
@@ -769,7 +753,7 @@ export default function Chat({
         <form className="composer" ref={dockRef}
               onSubmit={(e) => { e.preventDefault(); slash.submit() || send() }}>
           {slash.popup}
-          {!follow.pinned && (follow.away > 0 || busy) && !showRuns && messages.length > 0 && (
+          {!follow.pinned && (follow.away > 0 || busy) && messages.length > 0 && (
             <button type="button" className="follow-pill" onClick={follow.jump}>
               {follow.away > 0 ? `${follow.away} new` : 'latest'} <span aria-hidden="true">↓</span>
             </button>
@@ -803,6 +787,14 @@ export default function Chat({
         </form>
       </main>
       {beside}
+      <ProjectPanel open={panel !== null} tab={panel || 'files'} onTab={setPanel}
+                    onClose={() => setPanel(null)}
+                    cid={conversationId} temporary={temporary}
+                    slug={panelSlug} isProject={!!effectiveProject}
+                    projects={projects} loaded={active}
+                    scope={{ mode: scopeMode, value: scopeValue, onPick: pickScope }}
+                    permMode={permMode} onPermMode={setPermMode}
+                    runs={runsOffered} chatJobs={chatJobs} />
     </div>
   )
 }

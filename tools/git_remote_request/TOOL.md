@@ -12,7 +12,10 @@ parameters:
     url:
       type: string
       description: The repo URL, exactly https://github.com/<owner>/<repo> (https, no credentials in the URL).
-  required: [url]
+    summary:
+      type: string
+      description: What this request does and why, in at most two sentences. The operator reads it first.
+  required: [url, summary]
 ---
 Files a remote-connect request into the operator's Git panel. On approval the
 host verifies the repo is reachable with the operator's token, connects it as

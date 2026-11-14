@@ -340,15 +340,15 @@ def _tool():
 async def test_tool_handler(db, monkeypatch):
     mod = _tool()
     monkeypatch.setattr(settings, "vm_boxes_enabled", False)
-    out = await mod.run(name="sim-gl", packages=["apt ffmpeg"], reason="r")
+    out = await mod.run(summary="Test request.", name="sim-gl", packages=["apt ffmpeg"], reason="r")
     assert out.startswith("error:") and "vm_boxes_enabled" in out
     monkeypatch.setattr(settings, "vm_boxes_enabled", True)
     from backend import runtime
     tok = runtime.active_project.set("a")
     try:
-        out = await mod.run(name="sim-gl", packages=["pip git+https://x/y"], reason="r")
+        out = await mod.run(summary="Test request.", name="sim-gl", packages=["pip git+https://x/y"], reason="r")
         assert out.startswith("error:")
-        out = await mod.run(name="sim-gl", packages=["apt mesa-utils", "pip pygame"],
+        out = await mod.run(summary="Test request.", name="sim-gl", packages=["apt mesa-utils", "pip pygame"],
                             reason="WebGL", **{"from": "main"})
     finally:
         runtime.active_project.reset(tok)
@@ -453,7 +453,7 @@ async def test_use_tool_text(db, monkeypatch):
     monkeypatch.setattr(settings, "vm_boxes_enabled", True)
     tok = runtime.active_project.set("d")
     try:
-        out = await mod.run(use="desktop", reason="screenshot needs it")
+        out = await mod.run(summary="Test request.", use="desktop", reason="screenshot needs it")
     finally:
         runtime.active_project.reset(tok)
     assert out.startswith("environment request #1 filed: move this project onto the "

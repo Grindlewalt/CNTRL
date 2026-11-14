@@ -13,7 +13,7 @@ from . import (agents_api, agents_run, artifacts_api, auth, backup, browser_api,
                git_api, git_serve_api, gitea_api, grounding_api, gui, guest_shell, harness_api, lan, logs_api,
                media_api, memory_api,
                notifications_api, permissions_api, plan_api, projects, providers, reviewer,
-               reviewer_api, runs_api, schedules, setup_api, sidebar_api, skills_api,
+               reviewer_api, runs_api, schedules, search_api, setup_api, sidebar_api, skills_api,
                vm_api, voice_api, workspace, secrets)
 from . import procview_api   # WP4
 from . import pages_api
@@ -179,6 +179,7 @@ app.include_router(grounding_api.router)
 app.include_router(projects.router)
 app.include_router(chat.router)
 app.include_router(sidebar_api.router)
+app.include_router(search_api.router)
 app.include_router(memory_api.router)
 app.include_router(pages_api.router)
 app.include_router(workspace.router)
@@ -233,6 +234,8 @@ from . import services_api  # noqa: E402  # WP3
 app.include_router(services_api.router)  # WP3
 from .vm import display_api  # noqa: E402  # the live desktop of a box (P1: watch only)
 app.include_router(display_api.router)
+from . import project_home as _project_home   # the web app's project home page
+app.include_router(_project_home.router)
 
 
 @app.get("/api/health")

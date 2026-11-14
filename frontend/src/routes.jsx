@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-do
 import Login from './pages/Login.jsx'
 import Work from './work/Work.jsx'
 import NotFound from './pages/NotFound.jsx'
+import { setMsgAnchor } from './chatAnchor.js'
 
 // The routing table, in the order the nav lists it (see nav.jsx): the six
 // primaries, then the ⋯ overflow, then the routes that are reachable but not
@@ -23,7 +24,9 @@ import NotFound from './pages/NotFound.jsx'
 // first run only, so never prefetched
 function OpenChat() {
   const { id } = useParams()
-  const step = new URLSearchParams(useLocation().search).get('step')
+  const params = new URLSearchParams(useLocation().search)
+  const step = params.get('step')
+  const msg = params.get('msg')
   if (/^\d+$/.test(id || '')) {
     try { localStorage.setItem('jarvis.chat.last', id) } catch { /* private mode */ }
     // /c/<id>?step=<n>: a security card's "Open chat at step". Chat scrolls to it
@@ -31,6 +34,8 @@ function OpenChat() {
     try {
       if (/^\d+$/.test(step || '')) sessionStorage.setItem('jarvis.chat.step', `${id}:${step}`)
     } catch { /* private mode */ }
+    // /c/<id>?msg=<message id>&q=<text>: open at a message (a deep-search hit)
+    if (/^\d+$/.test(msg || '')) setMsgAnchor(id, msg, params.get('q') || '')
   }
   return <Navigate to="/" replace />
 }
@@ -63,6 +68,7 @@ const Review = lazy(() => import('./pages/Review.jsx'))
 const ReviewHome = lazy(() => import('./pages/Review.jsx')
   .then((m) => ({ default: m.ReviewHome })))
 const Network = lazy(() => import('./pages/Network.jsx'))
+const NetworkAll = lazy(() => import('./pages/Network.jsx').then((m) => ({ default: m.NetworkAll })))
 const Logs = lazy(() => import('./pages/Logs.jsx'))
 const SecretsPanel = lazy(() => import('./SecretsPanel.jsx'))
 const Persistent = lazy(() => import('./pages/Persistent.jsx'))
@@ -97,7 +103,7 @@ const PREFETCH = [
   () => import('./pages/Voice.jsx'), () => import('./pages/Artifacts.jsx'),
   () => import('./pages/Vms.jsx'), () => import('./pages/Catalogue.jsx'),
   () => import('./pages/Persistent.jsx'), () => import('./pages/Profiles.jsx'),
-  () => import('./pages/Git.jsx'),
+  () => import('./pages/Git.jsx'), () => import('./pages/ProjectHome.jsx'),
 ]
 
 function usePrefetchRoutes(enabled) {
@@ -140,6 +146,8 @@ export default function AppRoutes({ onLogin, onSetup, authed }) {
         <Route path="/c/:id" element={<OpenChat />} />
         <Route path="/projects" element={<Work openProjects />} />
         <Route path="/projects/:slug" element={<Work />} />
+        {/* a project's home: in Work's main area, the chat sidebar kept */}
+        <Route path="/project/:slug" element={<Work projectHome />} />
         <Route path="/agents" element={<Agents />}>
           <Route index element={<AgentDefinitions />} />
           <Route path="skills" element={<SkillsPanel />} />
@@ -150,6 +158,7 @@ export default function AppRoutes({ onLogin, onSetup, authed }) {
           <Route index element={<ReviewHome />} />
           <Route path="persistent" element={<Persistent />} />
           <Route path="network" element={<Network />} />
+          <Route path="network/all" element={<NetworkAll />} />
           <Route path="profiles" element={<Profiles />} />
           <Route path="logs" element={<Logs />} />
           <Route path="secrets" element={<SecretsPanel />} />

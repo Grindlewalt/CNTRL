@@ -88,8 +88,10 @@ The host and the sandbox talk only over vsock (VMs) or two unix sockets
   project is a git repository on the host; agent writes land in it straight
   away, every applied batch is kept on a hidden ref so `/history` and `/undo`
   can bring back an overwritten or deleted file, and commits wait for your
-  approval. Committed work can be cloned read-only from the server
-  (`git clone http://<host>:<port>/git/<slug>`), pushed to GitHub with a
+  approval. A file you edit and save in the web app goes through the same write
+  chokepoint as the agent's writes, so a protected path or a file holding a
+  secret's value is refused there too. Committed work can be cloned read-only
+  from the server (`git clone http://<host>:<port>/git/<slug>`), pushed to GitHub with a
   `GITHUB_TOKEN` secret, or mirrored to an optional local Gitea where agents
   open pull requests ([docs/gitea.md](docs/gitea.md)).
 - **Any model.** Providers from the [models.dev](https://models.dev) catalogue:
@@ -110,7 +112,19 @@ The host and the sandbox talk only over vsock (VMs) or two unix sockets
 - **Approvals in one queue.** Network hosts, extra packages, new sandbox
   images, skill installs, background services, git commits, remotes and pushes,
   published pages, memory notes the agent wrote, and new schedules (which start
-  paused).
+  paused). Security's "Waiting for you" list shows them, each with a summary
+  the agent had to write (one or two sentences, at most 300 characters; a
+  request without one is not filed), with Approve, Deny and Inspect, which opens
+  the chat at the step that asked.
+- **Project home pages.** Clicking a project opens its page: a composer for a
+  new chat in it, its recent chats, and its instructions, context files, memory
+  and schedules. The instructions are saved as the project's `instructions.md`
+  and loaded into every prompt, first among the project's always-loaded files,
+  within the project's context budget. Projects can be pinned to the top of the
+  sidebar, and pins are stored on the server.
+- **Search.** The sidebar search matches chat and project titles as you type.
+  "Deep search" reads the text of user and assistant messages on the server,
+  stops after 4 seconds, and pages; a hit opens its chat at that message.
 - **Memory you control.** Plain files on the host. A note the agent writes stays
   out of its context until you approve it on the Memory page, and a note written
   during a turn that read outside content carries a taint warning.
@@ -269,11 +283,20 @@ profile: the default profile allows a short list of package registries and
 GitHub hosts, and any other new host is refused and queued for your approval.
 A separate model call, the triage reviewer ("Auto review", on by default, with
 no tools and no network), goes through that queue every five minutes and can
-approve hosts it judges routine; you can switch it off in Security. The proxy
-meters bytes per host, fills in `{{secret:NAME}}` placeholders the project was
-granted in plain-HTTP requests, and cuts off a host when the traffic looks like
-exfiltration (volume, entropy, cadence). HTTPS is tunnelled, not inspected. A
-project can also be given access to listed LAN addresses (off by default).
+approve hosts it judges routine; you can switch it off in Security. An
+approval adds the site to the profile's always-allow list, so every project on
+that profile can reach it from then on, whether you approved it or Auto review
+did. To keep a project's approvals to itself, give it a profile of its own.
+
+"Allow 1 h" lets a host through for one project for an hour and writes no list.
+Security > Network shows the last 30 decisions with the profile each was made
+under, and an All page with search and filters.
+
+The proxy meters bytes per host, fills in `{{secret:NAME}}` placeholders the
+project was granted in plain-HTTP requests, and cuts off a host when the traffic
+looks like exfiltration (volume, entropy, cadence). HTTPS is tunnelled, not
+inspected. A project can also be given access to listed LAN addresses (off by
+default).
 
 ## Terminal client
 

@@ -119,6 +119,29 @@ async def test_project_setting_beats_profile_default(db):
     assert (await boxes.for_project("plain")).id == "shared"
 
 
+async def test_a_chat_store_answers_the_shared_box_it_really_runs_in(db):
+    # a project-less chat's store (chat-<id>) on a separate-box profile: its
+    # turns run in the shared box (for_project), and the placement view must
+    # say so rather than "its own VM p-chat-7"
+    pid = await iso_profile(db)
+    await add_project(db, "chat-7", pid)
+    assert (await boxes.for_project("chat-7")).id == "shared"
+    eff = await placement.effective("chat-7")
+    assert (eff["mode"], eff["box_id"], eff["source"]) == ("shared", "shared", "chat")
+    view = await placement.overview(db, "chat-7")
+    assert view["effective"]["mode"] == "shared" and view["described"] == "the shared box"
+    assert "chat-7" in next(r for r in view["boxes"] if r["id"] == "shared")["used_by"]
+    # an own box or a join would never apply there: refused, not stored
+    for body in ({"mode": "own"}, {"mode": "join", "box_id": "p-other"}):
+        with pytest.raises(placement.PlacementError) as e:
+            await placement.put(db, "chat-7", body)
+        assert e.value.status == 409
+    assert await placement.get_setting(db, "chat-7") is None
+    # a real project on the same profile still gets its own box
+    await add_project(db, "iso", pid)
+    assert (await placement.effective("iso"))["mode"] == "own"
+
+
 async def test_profile_default_shared_still_uses_a_warmed_box(db):
     await add_project(db, "plain")
     boxes.allocate("project", project="plain")          # operator warm-up

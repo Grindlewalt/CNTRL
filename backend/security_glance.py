@@ -63,3 +63,59 @@ async def glance(project: str | None = None):
                            "denied": int(net["denied"] or 0)}}
     finally:
         await db.close()
+
+
+# ---- Inspect: the chat step that filed a request -------------------------------
+# A queue row's Inspect opens the chat AT the call that filed it (/c/<id>?step=<n>,
+# where n is the tool_calls row). The request keeps the model's call id
+# (reqsummary.store); a row from before that, or one whose call id the turn
+# never recorded, falls back to the first call of the filing tool in that chat
+# at or after the request was filed.
+
+# queue kind -> (table, {row kind -> tool}, the section a merged call shows as)
+_REQUESTS = {
+    "git": ("git_requests", {"commit": "git_commit_request", "push": "git_push_request",
+                             "remote": "git_remote_request"}, "git"),
+    "package": ("package_catalogue", {"": "package_request"}, "project"),
+    "environment": ("environment_requests", {"": "environment_request"}, "project"),
+    "skill": ("skill_requests", {"": "skill_request"}, "skills"),
+    "service": ("services", {"": "service_request"}, "project"),
+    "page": ("pages", {"": "publish"}, "project"),
+}
+
+
+@router.get("/request_step")
+async def request_step(kind: str, id: str):
+    """{conversation_id, step}: where in which chat a request was filed. Either
+    may be null (filed over HTTP, by the orchestrator, or the chat is gone)."""
+    none = {"conversation_id": None, "step": None}
+    spec = _REQUESTS.get(kind)
+    if spec is None:
+        return none
+    table, tools, section = spec
+    db = await get_db()
+    try:
+        async with db.execute(f"SELECT * FROM {table} WHERE id = ?", (id,)) as cur:
+            row = await cur.fetchone()
+        row = dict(row) if row is not None else {}
+        cid = row.get("conversation_id")
+        if not cid:
+            return none
+        step = None
+        if row.get("call_id"):
+            async with db.execute(
+                    "SELECT id FROM tool_calls WHERE conversation_id = ? AND call_id = ? "
+                    "ORDER BY id LIMIT 1", (cid, str(row["call_id"]))) as cur:
+                r = await cur.fetchone()
+            step = r["id"] if r else None
+        tool = tools.get(row.get("kind") or "") or tools.get("")
+        if step is None and tool:
+            async with db.execute(
+                    "SELECT id FROM tool_calls WHERE conversation_id = ? AND tool IN (?, ?) "
+                    "AND created_at >= datetime(?, '-5 seconds') ORDER BY id LIMIT 1",
+                    (cid, tool, section, row.get("created_at") or "1970-01-01")) as cur:
+                r = await cur.fetchone()
+            step = r["id"] if r else None
+        return {"conversation_id": cid, "step": step}
+    finally:
+        await db.close()

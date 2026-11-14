@@ -64,7 +64,7 @@ async def test_push_request_includes_this_turns_writes(client, fake, monkeypatch
     staged = {"README.md": "# demo\n", "hello.py": "print('hi')\n"}
     with in_guest_turn(monkeypatch, staged) as calls:
         # (without the flush the host saw nothing here: "clean", as the live agent did)
-        out = await registry.dispatch("git_push_request", {"title": "Add README and hello"})
+        out = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add README and hello"})
     assert calls, "the guest's buffer was never pulled"
     assert "error" not in out.lower().split("\n")[0], out
     # the PR holds BOTH files, not only host-side edits
@@ -82,7 +82,7 @@ async def test_git_status_diff_and_commit_request_see_this_turns_writes(client, 
         status = await registry.dispatch("git_status", {})
         assert "notes.txt" in status and "clean" not in status
         assert "notes.txt" in await registry.dispatch("git_diff", {})
-        out = await registry.dispatch("git_commit_request", {"message": "Add notes"})
+        out = await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "Add notes"})
     assert "filed" in out and "nothing to commit" not in out
 
 
@@ -120,7 +120,7 @@ async def test_a_failed_pull_does_not_break_the_git_tool(client, fake, monkeypat
 
 async def test_reply_says_what_happened_and_what_next(client, fake):
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    out = await registry.dispatch("git_push_request", {"title": "Add x"})
+    out = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     assert "push request #" in out and "pull request #1" in out
     assert "A code/x.py" in out and "1 file(s)" in out
     assert "pending" in out and "Don't file it again" in out
@@ -129,7 +129,7 @@ async def test_reply_says_what_happened_and_what_next(client, fake):
 
 
 async def test_nothing_to_push_says_so_and_files_nothing(client, fake):
-    out = await registry.dispatch("git_push_request", {"title": "Nothing"})
+    out = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Nothing"})
     assert out.startswith("error: nothing to push")
     assert "Write or edit a file" in out
     assert (await _rows(client)).json()["requests"] == []
@@ -137,7 +137,7 @@ async def test_nothing_to_push_says_so_and_files_nothing(client, fake):
 
 
 async def test_not_set_up_says_nothing_was_filed(client, tmp_env):
-    out = await registry.dispatch("git_push_request", {"title": "x"})
+    out = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "x"})
     assert "isn't set up" in out and "Nothing was filed" in out and "git_commit_request" in out
 
 
@@ -145,9 +145,9 @@ async def test_not_set_up_says_nothing_was_filed(client, tmp_env):
 
 async def test_same_changes_are_not_filed_twice(client, fake):
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    first = await registry.dispatch("git_push_request", {"title": "Add x"})
+    first = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     assert "filed" in first
-    again = await registry.dispatch("git_push_request", {"title": "Add x, again"})
+    again = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x, again"})
     assert again.startswith("error:") and "already holds exactly these changes" in again
     assert "push request #" in again and "pull request #1" in again
     assert len(fake.pulls) == 1
@@ -159,9 +159,9 @@ async def test_same_changes_are_not_filed_twice(client, fake):
 
 async def test_changed_files_file_a_second_request_that_names_the_first(client, fake):
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    await registry.dispatch("git_push_request", {"title": "Add x"})
+    await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     (_pdir() / "code" / "y.py").write_text("print(2)\n")
-    out = await registry.dispatch("git_push_request", {"title": "Add x and y"})
+    out = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x and y"})
     assert "filed" in out and "Earlier push request" in out and "close the others" in out
     rows = (await _rows(client)).json()["requests"]
     assert len(rows) == 2 and len(fake.pulls) == 2
@@ -171,10 +171,10 @@ async def test_changed_files_file_a_second_request_that_names_the_first(client, 
 
 async def test_a_merged_request_is_settled_before_the_next_is_filed(client, fake):
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    await registry.dispatch("git_push_request", {"title": "Add x"})
+    await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     fake.merge(1)                                        # the operator merged it in Gitea
     (_pdir() / "code" / "y.py").write_text("print(2)\n")
-    out = await registry.dispatch("git_push_request", {"title": "Add y"})
+    out = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add y"})
     assert "filed" in out and "Earlier push request" not in out
     assert "1 file(s)" in out and "code/y.py" in out    # on top of the merged main
     rows = (await _rows(client)).json()["requests"]
@@ -187,9 +187,9 @@ async def test_commit_request_approved_after_its_pr_merged_closes_cleanly(client
     """The agent files git_commit_request AND git_push_request for the same files.
     Merging the PR first must not leave the commit request pending on a git error."""
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    out = await registry.dispatch("git_commit_request", {"message": "Add x"})
+    out = await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "Add x"})
     assert "filed" in out
-    out = await registry.dispatch("git_push_request", {"title": "Add x"})
+    out = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     assert "filed" in out
     rows = (await _rows(client)).json()["requests"]
     push = next(r for r in rows if r["kind"] == "push")
@@ -206,8 +206,8 @@ async def test_commit_request_approved_after_its_pr_merged_closes_cleanly(client
 
 async def test_commit_approved_first_then_its_pr_merges_without_conflict(client, fake):
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    await registry.dispatch("git_commit_request", {"message": "Add x"})
-    await registry.dispatch("git_push_request", {"title": "Add x"})
+    await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "Add x"})
+    await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     rows = (await _rows(client)).json()["requests"]
     push = next(r for r in rows if r["kind"] == "push")
     commit = next(r for r in rows if r["kind"] == "commit")
@@ -228,7 +228,7 @@ async def test_snapshot_leaves_runtime_files_out(client, fake):
     (_pdir() / ".staging" / "buffered.txt").write_text("b")
     (_pdir() / ".workspace.json").write_text("{}")
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    out = await registry.dispatch("git_push_request", {"title": "Add x"})
+    out = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     assert "code/x.py" in out
     assert ".staging" not in out and ".workspace.json" not in out
 
@@ -244,7 +244,7 @@ def _down(monkeypatch):
 async def test_gitea_down_the_tool_says_so_and_files_nothing(client, fake, monkeypatch):
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
     _down(monkeypatch)
-    out = await registry.dispatch("git_push_request", {"title": "Add x"})
+    out = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     assert out.startswith("error: Gitea isn't answering")
     assert "No pull request was made" in out and "files are safe" in out
     assert "git_commit_request" in out and "Don't retry" in out
@@ -254,7 +254,7 @@ async def test_gitea_down_the_tool_says_so_and_files_nothing(client, fake, monke
 
 async def test_gitea_down_approve_and_reject_keep_the_request_pending(client, fake, monkeypatch):
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    await registry.dispatch("git_push_request", {"title": "Add x"})
+    await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     rid = (await _rows(client)).json()["requests"][0]["id"]
     _down(monkeypatch)
     for verb in ("approve", "reject"):
@@ -273,7 +273,7 @@ async def test_gitea_down_approve_and_reject_keep_the_request_pending(client, fa
                                         (405, "Gitea won't merge pull request #1")])
 async def test_refused_merge_is_explained_and_stays_pending(client, fake, monkeypatch, code, words):
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    await registry.dispatch("git_push_request", {"title": "Add x"})
+    await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     rid = (await _rows(client)).json()["requests"][0]["id"]
     _wrap(monkeypatch, fake, lambda req: httpx.Response(code, json={"message": "Merge conflict"})
           if req.url.path.endswith("/merge") else None)
@@ -291,7 +291,7 @@ async def test_pr_creation_refused_deletes_the_branch_and_reads_plainly(client, 
     _wrap(monkeypatch, fake, lambda req: httpx.Response(
         422, json={"message": "No commits between main and the branch", "url": "http://x"})
           if req.method == "POST" and req.url.path.endswith("/pulls") else None)
-    out = await registry.dispatch("git_push_request", {"title": "Add x"})
+    out = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     assert "could not open the pull request" in out and "No commits between" in out
     assert '"message"' not in out and "Nothing was filed" in out
     heads = _git("--git-dir", str(fake.bare), "for-each-ref", "--format=%(refname)")
@@ -315,7 +315,7 @@ async def test_a_pr_with_no_request_row_is_closed(client, fake, monkeypatch):
 
 async def test_pr_deleted_in_gitea_closes_the_request(client, fake, monkeypatch):
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    await registry.dispatch("git_push_request", {"title": "Add x"})
+    await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     rid = (await _rows(client)).json()["requests"][0]["id"]
     _wrap(monkeypatch, fake, lambda req: httpx.Response(404, json={"message": "not found"})
           if req.method == "GET" and re.search(r"/pulls/\d+$", req.url.path) else None)
@@ -328,7 +328,7 @@ async def test_pr_deleted_in_gitea_closes_the_request(client, fake, monkeypatch)
 
 async def test_reconcile_closes_a_request_whose_pr_vanished(client, fake, monkeypatch):
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    await registry.dispatch("git_push_request", {"title": "Add x"})
+    await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     _wrap(monkeypatch, fake, lambda req: httpx.Response(404, json={})
           if req.method == "GET" and re.search(r"/pulls/\d+$", req.url.path) else None)
     row = (await _rows(client)).json()["requests"][0]
@@ -337,7 +337,7 @@ async def test_reconcile_closes_a_request_whose_pr_vanished(client, fake, monkey
 
 async def test_reject_of_an_already_closed_pr_still_records(client, fake):
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    await registry.dispatch("git_push_request", {"title": "Add x"})
+    await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     rid = (await _rows(client)).json()["requests"][0]["id"]
     fake.pulls[1]["state"] = "closed"                    # closed in Gitea by hand
     r = await client.post(f"/api/projects/demo/git/requests/{rid}/reject")
@@ -383,7 +383,7 @@ async def test_bot_push_rejected_by_gitea_reaches_the_agent_plainly(client, fake
                                         "fatal: Authentication failed for 'http://127.0.0.1:3000/'")
 
     monkeypatch.setattr(gitea, "push_agent_branch", refuse)
-    out = await registry.dispatch("git_push_request", {"title": "Add x"})
+    out = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     assert "could not open the pull request" in out and "gitea-setup" in out
     assert "Nothing was filed" in out
     assert fake.pulls == {}
@@ -393,7 +393,7 @@ async def test_bot_push_rejected_by_gitea_reaches_the_agent_plainly(client, fake
 
 async def test_unknown_request_and_wrong_project_are_404_without_quotes(client, fake):
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    await registry.dispatch("git_push_request", {"title": "Add x"})
+    await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     rid = (await _rows(client)).json()["requests"][0]["id"]
     r = await client.post("/api/projects/demo/git/requests/9999/approve")
     assert r.status_code == 404 and r.json()["detail"] == "no git request #9999"
@@ -440,7 +440,7 @@ def _try_later(counter: list, until: int | None = None):
 async def test_a_conflicting_pr_is_called_a_conflict_after_the_retries(client, fake, monkeypatch):
     monkeypatch.setattr(gitea, "MERGE_CHECK_WAIT", 0)
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    await registry.dispatch("git_push_request", {"title": "Add x"})
+    await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     rid = (await _rows(client)).json()["requests"][0]["id"]
     fake.pulls[1]["mergeable"] = False                   # what real Gitea reports for a conflict
     seen: list = []
@@ -457,7 +457,7 @@ async def test_a_conflicting_pr_is_called_a_conflict_after_the_retries(client, f
 async def test_a_pr_gitea_is_still_checking_says_wait(client, fake, monkeypatch):
     monkeypatch.setattr(gitea, "MERGE_CHECK_WAIT", 0)
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    await registry.dispatch("git_push_request", {"title": "Add x"})
+    await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     rid = (await _rows(client)).json()["requests"][0]["id"]
     _wrap(monkeypatch, fake, _try_later([]))
     r = await client.post(f"/api/projects/demo/git/requests/{rid}/approve")
@@ -468,7 +468,7 @@ async def test_a_pr_gitea_is_still_checking_says_wait(client, fake, monkeypatch)
 async def test_a_merge_that_clears_while_retrying_goes_through(client, fake, monkeypatch):
     monkeypatch.setattr(gitea, "MERGE_CHECK_WAIT", 0)
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    await registry.dispatch("git_push_request", {"title": "Add x"})
+    await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add x"})
     rid = (await _rows(client)).json()["requests"][0]["id"]
     seen: list = []
     _wrap(monkeypatch, fake, _try_later(seen, until=1))   # checking on the first call only

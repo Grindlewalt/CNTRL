@@ -18,6 +18,7 @@ const PATHS = {
   dash: <path d="M6 12h12" />,
   stop: <rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" stroke="none" />,
   send: <path d="M12 19V5M6 11l6-6 6 6" />,
+  pin: <path d="M9 4h6M10 4v5.5L7 13.5h10L14 9.5V4M12 13.5V20" />,
   splitRight: <><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" /><path d="M12 4.5v15" /></>,
   splitDown: <><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" /><path d="M3.5 12h17" /></>,
   minimize: <path d="M6 16h12" />,
