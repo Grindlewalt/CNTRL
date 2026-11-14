@@ -126,6 +126,68 @@ def _approvals(g: dict) -> int:
             + g["sec"]["egress_pending"] + g["sec"]["tiers"]["approval"])
 
 
+# The Security page's "Waiting for you" list, counted kind by kind, so the nav
+# badge says exactly what the list shows (SecurityDash.jsx QueueList and
+# securityDash.js queueRows read the same rows from their own endpoints).
+# Alert cards (secruns.list_runs) count once each, and only when an event in
+# them is a warning or critical: info-only cards and agent reports fold away
+# under the list, so they stay out of the badge too. Proposed schedules and
+# computer-use shell asks are not on that list (their own toasts and pages).
+_WAITING_SQL = {
+    # GET /api/services, filtered to pending by the list
+    "services": "SELECT COUNT(*) FROM services WHERE status = 'pending'",
+    # packages.list_rows: a package an environment proposed shows on its card
+    "packages": "SELECT COUNT(*) FROM package_catalogue WHERE status = 'pending' "
+                "AND environment_id IS NULL",
+    "environments": "SELECT COUNT(*) FROM environment_requests WHERE status = 'pending'",
+    "skills": "SELECT COUNT(*) FROM skill_requests WHERE status IN ('pending', 'fetched')",
+    "pages": "SELECT COUNT(*) FROM pages WHERE status = 'pending'",
+}
+_LOUD = {"critical", "crit", "warn", "warning"}     # securityDash.js alertRow
+
+
+def loud_card(card: dict) -> bool:
+    """An alert card the list shows (not folded): a need-you event in it is a
+    warning or critical."""
+    return any(str(k.get("severity") or "info").lower() in _LOUD
+               for k in card.get("kinds") or [])
+
+
+async def waiting_counts(g: dict) -> dict:
+    """{kind: n} for every row the "Waiting for you" list shows."""
+    from . import egress, journalhold, secruns
+    out = {"asks": len(g["asks"]), "git": len(g["git"]), "sites": 0, "services": 0,
+           "packages": 0, "environments": 0, "skills": 0, "journal": 0, "pages": 0,
+           "alerts": 0}
+    try:
+        db = await get_db()
+    except Exception:                           # noqa: BLE001
+        return out
+    try:
+        try:
+            out["sites"] = len(await egress.list_pending(db))
+        except Exception:                       # noqa: BLE001
+            pass
+        for k, sql in _WAITING_SQL.items():
+            try:
+                async with db.execute(sql) as cur:
+                    out[k] = int((await cur.fetchone())[0] or 0)
+            except Exception:                   # noqa: BLE001 - an older table: none
+                pass
+        try:
+            runs = (await secruns.list_runs(db, queue=True, sweep=False))["runs"]
+            out["alerts"] = sum(1 for c in runs if loud_card(c))
+        except Exception:                       # noqa: BLE001
+            pass
+    finally:
+        await db.close()
+    try:
+        out["journal"] = len(journalhold.list_held())
+    except Exception:                           # noqa: BLE001
+        pass
+    return out
+
+
 async def approvals_waiting() -> int:
     """How many approvals wait right now (the do-not-disturb summary's number)."""
     return _approvals(await _gather())
@@ -144,6 +206,7 @@ async def notifications():
     except Exception:                           # noqa: BLE001
         memory_pending = 0
     approvals = _approvals(g)
+    waiting = await waiting_counts(g)
     # what would interrupt: critical always; the rest by the level and the
     # per-kind modes (security rows) or the level alone (the other approvals).
     # Do not disturb silences all of it but a critical alert it lets through.
@@ -156,7 +219,8 @@ async def notifications():
     if dnd["on"]:
         ping_count = pings["critical"] if dnd["break_critical"] else 0
     return {
-        "count": approvals + tiers["critical"] + tiers["alert"],
+        # the Security badge: exactly the rows of its "Waiting for you" list
+        "count": sum(waiting.values()), "waiting": waiting,
         "git": git, "schedules": sched, "desk_shell": shell, "asks": asks,
         "memory_pending": memory_pending,
         "alerts": sec["alerts"], "egress_pending": sec["egress_pending"],

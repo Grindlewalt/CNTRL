@@ -5,6 +5,7 @@ import { subscribe } from '../events.js'
 import { notifyError } from '../notify.js'
 import { listBoxes } from '../boxes/api/vms.js'
 import EmptyState from '../components/EmptyState.jsx'
+import Select from '../components/Select.jsx'
 import {
   SANDBOX_WARNING, agentActive, boxOptionLabel, candidateBoxes, canTake, displayWsUrl, eventTouches,
   heldSeconds, mmss, newViewerId, panelMode, pickBox, startBlocked, startLabel, statusLabel, stopTurns,
@@ -211,10 +212,9 @@ export default function DesktopPanel({ slug, state, setState }) {
           {st && viewersText(st.viewers) && <span className="dim">, {viewersText(st.viewers)}</span>}
         </span>
         {options.length > 1 && (
-          <select value={boxId || ''} onChange={(e) => choose(e.target.value)}
-                  aria-label="box to watch">
-            {options.map((b) => <option key={b.id} value={b.id}>{boxOptionLabel(b)}</option>)}
-          </select>
+          <Select value={boxId || ''} onChange={(e) => choose(e.target.value)}
+                  aria-label="box to watch"
+                  options={options.map((b) => ({ value: b.id, label: boxOptionLabel(b) }))} />
         )}
         {mode === 'ended' && <button className="ghost" onClick={() => { setConn('idle'); refresh() }}>reconnect</button>}
       </div>

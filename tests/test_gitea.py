@@ -241,7 +241,7 @@ async def _file(client, fake) -> dict:
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
     base = _head()
     out = await registry.dispatch("git_push_request",
-                                  {"title": "Add x", "description": "a loader"})
+                                  {"summary": "Test request.", "title": "Add x", "description": "a loader"})
     assert "pending" in out and "agent/" in out and "/pulls/1" in out, out
     _no_tokens(out)
     assert _head() == base                       # host main untouched
@@ -302,7 +302,7 @@ async def test_reconcile_when_closed_in_gitea(client, fake):
 async def test_commit_approval_pushes_main_to_gitea(client, fake):
     await gitea.ensure_repo("demo")
     (_pdir() / "a.txt").write_text("a")
-    await registry.dispatch("git_commit_request", {"message": "Add a"})
+    await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "Add a"})
     rid = (await client.get("/api/projects/demo/git/requests")).json()["requests"][0]["id"]
     r = await client.post(f"/api/projects/demo/git/requests/{rid}/approve")
     assert r.status_code == 200 and r.json()["error"] is None, r.text
@@ -322,7 +322,7 @@ async def test_tokens_never_leak(client, fake):
 async def test_off_means_as_before(client, tmp_env):
     assert settings.gitea_enabled is False
     (_pdir() / "code" / "y.py").write_text("y\n")
-    out = await registry.dispatch("git_push_request", {"title": "Add y"})
+    out = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add y"})
     assert "isn't set up" in out and "git_commit_request" in out
     r = await client.get("/api/projects/demo/git/requests")
     assert r.json()["requests"] == []
@@ -408,7 +408,7 @@ async def test_a_commit_approval_does_not_wait_for_the_push(client, fake, monkey
         return await real(slug)
     monkeypatch.setattr(gitea, "push_main", slow_push)
     (_pdir() / "b.txt").write_text("b")
-    await registry.dispatch("git_commit_request", {"message": "Add b"})
+    await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "Add b"})
     rid = (await client.get("/api/projects/demo/git/requests")).json()["requests"][0]["id"]
     t0 = time.perf_counter()
     r = await client.post(f"/api/projects/demo/git/requests/{rid}/approve")
@@ -427,7 +427,7 @@ async def test_a_failed_push_after_the_commit_lands_on_the_request_and_in_the_qu
         return "push of main to Gitea failed: protected branch"
     monkeypatch.setattr(gitea, "push_main", refused)
     (_pdir() / "c.txt").write_text("c")
-    await registry.dispatch("git_commit_request", {"message": "Add c"})
+    await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "Add c"})
     rid = (await client.get("/api/projects/demo/git/requests")).json()["requests"][0]["id"]
     assert (await client.post(f"/api/projects/demo/git/requests/{rid}/approve")).json()[
         "status"] == "approved"

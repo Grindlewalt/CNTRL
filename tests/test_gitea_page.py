@@ -282,7 +282,7 @@ async def test_pull_diff_is_scrubbed_capped_and_only_for_the_agents_requests(cli
     (_pdir() / "code" / "x.py").write_text(
         f'KEY = "s3cr3t-value-123"\nTOKEN = "{ADMIN_TOK}"\n' + "pad = 1\n" * 10)
     from backend.agent.tools import registry
-    out = await registry.dispatch("git_push_request", {"title": "Add keys"})
+    out = await registry.dispatch("git_push_request", {"summary": "Test request.", "title": "Add keys"})
     assert "pending" in out
     r = await client.get("/api/gitea/repos/demo/pulls/1/diff")
     assert r.status_code == 200

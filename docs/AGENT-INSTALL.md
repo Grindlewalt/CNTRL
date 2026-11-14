@@ -175,8 +175,8 @@ Phase 0 already settled, and say why you left them out.
       container needs boxes on (`CNTRL_VM_BOXES_ENABLED=true`): the installer's
       Docker step sets it when Docker works; without it every project runs in
       the shared box whatever this answer says.
-    - May agents request background services? (default no)
-    - May agents request extra packages? (default no)
+    - May agents request background services? (default yes; each request still waits for your approval)
+    - May agents request extra packages? (default yes; each request still waits for your approval)
 11. **Gitea**, a local git server for agent pull requests: yes (default) or
     skip. Skip it on very small machines.
 12. **Backups** with rclone to a remote. Usually set up later

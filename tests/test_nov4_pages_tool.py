@@ -25,6 +25,7 @@ async def proj(tmp_env, monkeypatch):
 
 async def _publish(**kw):
     runtime.active_project.set("demo")
+    kw.setdefault("summary", "Test request.")
     return await registry.dispatch("publish", kw)
 
 

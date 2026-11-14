@@ -63,7 +63,10 @@ parameters:
     reason:
       type: string
       description: Why this needs to keep running (the operator reads this).
-  required: [name, command, files, reason]
+    summary:
+      type: string
+      description: What this request does and why, in at most two sentences. The operator reads it first.
+  required: [name, command, files, reason, summary]
 ---
 Files a service request. The host snapshots the listed files from the
 project's live files (not from your sandbox), hashes them, and refuses the

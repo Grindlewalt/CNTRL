@@ -6,7 +6,7 @@ The profile step asks four things: network for new sites (ask me / allow /
 off), where projects run (the shared box; their own VM only when this host
 has KVM; their own container only when the Docker runtime is available), and
 whether agents may request services and packages. Left out, it creates the
-safe default (ask me, shared box, no services, no packages). When a default
+safe default (ask me, shared box, services and packages may be requested, each waiting for approval). When a default
 profile already exists it is shown and kept unless the caller asks to change
 it.
 
@@ -433,8 +433,8 @@ def _refuse_cross_site(request: Request) -> None:
 
 # ---------------------------------------------------------- profile step ---
 
-SAFE_CHOICES = {"network": "ask", "placement": "shared", "services": False,
-                "packages": False}
+SAFE_CHOICES = {"network": "ask", "placement": "shared", "services": True,
+                "packages": True}
 
 
 async def where_options() -> dict:

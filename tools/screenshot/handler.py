@@ -53,8 +53,8 @@ CHROMIUM_FLOOR_MB = 400  # measured 2026-10-01 (chromium 154, desktop box): a bl
 CONSOLE_MAX_LINES = 8    # page console lines a url-mode result carries, uncaught errors first
 CONSOLE_LOG = "console.log"   # chromium's log file, inside the throwaway profile dir
 NEEDS_DESKTOP = ("error: app mode needs the `desktop` image. Ask for it with "
-                 "environment_request(use=\"desktop\", reason=...) (the operator approves), "
-                 "or use headless_browser for web pages.")
+                 "environment_request(use=\"desktop\", reason=..., summary=...) (the "
+                 "operator approves), or use headless_browser for web pages.")
 NO_BROWSER = ("error: this box has no chromium (the `main` image carries chromium-headless-shell). "
               "Ask the operator to rebuild the image.")
 

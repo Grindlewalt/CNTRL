@@ -8,9 +8,12 @@ and it owns the approval queue that trains the allowlists up.
 The model (DESIGN-BOXES (c)/(d), since 2026-09-26): every project runs under a
 security PROFILE (backend/profiles.py) that carries the shared baseline — a
 default verdict, allow and deny lists, or the network off entirely — and holds
-its OWN allow and deny lists on top (`egress_policy.hosts` / `.deny_hosts`).
-Approvals, reviewer approvals and `allow_host` always write the PROJECT's own
-list, never a shared one; profile lists are edited only by the operator.
+its OWN allow and deny lists on top (`egress_policy.hosts` / `.deny_hosts`;
+emptied onto the profile by `migrate_project_lists`, since 2026-11-13).
+Approvals, reviewer approvals and `allow_host` write the always-allow list of
+the project's PROFILE (`_append_host`), so a site approved for one project is
+allowed for every project on that profile. A one-hour allow
+(`approve_host_once`) stays with the one project.
 The pre-profiles modes (allowlist / denylist / denyall, inherit_general) were
 migrated into the profiles Default / Scoped / Open / Offline with
 identical verdicts.
@@ -404,8 +407,8 @@ async def revoke_auto(db: aiosqlite.Connection, auto_id: int) -> dict:
 
 
 async def promote_auto(db: aiosqlite.Connection, auto_id: int) -> dict:
-    """Operator keeps a guess: it moves onto the project's own allowlist (same
-    rule as an approval) and stops expiring."""
+    """Operator keeps a guess: it moves onto the always-allow list of the
+    project's profile (same rule as an approval) and stops expiring."""
     async with db.execute(
             f"SELECT project_slug, host FROM egress_auto_allow WHERE id = ? AND {_AUTO_LIVE}",
             (auto_id,)) as cur:
@@ -425,8 +428,8 @@ UNATTRIBUTED = ("this request came from the shared box with no project attached:
 
 async def allow_host(db: aiosqlite.Connection, slug: str, host: str) -> dict:
     """Operator allows a host directly — the override for an auto-deny (which
-    has left the waiting queue). Writes the PROJECT's own list, and closes any
-    queue row for the pair."""
+    has left the waiting queue). Writes the project's PROFILE list (every
+    project on that profile), and closes any queue row for the pair."""
     host = _norm(host)
     if not host:
         return {"ok": False, "error": "host required"}
@@ -440,7 +443,8 @@ async def allow_host(db: aiosqlite.Connection, slug: str, host: str) -> dict:
         "WHERE project_slug = ? AND host = ?", (slug, host))
     await db.commit()
     await note_approved(db, slug, host)
-    return {"ok": True, "host": host, "added_to": target}
+    return {"ok": True, "host": host, "added_to": target,
+            "profile": (await profiles.for_slug(db, slug))["name"]}
 
 
 def _profile_ref(slug: str) -> int | str | None:
@@ -636,32 +640,63 @@ async def record_event(db: aiosqlite.Connection, *, slug: str | None, host: str,
                              "box_id": box_id, "service_id": service_id})
 
 
-# --- approval queue (trains the PROJECT's allowlist up) -----------------------
+# --- approval queue (trains the allowlist of the project's PROFILE up) --------
 
 async def _append_host(db: aiosqlite.Connection, slug: str, host: str) -> str:
-    """Add a host to the PROJECT's own allow list (DESIGN-BOXES (c): approvals
-    always write the project list; the shared baseline lives on the profile and
-    is edited only by the operator). An explicit approval also lifts the host
-    off the project's own deny list, or deny-beats-allow would void it.
-    Returns the slug of the list extended. Refuses an unattributed slug."""
+    """Add a host to the always-allow list of the PROJECT'S PROFILE (lists are
+    per profile, not per project: projects share profiles). The approval
+    itself is the audit record, so no profile_changed event is raised.
+    Returns the slug the approval was for. Refuses an unattributed slug."""
     if is_unattributed(slug):
         raise ValueError(UNATTRIBUTED)
     host = _norm(host)
+    prof = await profiles.for_slug(db, slug)
+    allow = sorted(set(prof["allow_hosts"]) | {host})
+    await db.execute("UPDATE security_profiles SET allow_hosts = ? WHERE id = ?",
+                     (json.dumps(allow), prof["id"]))
+    # a leftover project-level deny entry would still void the approval
     row = await _row(db, slug)
-    hosts = json.loads(row["hosts"] or "[]") if row else []
-    deny = json.loads(row["deny_hosts"] or "[]") if row else []
-    if host not in hosts:
-        hosts.append(host)
-    deny = [h for h in deny if h != host]
-    if row is None:
-        await db.execute("INSERT INTO egress_policy(project_slug, hosts) VALUES (?, ?)",
-                         (slug, json.dumps(sorted(hosts))))
-    else:
-        await db.execute("UPDATE egress_policy SET hosts = ?, deny_hosts = ?, "
-                         "updated_at = datetime('now') WHERE project_slug = ?",
-                         (json.dumps(sorted(hosts)), json.dumps(sorted(deny)), slug))
+    if row and host in json.loads(row.get("deny_hosts") or "[]"):
+        deny = [h for h in json.loads(row["deny_hosts"]) if h != host]
+        await db.execute("UPDATE egress_policy SET deny_hosts = ? WHERE project_slug = ?",
+                         (json.dumps(sorted(deny)), slug))
     await db.commit()
     return slug
+
+
+async def migrate_project_lists(db: aiosqlite.Connection) -> int:
+    """Move every project's OWN always-allow / always-block entries onto the
+    project's profile. Idempotent and lossless: entries are unioned into the
+    profile's lists (the effective policy of the project is unchanged) and only
+    then removed from the project row. A row whose entries cannot be stored on a
+    profile (not a bare hostname) is left alone. Returns the rows moved."""
+    await profiles.ensure_migrated(db)
+    async with db.execute("SELECT project_slug, hosts, deny_hosts FROM egress_policy") as cur:
+        rows = [dict(r) for r in await cur.fetchall()]
+    moved = 0
+    for r in rows:
+        slug = r["project_slug"]
+        if is_unattributed(slug) or is_reserved(slug):
+            continue
+        allow = json.loads(r["hosts"] or "[]")
+        deny = json.loads(r["deny_hosts"] or "[]")
+        if not allow and not deny:
+            continue
+        try:
+            allow_n = profiles.norm_hosts(allow)
+            deny_n = profiles.norm_hosts(deny)
+        except profiles.ProfileError:
+            continue
+        prof = await profiles.for_slug(db, slug)
+        await db.execute(
+            "UPDATE security_profiles SET allow_hosts = ?, deny_hosts = ? WHERE id = ?",
+            (json.dumps(sorted(set(prof["allow_hosts"]) | set(allow_n))),
+             json.dumps(sorted(set(prof["deny_hosts"]) | set(deny_n))), prof["id"]))
+        await db.execute("UPDATE egress_policy SET hosts = '[]', deny_hosts = '[]' "
+                         "WHERE project_slug = ?", (slug,))
+        moved += 1
+    await db.commit()
+    return moved
 
 
 APPROVED_BY = {"operator": "approved later by you",
@@ -683,7 +718,8 @@ async def note_approved(db: aiosqlite.Connection, slug: str | None, host: str,
 
 async def approve_host(db: aiosqlite.Connection, pending_id: int,
                        by: str = "operator", project: str | None = None) -> dict:
-    """Approve a queued host onto its project's list. A row queued by
+    """Approve a queued host onto its project's PROFILE list (every project on
+    that profile; `profile` in the answer names it). A row queued by
     unattributed shared-box traffic has no project: the operator names one
     (`project`), and the row is re-homed to it; without one this refuses."""
     async with db.execute("SELECT project_slug, host, status FROM egress_pending WHERE id = ?",
@@ -705,7 +741,11 @@ async def approve_host(db: aiosqlite.Connection, pending_id: int,
     await db.commit()
     if r["status"] != "approved":
         await note_approved(db, slug, r["host"], by)
-    return {"ok": True, "host": r["host"], "added_to": target}
+    prof = await profiles.for_slug(db, slug)
+    # `list` is the list key the host was written to, so an undo removes it from
+    # that profile even if the project has moved to another profile since
+    return {"ok": True, "host": r["host"], "added_to": target,
+            "profile": prof["name"], "list": f"profile:{prof['id']}"}
 
 
 async def approve_host_once(db: aiosqlite.Connection, pending_id: int,

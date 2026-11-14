@@ -16,7 +16,10 @@ parameters:
     reason:
       type: string
       description: What the skill is for and why you need it.
-  required: [source, reason]
+    summary:
+      type: string
+      description: What this request does and why, in at most two sentences. The operator reads it first.
+  required: [source, reason, summary]
 ---
 Nothing is contacted when you file the request. The operator fetches the skill
 themselves, reads it, and only then installs and grants it. It appears in your

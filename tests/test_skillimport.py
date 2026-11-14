@@ -280,3 +280,40 @@ async def test_api_import_needs_the_operator_cookie(tmp_env, src):
         r = await c.post("/api/skills/import", json={"source": str(src)})
     assert r.status_code == 401
     assert not (settings.skills_dir / "oc-weather").exists()
+
+
+# --- raw SKILL.md and zip links (host-side fetch) ---------------------------------
+
+@pytest.fixture
+def fake_web(tmp_path):
+    import http.server
+    import threading
+    root = tmp_path / "web"
+    root.mkdir()
+    (root / "SKILL.md").write_text("---\nname: linked\ndescription: x\n---\nbody\n")
+    with zipfile.ZipFile(root / "pack.zip", "w") as z:
+        z.writestr("zipped/SKILL.md", "---\nname: zipped\ndescription: x\n---\nbody\n")
+
+    class H(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *a, **k):
+            super().__init__(*a, directory=str(root), **k)
+
+        def log_message(self, *a):
+            pass
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{srv.server_address[1]}"
+    srv.shutdown()
+
+
+@pytest.mark.parametrize("path,name", [("SKILL.md", "linked"), ("pack.zip", "zipped")])
+def test_link_to_raw_skill_or_zip_imports_ungranted(tmp_env, monkeypatch, fake_web, path, name):
+    monkeypatch.setattr(settings, "skill_import_allow_hosts", "127.0.0.1")
+    r = import_skill(f"{fake_web}/{path}")
+    assert r["name"] == name
+    assert r["enabled"] is False if "enabled" in r else True
+
+
+def test_link_to_loopback_is_refused_unless_allowlisted(tmp_env, fake_web):
+    with pytest.raises(SkillImportError):
+        import_skill(f"{fake_web}/SKILL.md")

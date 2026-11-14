@@ -341,11 +341,11 @@ async def test_tool_files_a_row_without_a_project(db, monkeypatch):
     mod = _tool()
     tok = runtime.active_project.set(None)
     try:
-        out = await mod.run(source="clawhub:weather", reason="forecasts")
+        out = await mod.run(summary="Test request.", source="clawhub:weather", reason="forecasts")
         assert out.startswith("skill request #1 filed: clawhub:weather") and "pending" in out
         assert "in a later turn" in out
-        assert (await mod.run(source="/etc/passwd", reason="x")).startswith("error:")
-        assert (await mod.run(source="clawhub:weather", reason="x")).startswith("error:")
+        assert (await mod.run(summary="Test request.", source="/etc/passwd", reason="x")).startswith("error:")
+        assert (await mod.run(summary="Test request.", source="clawhub:weather", reason="x")).startswith("error:")
     finally:
         runtime.active_project.reset(tok)
     rows = await skillrequests.list_rows(db)
@@ -356,7 +356,7 @@ def test_tool_frontmatter():
     meta = registry._parse_md(settings.base_dir / "tools" / "skill_request" / "TOOL.md")
     assert meta["section"] == "skills" and meta["enabled"] is True
     assert "action" not in meta and "requires_settings" not in meta
-    assert meta["parameters"]["required"] == ["source", "reason"]
+    assert meta["parameters"]["required"] == ["source", "reason", "summary"]
 
 
 async def _open(db, kind):

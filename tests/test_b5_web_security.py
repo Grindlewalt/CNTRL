@@ -336,4 +336,4 @@ async def test_old_queued_gateway_row_cannot_be_approved(client, db, fake_host):
     r = await client.post("/api/egress/pending/bulk", json={"action": "approve"})
     assert r.json() == {"ok": True, "done": 1, "skipped": 1}
     pol = (await client.get("/api/egress/policy/proj")).json()
-    assert "10.201.0.1" not in pol["project_allow"] and "pypi.org" in pol["project_allow"]
+    assert "10.201.0.1" not in pol["effective_allow"] and "pypi.org" in pol["effective_allow"]

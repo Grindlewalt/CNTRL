@@ -176,7 +176,12 @@ async def load_setting(slug: str) -> dict | None:
 
 
 async def effective(slug: str) -> dict:
-    """Where the project's next turn runs (setting > profile default)."""
+    """Where the project's next turn runs (setting > profile default). A
+    chat-<id> store always runs in the shared box (boxes.for_project), so it
+    answers that (source "chat") rather than what its profile would pick."""
+    if boxes.is_chat_store(slug):
+        return {"mode": "shared", "source": "chat", "box_id": boxes.SHARED_ID,
+                "runtime": None, "image": None, "mem_mb": None, "owner": None}
     prof = await boxes.project_profile(slug)
     return resolve(await load_setting(slug), prof, slug)
 
@@ -243,6 +248,9 @@ async def put(db, slug: str, body: dict, *, actor: str = "operator",
     if not await _project_exists(db, slug):
         raise PlacementError("no such project", 404)
     new = normalize(body, slug)
+    if boxes.is_chat_store(slug) and new["mode"] in ("own", "join"):
+        # it would never apply: boxes.for_project runs these in the shared box
+        raise PlacementError("a chat's own files always run in the shared box", 409)
     if new["mode"] == "own" and new["runtime"] == "docker" and not settings.docker_enabled:
         raise PlacementError("the docker runtime is off on this server (docker_enabled)", 409)
     if new["mode"] == "join":

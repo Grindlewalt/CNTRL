@@ -103,6 +103,10 @@ async def _shape(db, r: dict) -> dict:
     out["resolved"] = (r["kind"] == "use"
                        or (bool(pk) and all(p["resolved_version"] for p in pk)))
     out["summary"] = _summary(r)
+    # the agent's own two-sentence summary (reqsummary.py), which the Queue
+    # leads with; every other request kind passes it through already
+    out["agent_summary"] = r.get("agent_summary")
+    out["call_id"] = r.get("call_id")
     out["profile_now"] = {"id": now["id"], "name": now["name"]}
     # what approving WOULD do; once decided, `profile` says what it did
     out["plan"] = await _plan(db, r, now) if r["status"] == "pending" else None

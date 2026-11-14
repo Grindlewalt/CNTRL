@@ -3,6 +3,7 @@ import { api, chatStream } from '../api.js'
 import { watchRun } from '../agentWatch.js'
 import Md from '../Md.jsx'
 import EmptyState from '../components/EmptyState.jsx'
+import Select from '../components/Select.jsx'
 import { upLast } from './shared.js'
 
 // A Workspace board panel, split out of pages/Workspace.jsx so the shell's
@@ -72,11 +73,9 @@ export default function AgentPanel({ slug, state, setState }) {
   return (
     <div className="pane-col">
       <div className="row">
-        <select className="grow" value={which}
-                onChange={(e) => setState({ agent: e.target.value })}>
-          <option value="">— pick an agent —</option>
-          {agents.map((a) => <option key={a.slug} value={a.slug}>{a.name}</option>)}
-        </select>
+        <Select className="grow" value={which} placeholder="Pick an agent" aria-label="Agent"
+                onChange={(e) => setState({ agent: e.target.value })}
+                options={agents.map((a) => ({ value: a.slug, label: a.name }))} />
       </div>
       <div className="messages compact">
         {log.length === 0 && <EmptyState pad>

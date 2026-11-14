@@ -194,7 +194,8 @@ export const resolveAsk = (run) => ({
 export const cardsFor = (runs, slug) => (slug
   ? (runs || []).filter((r) => r.project === slug) : (runs || []))
 
-// total waiting in cards (the nav badge counts the same rows)
+// total waiting in cards (the nav badge counts each loud card once instead:
+// backend/notifications_api.py waiting_counts, the Waiting for you rows)
 export function cardTotals(runs) {
   let need = 0
   let reports = 0

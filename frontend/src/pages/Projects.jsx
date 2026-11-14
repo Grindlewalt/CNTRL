@@ -11,6 +11,7 @@ import EmptyState from '../components/EmptyState.jsx'
 import Menu, { MenuItem, MenuSep } from '../components/Menu.jsx'
 import { ts } from '../format.js'
 import { projectsChanged } from '../projectsChanged.js'
+import { NAME_RULE, nameProblem } from '../projectName.js'
 import './manage.css'
 
 // A project is a card: its name is the way in (the Workspace), the slug and
@@ -53,6 +54,9 @@ export default function Projects() {
     setError(null)
     const url = repoUrl.trim()
     if (!url && !name.trim()) { setError('give the project a name'); return }
+    // the server refuses it too; say so before the round trip
+    const bad = nameProblem(name)
+    if (bad) { setError(bad); return }
     setCreating(true)
     try {
       if (url) {
@@ -83,8 +87,11 @@ export default function Projects() {
   }
 
   async function rename(p) {
-    const next = await ask.prompt('Rename project', p.name, { confirmLabel: 'Rename' })
+    const next = await ask.prompt('Rename project', p.name, {
+      confirmLabel: 'Rename', body: NAME_RULE })
     if (next === null || !next.trim()) return
+    const bad = nameProblem(next)
+    if (bad) { setError(bad); return }
     try {
       await api(`/api/projects/${p.slug}/name`, {
         method: 'PUT', body: JSON.stringify({ name: next.trim() }) })
@@ -119,6 +126,7 @@ export default function Projects() {
       <Card as="form" className="create-project" onSubmit={create} noValidate>
         <Input label={cloning ? 'Name (optional)' : 'Name'} placeholder="Harbor dashboard"
                value={name} onChange={(e) => setName(e.target.value)}
+               error={nameProblem(name) || undefined}
                required={!cloning} />
         <Input label="Summary (optional)" placeholder="One line on what it is for"
                value={summary} onChange={(e) => setSummary(e.target.value)} />
@@ -126,7 +134,7 @@ export default function Projects() {
                placeholder="https://github.com/owner/repo"
                title="The project starts as a clone of this repository"
                value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} />
-        <Button type="submit" disabled={creating}>
+        <Button type="submit" disabled={creating || !!nameProblem(name)}>
           {creating && cloning ? 'Cloning…' : cloning ? 'Clone and create' : 'Create project'}</Button>
         {error && <span className="error">{error}</span>}
       </Card>

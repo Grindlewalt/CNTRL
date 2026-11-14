@@ -15,7 +15,10 @@ parameters:
     description:
       type: string
       description: What changed and why, for the reviewer. Markdown is fine.
-  required: [title]
+    summary:
+      type: string
+      description: What this request does and why, in at most two sentences. The operator reads it first.
+  required: [title, summary]
 ---
 Snapshots ALL the project's files as they are right now, including what you
 wrote earlier in this turn, into one commit on top of main, on a branch the

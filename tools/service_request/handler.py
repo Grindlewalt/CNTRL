@@ -1,4 +1,4 @@
-from backend import runtime
+from backend import reqsummary, runtime
 from backend.gitgate import flush_guest_writes
 from backend.agent.tools.toolctx import require_project
 from backend.vm import services
@@ -7,7 +7,12 @@ from backend.vm import services
 async def run(name: str = "", command: list | None = None, files: list | None = None,
               reason: str = "", description: str = "", workdir: str = ".",
               ports: list | None = None, restart: str = "no",
-              egress_hosts: list | None = None, env: dict | None = None) -> str:
+              egress_hosts: list | None = None, env: dict | None = None,
+              summary: str = "") -> str:
+    try:
+        summary = reqsummary.check(summary)
+    except reqsummary.SummaryError as e:
+        return reqsummary.refusal(e)
     try:
         slug = await require_project()
     except LookupError as e:
@@ -21,6 +26,7 @@ async def run(name: str = "", command: list | None = None, files: list | None = 
             slug, args, conversation_id=runtime.conversation_id.get())
     except services.ServiceError as e:
         return f"error: {e}"
+    await reqsummary.store_new("services", row["id"], summary)
     from backend import permissions
     if await permissions.auto_approve(
             "service_request", project=slug,

@@ -168,6 +168,8 @@ t('validateProfile: a new profile is savable with defaults (shared box, per proj
   const p = { ...blankProfile(), name: 'Mine' }
   assert.equal(p.service_placement, 'per_project'); assert.equal(p.box_runtime, 'kvm')
   assert.equal(p.separate_box, false)
+  // the agent may request services and packages by default (setup_api SAFE_CHOICES)
+  assert.equal(p.allow_services, true); assert.equal(p.allow_package_requests, true)
   let e = validateProfile(p)
   assert.deepEqual(e, {})
   e = validateProfile({ ...p, service_placement: '' })

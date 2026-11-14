@@ -50,7 +50,7 @@ async def sidebar():
     try:
         folders = await chat._folder_rows(db)
         async with db.execute(
-            "SELECT slug, name FROM projects WHERE deleted_at IS NULL AND is_hidden = 0 "
+            "SELECT slug, name, pinned_at FROM projects WHERE deleted_at IS NULL AND is_hidden = 0 "
             "ORDER BY created_at DESC") as cur:
             projects = [dict(r) for r in await cur.fetchall()]
         # every project that still exists, hidden ones included (an artifact's

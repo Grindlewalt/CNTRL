@@ -162,20 +162,38 @@ export const MODE_SHORT = { 'safe-yolo': 'Safe yolo', auto: 'Auto', ask: 'Ask', 
 // held here and sent with the first message (`permission_mode`). A pill that
 // names the mode, opening a menu of the four with what each one does; yolo
 // is in the danger colour wherever it shows, and switching to it confirms.
+// Switching a chat's mode, shared by the toolbar control and the project
+// panel's Security tab: yolo confirms first; the pick is remembered for the
+// next new chat (never as yolo); a saved chat's mode is PUT to the server.
+// Resolves to true when the mode changed, false when the operator declined
+// or the server refused (yolo needs a password login: a device token gets a
+// 403, and the caller shows `detail`). `onChange` runs before the PUT so the
+// control answers at once; a refusal puts the old value back.
+export async function applyPermissionMode({ cid, mode, value, ask, onChange }) {
+  if (mode === value) return { ok: true }
+  if (mode === 'yolo'
+      && !await ask.confirm('Switch to yolo?', { body: YOLO_CONFIRM, confirmLabel: 'Switch to yolo', danger: true })) {
+    return { ok: false }
+  }
+  onChange(mode)
+  try { localStorage.setItem(MODE_KEY, mode === 'yolo' ? 'safe-yolo' : mode) } catch { /* private mode */ }
+  if (cid == null) return { ok: true }
+  try {
+    await api(`/api/chat/${cid}/permission_mode`,
+              { method: 'PUT', body: JSON.stringify({ mode: wireMode(mode) }) })
+    return { ok: true }
+  } catch (err) {
+    if (err?.status === 403 || err?.status === 401) { onChange(value); return { ok: false, detail: err.detail } }
+    return { ok: true }   // the next open re-reads it
+  }
+}
+
 export function PermissionModeSelect({ cid, value, onChange }) {
   const [open, setOpen] = useState(false)
   const ask = useAsk()
   async function set(mode) {
     setOpen(false)
-    if (mode === 'yolo' && value !== 'yolo'
-        && !await ask.confirm('Switch to yolo?', { body: YOLO_CONFIRM, confirmLabel: 'Switch to yolo', danger: true })) return
-    onChange(mode)
-    try { localStorage.setItem(MODE_KEY, mode === 'yolo' ? 'safe-yolo' : mode) } catch { /* private mode */ }
-    if (cid == null) return
-    try {
-      await api(`/api/chat/${cid}/permission_mode`,
-                { method: 'PUT', body: JSON.stringify({ mode: wireMode(mode) }) })
-    } catch { /* the next open re-reads it */ }
+    await applyPermissionMode({ cid, mode, value, ask, onChange })
   }
   return (
     <Menu open={open} onClose={() => setOpen(false)} floating align="right" width={300}

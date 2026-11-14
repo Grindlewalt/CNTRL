@@ -27,7 +27,7 @@
 .settings-page .prov-docs { font-size: var(--fs-sm); color: var(--faint);
   text-decoration: underline; text-decoration-color: var(--line-strong);
   text-underline-offset: 3px; }
-.settings-page .prov-docs:hover { color: var(--accent); text-decoration-color: var(--accent); }
+.settings-page .prov-docs:hover { color: var(--link); text-decoration-color: var(--link); }
 .settings-page .prov-toggle strong { font-weight: 600; font-size: var(--fs-lg); }
 .settings-page .prov-head { padding-block: var(--sp-4); }
 .settings-page .prov-head > .toggle { margin-left: var(--sp-4); }
@@ -68,7 +68,7 @@
   border: 1px solid var(--line); border-radius: var(--radius); }
 .tools-page .tool-drop { border: 1px dashed var(--line-strong); background: var(--paper);
   padding: var(--sp-6) var(--sp-7); border-radius: var(--radius-md); }
-.tools-page .tool-drop.over { border-color: var(--accent); background: var(--wash); }
+.tools-page .tool-drop.over { border-color: var(--focus); background: var(--select); }
 @media (max-width: 768px) {
   .tools-page .tool-grid { grid-template-columns: 1fr; }
 }
@@ -81,19 +81,67 @@
 .projects-page .create-project .error { grid-column: 1 / -1; }
 .projects-page .project-card { padding: var(--sp-6) var(--sp-7); }
 .projects-page .project-card:hover { border-color: var(--line-strong); }
-.projects-page .project-card.in-context { box-shadow: none; border-color: var(--accent); }
+.projects-page .project-card.in-context { box-shadow: none; border-color: var(--active); }
 @media (max-width: 768px) {
   .projects-page .create-project { grid-template-columns: 1fr; }
 }
 
 /* ---- Agents ---- */
 :is(.agents-aside, .skills-aside) .agent-new { align-items: stretch; }
-:is(.agents-aside, .skills-aside) .agent-row { border: 0; border-radius: var(--radius-lg);
-  padding: var(--sp-4) var(--sp-5); font-size: var(--fs-base); color: var(--slate); }
-:is(.agents-aside, .skills-aside) .agent-row.active { background: var(--wash); color: var(--ink); font-weight: 600; }
+:is(.agents-aside, .skills-aside) .agent-list { padding: 0; margin: var(--sp-4) 0 0; }
+:is(.agents-aside, .skills-aside) .agent-row { border: 0; border-radius: 0; width: 100%;
+  padding: var(--sp-4) var(--sp-5); font-size: var(--fs-base); color: var(--slate);
+  background: none; }
+:is(.agents-aside, .skills-aside) :is(.agent-row.active, .agent-li.active .agent-row) {
+  color: var(--ink); font-weight: 600; }
 :is(.agents-aside, .skills-aside) .agent-row:hover:not(.active) { background: var(--wash); }
 :is(.agents-aside, .skills-aside) .agent-row .tag { background: none; border: 0; padding: 0;
   color: var(--faint); font-size: var(--fs-sm); }
+.agents-aside .agent-li { display: flex; align-items: center; }
+.agents-aside .agent-li.active, .agents-aside .agent-li.menu-open { background: var(--wash); }
+.agents-aside .agent-li > .win-btn { opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
+.agents-aside .agent-li:hover > .win-btn, .agents-aside .agent-li:focus-within > .win-btn,
+.agents-aside .agent-li.menu-open > .win-btn { opacity: 1; }
+@media (hover: none) { .agents-aside .agent-li > .win-btn { opacity: 1; } }
+/* the picked agent's chats, under its row, indented like a group's chats */
+.agents-aside .agent-chats-li { padding: 0 0 var(--sp-3) var(--sp-6); }
+.agents-aside .agent-chats { list-style: none; margin: 0; padding: 0; }
+.agents-aside .agent-chat-li { display: flex; align-items: center; }
+.agents-aside .agent-chat-li.active, .agents-aside .agent-chat-li.menu-open { background: var(--wash); }
+.agents-aside .agent-chat-row { flex: 1; min-width: 0; display: flex; align-items: baseline;
+  gap: var(--sp-4); background: none; border: 0; border-radius: 0; text-align: left;
+  padding: var(--sp-3) var(--sp-4); font-size: var(--fs-md); font-weight: 400; color: var(--slate); }
+.agents-aside .agent-chat-li.active .agent-chat-row { color: var(--ink); }
+.agents-aside .agent-chat-row:hover:not(:disabled) { background: var(--wash); opacity: 1; }
+.agents-aside .agent-chat-title { flex: 1; min-width: 0; }
+.agents-aside .agent-chat-when { flex-shrink: 0; font-size: var(--fs-xs); color: var(--faint); }
+.agents-aside .agent-chat-li > .win-btn { opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
+.agents-aside .agent-chat-li:hover > .win-btn, .agents-aside .agent-chat-li:focus-within > .win-btn,
+.agents-aside .agent-chat-li.menu-open > .win-btn { opacity: 1; }
+@media (hover: none) { .agents-aside .agent-chat-li > .win-btn { opacity: 1; } }
+.agents-aside .agent-chats-more { background: none; border: 0; padding: var(--sp-3) var(--sp-4);
+  font-size: var(--fs-sm); color: var(--link); font-weight: 400; }
+/* the chat with the picked agent: Chat itself, filling the pane */
+.split-layout > main.agent-chat-pane { display: flex; min-height: 0; padding: 0; }
+.agent-chat-pane > .chat-layout { flex: 1; min-width: 0; }
+/* phone: the way back shares a row with the chat's title, or with the bar */
+@media (max-width: 768px) {
+  .agent-chat-pane .chat-toolbar > .agent-back + .chat-title { flex-basis: 0; }
+  .agent-chat-pane .chat-toolbar > .agent-back + .grow + .chat-meta { width: auto; flex: 1 1 0; min-width: 0; }
+}
+/* the definition editor in its dialog */
+.agent-editor .agent-prompt { flex: none; width: 100%; height: auto; min-height: 240px; resize: vertical; }
+.agent-editor .agent-last { margin: 0; }
+.skill-add { display: flex; flex-direction: column; gap: var(--sp-4);
+  padding: var(--sp-5); background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-md); margin-bottom: var(--sp-5); }
+.skill-add .tool-drop { border: 1px dashed var(--line-strong); background: var(--paper);
+  padding: var(--sp-5); border-radius: var(--radius-md); display: flex; flex-wrap: wrap;
+  gap: var(--sp-3); align-items: center; }
+.skill-add .tool-drop.over { border-color: var(--focus); background: var(--select); }
+.skills-aside .skill-add .row { display: flex; flex-direction: column; gap: var(--sp-3); align-items: stretch; }
+.skill-add .row .field { margin: 0; }
+.skill-add .tool-drop .grow { flex-basis: 100%; }
 .split-idle { display: grid; place-items: start center; }
 
 /* ---- Memory ---- */
@@ -154,7 +202,7 @@
 .git-page .git-commits li { padding: var(--sp-3) 0; border-top: 1px solid var(--line);
   font-size: var(--fs-md); }
 .git-page .git-commits li:first-child { border-top: 0; }
-.git-page .git-commits a.mono { color: var(--accent); font-size: var(--fs-sm); flex: none; }
+.git-page .git-commits a.mono { color: var(--link); font-size: var(--fs-sm); flex: none; }
 .git-page .git-commits .dim { color: var(--faint); white-space: nowrap; }
 .git-page .git-chips li { padding: var(--sp-2) var(--sp-5); border-radius: var(--radius-pill);
   background: var(--wash); font-size: var(--fs-sm); }

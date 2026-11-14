@@ -28,7 +28,7 @@ export default function ApprovalRow({ a, acting, onDecide, onReview }) {
           <span className="sh-approval-main"><code>{a.host}</code> is not on the allowlist</span>
           <span className="sh-approval-note">
             {a.hit_count > 1 ? `Refused ${a.hit_count} times so far.` : 'Refused once so far.'}
-            {' '}Allow adds it for this project.</span>
+            {' '}Allow adds it to this project's profile, so every project on that profile can reach it.</span>
           {a.triage_verdict === 'flag' && a.triage_reason && (
             <span className="sh-approval-note">Auto review flagged it: {a.triage_reason}</span>
           )}

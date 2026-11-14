@@ -298,7 +298,8 @@ async def _run_locked(source: str) -> dict:
                 reason = "already on the effective allowlist"
                 await _mark_host(db, h["id"], "allow", reason)
                 await _log(db, run_id, "egress", h["id"], slug, host, "allow",
-                           reason, "approved", {"added_to": res.get("added_to")})
+                           reason, "approved", {"added_to": res.get("added_to"),
+                                                "list": res.get("list")})
                 counts["allowed"] += 1
                 continue
             key = f"h{h['id']}"
@@ -345,7 +346,8 @@ async def _run_locked(source: str) -> dict:
                         await _mark_host(db, row["id"], "allow", v["reason"])
                         await _log(db, run_id, "egress", row["id"], slug, host,
                                    "allow", v["reason"], "approved",
-                                   {"added_to": res.get("added_to")})
+                                   {"added_to": res.get("added_to"),
+                                    "list": res.get("list")})
                         counts["allowed"] += 1
                     else:
                         await _mark_host(db, row["id"], "flag", v["reason"])
@@ -393,10 +395,15 @@ async def undo(db: aiosqlite.Connection, log_id: int) -> dict:
         return {"ok": False, "error": "already undone"}
     if row["action"] == "approved":
         detail = json.loads(row["detail"]) if row["detail"] else {}
-        # the list the approval wrote: a project's own (since profiles), or
-        # GENERAL for a pre-profiles approval (now the Default profile's list)
-        target = detail.get("added_to") or egress.GENERAL
-        await egress.remove_host(db, target, row["subject"])
+        # the list the approval wrote: since approvals moved to profiles, the
+        # profile's list it names (`list`); an older record names only the
+        # project (its profile's list now holds the host, migrated) or nothing
+        # (GENERAL, a pre-profiles approval: the Default profile's list)
+        target = detail.get("list")
+        if not target and detail.get("added_to"):
+            prof = await profiles.for_slug(db, detail["added_to"])
+            target = f"profile:{prof['id']}"
+        await egress.remove_host(db, target or egress.GENERAL, row["subject"])
         await db.execute(
             "UPDATE egress_pending SET status='pending', decided_at=NULL, "
             "triage_verdict='flag', triage_reason='operator undid the auto-approve' "

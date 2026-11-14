@@ -338,9 +338,9 @@ async def test_tool_handler_files_and_reports_errors(client):
     tok = runtime.active_project.set("demo")
     try:
         from tools.service_request.handler import run
-        out = await run(**_req())
+        out = await run(**_req(), summary="Test request.")
         assert "filed" in out and "Nothing runs" in out
-        out = await run(**_req(env={"K": "{{secret:X}}"}))
+        out = await run(**_req(env={"K": "{{secret:X}}"}), summary="Test request.")
         assert out.startswith("error:")
         from tools.service_status.handler import run as status
         assert "pending" in await status()

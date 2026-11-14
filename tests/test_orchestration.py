@@ -98,7 +98,9 @@ async def test_schedule_proposal_lands_paused_and_pending(client):
     r = await client.get("/api/notifications")
     body = r.json()
     assert any(s["name"] == "Morning news" for s in body["schedules"])
-    assert body["count"] >= 1
+    # (the Security badge counts only what its "Waiting for you" list shows,
+    # and a proposed schedule is answered on Schedules, from its toast)
+    assert body["count"] == 0
 
     # operator resumes = approves: enabled, no longer pending, bell clears
     await client.patch(f"/api/schedules/{row['id']}?enabled=true")

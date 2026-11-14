@@ -33,7 +33,7 @@
   var(--surface) 4px 6px); }
 /* four kinds, four distinct tokens (shared and project were both green) */
 .k-shared { background: var(--ink); }
-.k-project { background: var(--accent); }
+.k-project { background: var(--text); }
 .k-service { background: var(--warn); }
 .k-builder { background: var(--faint); }
 .bx-legend { gap: var(--sp-3) var(--sp-7); color: var(--slate); }
@@ -109,6 +109,6 @@
 .voice-line.user { background: var(--bubble); }
 .voice-line.assistant { background: var(--surface); }
 .voice-hint { color: var(--slate); }
-.voice-tier-tag { color: var(--accent); margin-left: var(--sp-4); }
+.voice-tier-tag { color: var(--dim); margin-left: var(--sp-4); }
 .voice-working-tag { margin-left: var(--sp-4); }
 .voice-line-tier { margin-left: var(--sp-4); color: var(--faint); font-size: var(--fs-sm); }

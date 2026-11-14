@@ -19,6 +19,14 @@ from .memory import (
 router = APIRouter(prefix="/api", tags=["projects"], dependencies=[Depends(require_user)])
 
 
+def check_name(name: str) -> None:
+    """A project name can't start with a digit (it reads as a count, and the
+    slug that comes from it would start with one)."""
+    if (name or "").strip()[:1].isdigit():
+        raise HTTPException(status_code=400,
+                            detail="a project name can't start with a number")
+
+
 def slugify(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
     if not slug:
@@ -40,7 +48,7 @@ async def list_projects():
     db = await get_db()
     try:
         async with db.execute(
-            "SELECT id, slug, name, github_remote, autonomy, created_at FROM projects "
+            "SELECT id, slug, name, github_remote, autonomy, created_at, pinned_at FROM projects "
             "WHERE deleted_at IS NULL AND is_hidden = 0 ORDER BY created_at DESC"
         ) as cur:
             rows = await cur.fetchall()
@@ -58,6 +66,7 @@ async def list_projects():
 
 @router.post("/projects")
 async def create_project(body: CreateProject):
+    check_name(body.name)
     slug = slugify(body.name)
     project_dir = settings.projects_dir / slug
     db = await get_db()
@@ -110,6 +119,7 @@ async def import_project(body: ImportProject):
     repo = url.rstrip("/").rsplit("/", 1)[-1]
     repo = repo[:-4] if repo.endswith(".git") else repo
     name = (body.name or repo).strip()
+    check_name(name)
     slug = slugify(name)
     project_dir = settings.projects_dir / slug
     db = await get_db()
@@ -318,6 +328,26 @@ async def import_persist(slug: str, body: ImportPersist,
     return {**(await _persist_view(slug)), **out}
 
 
+class PinProject(BaseModel):
+    pinned: bool
+
+
+@router.put("/projects/{slug}/pin")
+async def pin_project(slug: str, body: PinProject):
+    """Pin or unpin a project in the sidebar (stored here, not in the browser)."""
+    db = await get_db()
+    try:
+        cur = await db.execute(
+            "UPDATE projects SET pinned_at = " + ("datetime('now')" if body.pinned else "NULL")
+            + " WHERE slug = ? AND deleted_at IS NULL", (slug,))
+        await db.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="no such project")
+    finally:
+        await db.close()
+    return {"ok": True, "slug": slug, "pinned": body.pinned}
+
+
 class RenameProject(BaseModel):
     name: str
 
@@ -334,6 +364,7 @@ async def rename_project(slug: str, body: RenameProject):
     name = " ".join((body.name or "").split())[:80]
     if not name:
         raise HTTPException(status_code=400, detail="name cannot be blank")
+    check_name(name)
     db = await get_db()
     try:
         cur = await db.execute("UPDATE projects SET name = ? WHERE slug = ? "

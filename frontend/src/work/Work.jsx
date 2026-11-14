@@ -24,6 +24,28 @@ import { UiGlyph } from '../shell/glyphs.jsx'
 // so the chat does not wait for them
 const WindowBody = lazy(() => import('./windows.jsx'))
 const Projects = lazy(() => import('../pages/Projects.jsx'))
+// a project's home (/project/:slug), shown in the chat's main area with the
+// chat sidebar kept beside it, as Claude.ai's project pages keep theirs
+const ProjectHomeBody = lazy(() => import('../pages/ProjectHome.jsx')
+  .then((m) => ({ default: m.ProjectHomeBody })))
+// a new chat with no project: the same layout, a title, the composer, recents
+const StartHome = lazy(() => import('../pages/ProjectHome.jsx')
+  .then((m) => ({ default: m.StartHome })))
+const homePending = <div className="route-pending" aria-busy="true" />
+
+// What a new, empty chat shows (Chat's freshHome): the home of the project it
+// would work in, else a plain new-chat home. The same on a cold load of / as
+// after any click, because it follows the chat's state, not the route.
+function freshHome(ctl) {
+  return (
+    <Suspense fallback={homePending}>
+      {ctl.project
+        ? <ProjectHomeBody key={ctl.project} slug={ctl.project} ctl={ctl} />
+        : <StartHome title="New chat" placeholder="Message CNTRL" ctl={ctl}
+                     chats={ctl.conversations} empty="No chats yet. Start one above." />}
+    </Suspense>
+  )
+}
 
 // Work: the chat (pages/Chat.jsx, unchanged in look and behaviour) with the
 // chat's project's windows beside it — the old project board's cards as a
@@ -53,6 +75,7 @@ function typing(el) {
   if (!el || el === document.body) return false
   if (el.isContentEditable || el.closest?.('.xterm, .cm-editor, [role="dialog"], [role="menu"]')) return true
   if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true
+  if (el.closest?.('[role="combobox"]')) return true
   return el.tagName === 'INPUT' && !NOT_TEXT.has((el.type || '').toLowerCase())
 }
 
@@ -64,8 +87,10 @@ function readSplit() {
   return 0.5
 }
 
-export default function Work({ openProjects = false }) {
-  const { slug: routeSlug } = useParams()      // /projects/:slug lands here
+export default function Work({ openProjects = false, projectHome = false }) {
+  const { slug: routeSlug } = useParams()      // /projects/:slug or /project/:slug
+  // /project/:slug: the project's home takes the chat's main area
+  const homeSlug = projectHome ? routeSlug || null : null
   const navigate = useNavigate()
   const phone = useIsPhone()
   const chatCtl = useRef(null)
@@ -90,11 +115,11 @@ export default function Work({ openProjects = false }) {
 
   // ---- a /projects/:slug link: into Work, with that project on the chat ----
   useEffect(() => {
-    if (!routeSlug) return
+    if (!routeSlug || projectHome) return
     // Chat's control ref is filled on its first render, which precedes this
     chatCtl.current?.openProject(routeSlug)
     navigate('/', { replace: true })
-  }, [routeSlug, navigate])
+  }, [routeSlug, projectHome, navigate])
   // /projects (the old Projects page): the Projects sheet, over Work
   useEffect(() => {
     if (!openProjects) return
@@ -424,7 +449,7 @@ export default function Work({ openProjects = false }) {
     <WorkContext.Provider value={workCtx}>
       <div className={`work${phone ? ' work-phone' : ''}${phoneWin ? ' work-show-window' : ''}`
                       + (maxId ? ' work-max' : '')}>
-        {phone && (
+        {phone && !homeSlug && (
           <div className="work-tabs" role="tablist" aria-label="Chat and windows">
             <div className={`work-tab${!phoneWin ? ' on' : ''}`}>
               <button type="button" role="tab" aria-selected={!phoneWin}
@@ -446,7 +471,14 @@ export default function Work({ openProjects = false }) {
         )}
         <Chat controlRef={chatCtl} onProjectChange={onProjectChange}
               toolbarExtra={<><StopMenu project={project} />{phone ? null : plus}</>}
-              beside={beside} />
+              beside={homeSlug ? null : beside}
+              home={homeSlug && ((ctl) => (
+                <Suspense fallback={homePending}>
+                  <ProjectHomeBody key={homeSlug} slug={homeSlug} ctl={ctl} />
+                </Suspense>
+              ))}
+              homeProject={homeSlug} freshHome={freshHome}
+              onLeaveHome={() => navigate('/')} />
         {picker && (
           <WindowPicker anchor={picker.anchor} project={project} projects={projects}
                         label={picker.mode === 'switch' ? 'Switch this window' : 'Open a window'}

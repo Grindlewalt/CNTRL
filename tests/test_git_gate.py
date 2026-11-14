@@ -63,7 +63,7 @@ async def test_ensure_repo_and_status(client):
 
 async def test_commit_request_is_pending_and_commits_nothing(client):
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
-    out = await registry.dispatch("git_commit_request", {"message": "Add x"})
+    out = await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "Add x"})
     assert "pending" in out and "#" in out and "approve" in out.lower()
     r = await client.get("/api/projects/demo/git/requests")
     reqs = r.json()["requests"]
@@ -77,7 +77,7 @@ async def test_approve_commits_and_skips_runtime_files(client):
     (_pdir() / "code" / "x.py").write_text("print(1)\n")
     (_pdir() / ".workspace.json").write_text("{}")
     await registry.dispatch("write_file", {"path": "code/pending.py", "content": "y"})
-    await registry.dispatch("git_commit_request", {"message": "Add x"})
+    await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "Add x"})
     rid = await _latest_request_id(client)
     r = await client.post(f"/api/projects/demo/git/requests/{rid}/approve")
     assert r.status_code == 200
@@ -98,7 +98,7 @@ async def test_approve_commits_and_skips_runtime_files(client):
 
 async def test_reject_leaves_tree_untouched(client):
     (_pdir() / "a.txt").write_text("a")
-    await registry.dispatch("git_commit_request", {"message": "Add a"})
+    await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "Add a"})
     rid = await _latest_request_id(client)
     r = await client.post(f"/api/projects/demo/git/requests/{rid}/reject")
     assert r.status_code == 200 and r.json()["status"] == "rejected"
@@ -126,10 +126,10 @@ async def test_agent_cannot_write_into_git_dir(client):
 
 
 async def test_empty_message_and_clean_tree_refused(client):
-    out = await registry.dispatch("git_commit_request", {"message": "   "})
+    out = await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "   "})
     assert "error" in out and "empty" in out
     # the creation baseline already committed the scaffold — tree is clean
-    out = await registry.dispatch("git_commit_request", {"message": "Nothing"})
+    out = await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "Nothing"})
     assert "error" in out and "clean" in out
 
 
@@ -137,7 +137,7 @@ async def test_commit_only_selected_paths(client):
     (_pdir() / "a.txt").write_text("a")
     (_pdir() / "b.txt").write_text("b")
     await registry.dispatch("git_commit_request",
-                            {"message": "Add a", "paths": ["a.txt"]})
+                            {"summary": "Test request.", "message": "Add a", "paths": ["a.txt"]})
     rid = await _latest_request_id(client)
     r = await client.post(f"/api/projects/demo/git/requests/{rid}/approve")
     assert r.status_code == 200

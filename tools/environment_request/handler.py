@@ -2,7 +2,7 @@
 (host-side, brokered). Validation and storage live in backend/environments.py."""
 import asyncio
 
-from backend import environments, permissions, runtime
+from backend import environments, permissions, reqsummary, runtime
 from backend.agent.tools.toolctx import active_slug
 from backend.config import settings
 from backend.db import get_db
@@ -10,9 +10,13 @@ from backend.packages import PackageError
 
 
 async def run(name: str = "", packages: list | None = None, reason: str = "",
-              min_mem_mb: int | None = None, use: str = "", **kw) -> str:
+              min_mem_mb: int | None = None, use: str = "", summary: str = "", **kw) -> str:
     if not settings.vm_boxes_enabled:
         return "error: environment requests need boxes (vm_boxes_enabled is off)."
+    try:
+        summary = reqsummary.check(summary)
+    except reqsummary.SummaryError as e:
+        return reqsummary.refusal(e)
     from_variant = kw.get("from") or kw.get("from_variant") or "main"
     slug = await active_slug()
     db = await get_db()
@@ -21,6 +25,7 @@ async def run(name: str = "", packages: list | None = None, reason: str = "",
             db, project=slug, conversation_id=runtime.conversation_id.get(),
             name=name, from_variant=from_variant, packages=packages or [],
             min_mem_mb=min_mem_mb, reason=reason, use=use or None)
+        await reqsummary.store(db, "environment_requests", row["id"], summary)
     except PackageError as e:
         return f"error: {e}"
     finally:

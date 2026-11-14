@@ -1,7 +1,8 @@
+from backend import reqsummary
 from backend.agent.tools.toolctx import require_project
 
 
-async def run(title: str, description: str = "") -> str:
+async def run(title: str, summary: str = "", description: str = "") -> str:
     from backend import gitea
     try:
         slug = await require_project()
@@ -11,6 +12,10 @@ async def run(title: str, description: str = "") -> str:
         return ("error: Gitea isn't set up on this CNTRL, so there is nowhere to "
                 "push. Nothing was filed. Use git_commit_request to ask the "
                 "operator for a commit instead.")
+    try:
+        summary = reqsummary.check(summary)
+    except reqsummary.SummaryError as e:
+        return reqsummary.refusal(e)
     try:
         row = await gitea.create_push_request(slug, title, description)
     except ValueError as e:
@@ -28,6 +33,7 @@ async def run(title: str, description: str = "") -> str:
                 "Nothing was filed and your files are safe in the project. Tell "
                 "the operator what this says; retrying with the same arguments "
                 "will fail the same way.")
+    await reqsummary.store_new("git_requests", row["id"], summary)
     files = row.get("files") or []
     listed = ("\n  " + "\n  ".join(files)) if files else ""
     others = row.get("others") or []

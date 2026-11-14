@@ -42,10 +42,10 @@ async def _requests(client):
 
 async def test_a_new_commit_request_replaces_the_pending_one_and_says_so(client):
     (_pdir() / "a.txt").write_text("a\n")
-    first = await registry.dispatch("git_commit_request", {"message": "first"})
+    first = await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "first"})
     assert "replaces" not in first
     (_pdir() / "b.txt").write_text("b\n")
-    second = await registry.dispatch("git_commit_request", {"message": "second"})
+    second = await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "second"})
     assert "replaces pending request #" in second and "first" in second
     pending = [r for r in await _requests(client) if r["status"] == "pending"]
     assert [r["message"] for r in pending] == ["second"]
@@ -56,7 +56,7 @@ async def test_a_new_commit_request_replaces_the_pending_one_and_says_so(client)
 async def test_a_pending_remote_request_is_not_replaced_by_a_commit_request(client):
     (_pdir() / "a.txt").write_text("a\n")
     await gitgate.create_remote_request("demo", "https://github.com/o/r")
-    await registry.dispatch("git_commit_request", {"message": "commit"})
+    await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "commit"})
     kinds = sorted(r["kind"] for r in await _requests(client) if r["status"] == "pending")
     assert kinds == ["commit", "remote"]
 
@@ -69,7 +69,7 @@ async def test_runtime_files_never_ride_a_commit_even_with_a_replaced_gitignore(
     (_pdir() / ".workspace.json").write_text("{}")
     (_pdir() / "data").mkdir(exist_ok=True)
     (_pdir() / "data" / "db.sqlite").write_text("state")
-    await registry.dispatch("git_commit_request", {"message": "add keep"})
+    await registry.dispatch("git_commit_request", {"summary": "Test request.", "message": "add keep"})
     rid = (await _requests(client))[0]["id"]
     r = await client.post(f"/api/projects/demo/git/requests/{rid}/approve")
     assert r.status_code == 200, r.text

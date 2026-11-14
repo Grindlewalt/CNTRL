@@ -11,7 +11,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from . import egress, egress_auto, lanaccess, secactions, secctx, secruns, security, sse
+from . import egress, egress_auto, profiles, lanaccess, secactions, secctx, secruns, security, sse
 from .auth import require_user
 from .db import get_db
 
@@ -49,6 +49,68 @@ async def recent_events(limit: int = 200, project: str | None = None):
             return {"events": [dict(r) for r in await cur.fetchall()]}
     finally:
         await db.close()
+
+
+_DECIDED_BY = {
+    "allow": "the profile's rules", "deny": "the profile's rules",
+    "auto_allow": "Auto allow (egress auto mode)", "auto_deny": "the profile's rules",
+    "cut": "the anomaly guard", "approved": "you, from the waiting queue",
+    "reviewer_approved": "Auto review",
+}
+
+
+@router.get("/decisions")
+async def decisions(limit: int = 50, offset: int = 0, q: str = "",
+                    verdict: str = "", profile: int | None = None,
+                    project: str = "", id: int | None = None):
+    """Paged decisions for the Network pages. Each row carries the profile that
+    governs its project now (profile_id, profile), who decided (decided_by) and
+    why (reason). `q` matches host, path, reason and project; `verdict` is one
+    verdict or `blocked` (deny, auto_deny, cut) or `allowed`."""
+    limit = max(1, min(int(limit), 200))
+    offset = max(0, int(offset))
+    where, args = [], []
+    if id is not None:
+        where.append("e.id = ?"); args.append(id)
+    if q.strip():
+        like = f"%{q.strip().lower()}%"
+        where.append("(lower(e.host) LIKE ? OR lower(COALESCE(e.path,'')) LIKE ? "
+                     "OR lower(COALESCE(e.reason,'')) LIKE ? "
+                     "OR lower(COALESCE(e.project_slug,'')) LIKE ?)")
+        args += [like] * 4
+    if verdict == "blocked":
+        where.append("e.verdict IN ('deny','auto_deny','cut')")
+    elif verdict == "allowed":
+        where.append("e.verdict IN ('allow','auto_allow','approved','reviewer_approved')")
+    elif verdict:
+        where.append("e.verdict = ?"); args.append(verdict)
+    if project:
+        where.append("e.project_slug = ?"); args.append(project)
+    if profile is not None:
+        where.append("COALESCE(pr.id, (SELECT id FROM security_profiles "
+                     "WHERE is_default = 1 LIMIT 1)) = ?")
+        args.append(profile)
+    w = (" WHERE " + " AND ".join(where)) if where else ""
+    frm = ("FROM egress_events e LEFT JOIN projects p ON p.slug = e.project_slug "
+           "LEFT JOIN security_profiles pr ON pr.id = p.profile_id")
+    db = await get_db()
+    try:
+        async with db.execute(f"SELECT COUNT(*) {frm}{w}", args) as cur:
+            total = (await cur.fetchone())[0]
+        async with db.execute(
+                "SELECT e.id, e.project_slug, e.host, e.method, e.path, e.bytes_out, "
+                "e.bytes_in, e.verdict, e.reason, e.created_at, e.box_id, e.service_id, "
+                f"pr.id AS profile_id, pr.name AS profile {frm}{w} "
+                "ORDER BY e.id DESC LIMIT ? OFFSET ?", (*args, limit, offset)) as cur:
+            rows = [dict(r) for r in await cur.fetchall()]
+        dflt = await profiles.current_default(db)
+    finally:
+        await db.close()
+    for r in rows:
+        if r["profile_id"] is None and dflt:
+            r["profile_id"], r["profile"] = dflt["id"], dflt["name"]
+        r["decided_by"] = _DECIDED_BY.get(r["verdict"], r["verdict"])
+    return {"total": total, "rows": rows, "limit": limit, "offset": offset}
 
 
 @router.get("/stream")

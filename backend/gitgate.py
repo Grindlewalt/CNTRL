@@ -383,7 +383,11 @@ async def status_text(slug: str) -> str:
     return f"branch: {branch}\nlast commit: {last}\nchanges:\n{changes}"
 
 
-async def diff_text(slug: str, path: str | None = None, max_chars: int = 20000) -> str:
+async def diff_text(slug: str, path: str | None = None, max_chars: int = 20000,
+                    new_files: bool = False) -> str:
+    """The working tree against HEAD. Untracked files are listed by name; with
+    `new_files` each is shown whole, as an all-added diff (what a commit
+    request's Inspect shows: a new file is most of what agents commit)."""
     rc, _, _ = await run_git(slug, "rev-parse", "--verify", "-q", "HEAD")
     args = ["diff", "--no-color"] + (["HEAD"] if rc == 0 else [])
     if path:
@@ -397,6 +401,19 @@ async def diff_text(slug: str, path: str | None = None, max_chars: int = 20000) 
     parts = []
     if diff.strip():
         parts.append(diff.rstrip())
+    if new_files:
+        rest = []
+        for u in untracked:
+            # a name git had to quote (spaces, odd bytes) stays a name in the list
+            if u.startswith('"') or sum(len(p) for p in parts) > max_chars:
+                rest.append(u)
+                continue
+            _, d, _ = await run_git(slug, "diff", "--no-color", "--no-index", "--", "/dev/null", u)
+            if d.strip():
+                parts.append(d.rstrip())
+            else:
+                rest.append(u)
+        untracked = rest
     if untracked:
         parts.append("untracked files (no diff until committed):\n"
                      + "\n".join(untracked))

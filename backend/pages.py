@@ -145,7 +145,17 @@ def _view(r) -> dict:
             "files": json.loads(r["files"] or "[]"), "bytes": r["bytes"],
             "status": r["status"], "url": url_of(r["id"]) if r["status"] == "live" else None,
             "created_at": r["created_at"], "decided_at": r["decided_at"],
-            "conversation_id": r["conversation_id"]}
+            "conversation_id": r["conversation_id"],
+            # the agent's two-sentence summary and the call that filed it (reqsummary.py)
+            "agent_summary": _col(r, "agent_summary"), "call_id": _col(r, "call_id")}
+
+
+def _col(r, name: str):
+    """A column a row from before its migration may lack."""
+    try:
+        return r[name]
+    except (IndexError, KeyError):
+        return None
 
 
 async def _row(db, pid: str):

@@ -1,15 +1,12 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink } from 'react-router-dom'
 import { useDismiss } from '../useDismiss.js'
+import { keepInside, placePopover, pointRect } from './place.js'
 
-// The glass dropdown. The recipe — a translucent --glass panel, 16px blur,
-// 14px corners, a 6px inset, --shadow-pop, dropping in from its own corner —
-// was written out three times: .notif-drop (the bell, the VM chip and the
-// nav's More menu), .proj-menu (the composer's project picker) and .model-menu
-// (the composer's model picker, which opens upward). Same values, three names.
-// `.menu` in styles.css is that recipe once; the three keep their classes
-// until their call sites migrate.
+// The dropdown. A paper panel, 14px corners, a 6px inset, --shadow-pop,
+// dropping in from its own corner. `.menu` in styles.css is that recipe once;
+// .notif-drop and .proj-menu keep their classes until their call sites migrate.
 //
 // The caller keeps the open state and renders its own trigger, because every
 // trigger in the app is styled for where it sits (.nav-more, .proj-chip,
@@ -26,47 +23,57 @@ import { useDismiss } from '../useDismiss.js'
 // a Workspace panel (overflow:hidden), a card near the screen edge. The
 // popover is portalled to <body>, fixed-positioned from the trigger's rect and
 // clamped inside the viewport with a 16px gutter, flipping above the trigger
-// when there is more room there. The nav's menus keep the in-place absolute
-// recipe: their rules position them against the bar and the rail.
+// when there is more room there (components/place.js). The nav's menus keep
+// the in-place absolute recipe: their rules position them against the bar and
+// the rail.
+//
+// `at` ({x, y}, viewport pixels) anchors a floating menu at a point instead of
+// the trigger: a right-click menu opens at the cursor (RowMenu). It implies
+// `floating`.
+//
+// Keyboard: ArrowUp/ArrowDown/Home/End move between the items; `autoFocus`
+// focuses the first item when the menu opens (RowMenu does, so the keyboard
+// is already in the menu).
 const NOOP = () => {}
-const GUTTER = 16
-const OFFSET = 8
+const ITEMS = '[role^="menuitem"]:not(:disabled):not([aria-disabled="true"])'
 
-function place(wrap, pop, align, up) {
-  const t = wrap.getBoundingClientRect()
-  const vw = document.documentElement.clientWidth
-  const vh = window.innerHeight
-  const w = pop.offsetWidth
-  let left = align === 'left' ? t.left : t.right - w
-  left = Math.max(GUTTER, Math.min(left, vw - GUTTER - w))
-  pop.style.maxHeight = 'none'
-  const h = pop.offsetHeight
-  const below = vh - t.bottom - OFFSET - GUTTER
-  const above = t.top - OFFSET - GUTTER
-  const openUp = up ? (above >= h || above > below) : (below < h && above > below)
-  const room = Math.max(120, openUp ? above : below)
-  const shown = Math.min(h, room)
-  pop.style.left = `${left}px`
-  pop.style.maxHeight = `${room}px`
-  pop.style.top = `${openUp ? t.top - OFFSET - shown : t.bottom + OFFSET}px`
-  pop.dataset.side = openUp ? 'up' : 'down'   // not className: React owns that
+function moveFocus(e) {
+  const keys = { ArrowDown: 1, ArrowUp: -1, Home: 'first', End: 'last' }
+  const k = keys[e.key]
+  if (!k) return
+  const items = [...e.currentTarget.querySelectorAll(ITEMS)]
+  if (!items.length) return
+  e.preventDefault()
+  const i = items.indexOf(document.activeElement)
+  let next
+  if (k === 'first') next = 0
+  else if (k === 'last') next = items.length - 1
+  else if (i < 0) next = k > 0 ? 0 : items.length - 1
+  else next = Math.max(0, Math.min(items.length - 1, i + k))
+  items[next].focus()
 }
 
 export default function Menu({
   open, onClose = NOOP, trigger, align = 'right', up = false, width,
-  label, className = '', wrapClassName = '', floating = false, children,
+  label, className = '', wrapClassName = '', floating = false, at = null,
+  autoFocus = false, children,
 }) {
   const popRef = useRef(null)
-  const ref = useDismiss(open, onClose, floating ? popRef : null)
+  const float = floating || !!at
+  const ref = useDismiss(open, onClose, float ? popRef : null)
   const cls = ['menu', up ? 'up' : '', align === 'left' ? 'left' : '',
-               floating ? 'floating' : '', className].filter(Boolean).join(' ')
+               float ? 'floating' : '', className].filter(Boolean).join(' ')
+  const x = at?.x
+  const y = at?.y
 
   // before paint, so the menu never flashes at its unplaced spot; a scroll
   // anywhere (the board, a panel, the page) or a resize moves the trigger
   useLayoutEffect(() => {
-    if (!open || !floating) return undefined
+    if (!open || !float) return undefined
     const run = () => {
-      if (ref.current && popRef.current) place(ref.current, popRef.current, align, up)
+      if (!popRef.current) return
+      if (x != null) placePopover(popRef.current, pointRect(x, y), { align: 'left', up, offset: 2 })
+      else if (ref.current) placePopover(popRef.current, ref.current.getBoundingClientRect(), { align, up })
     }
     run()
     window.addEventListener('resize', run)
@@ -75,10 +82,15 @@ export default function Menu({
       window.removeEventListener('resize', run)
       window.removeEventListener('scroll', run, true)
     }
-  }, [open, floating, align, up, ref])
+  }, [open, float, align, up, ref, x, y])
+
+  useEffect(() => {
+    if (open && autoFocus) popRef.current?.querySelector(ITEMS)?.focus()
+  }, [open, autoFocus, x, y])
 
   const pop = open && (
     <div ref={popRef} className={cls} role="menu" aria-label={label}
+         onKeyDown={moveFocus} onPointerDown={float ? keepInside : undefined}
          style={width ? { '--menu-w': `${width}px` } : undefined}>
       {children}
     </div>
@@ -86,7 +98,7 @@ export default function Menu({
   return (
     <div className={['menu-wrap', wrapClassName].filter(Boolean).join(' ')} ref={ref}>
       {trigger}
-      {floating ? (pop && createPortal(pop, document.body)) : pop}
+      {float ? (pop && createPortal(pop, document.body)) : pop}
     </div>
   )
 }

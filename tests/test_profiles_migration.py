@@ -225,13 +225,13 @@ async def test_fresh_install_seeds_no_profile_and_first_use_creates_the_safe_def
     async with db.execute("SELECT COUNT(*) AS n FROM security_profiles") as cur:
         assert (await cur.fetchone())["n"] == 0              # zero built-ins
     assert await profiles.current_default(db) is None
-    # the first use creates the safe default: ask me, shared box, no extras
+    # the first use creates the safe default: ask me, shared box, requests allowed (they wait for approval)
     assert (await egress.decide(db, "anything", "pypi.org"))[0] == "allow"
     assert (await egress.decide(db, "anything", "evil.example"))[0] == "deny"
     profs = await profiles.list_all(db)
     assert len(profs) == 1 and profs[0]["is_default"] and profs[0]["name"] == "Default"
     assert profiles.setup_choices(profs[0]) == {"network": "ask", "placement": "shared",
-                                                "services": False, "packages": False}
+                                                "services": True, "packages": True}
     async with db.execute("SELECT triage_verdict FROM security_events "
                           "WHERE kind = 'profile_changed'") as cur:
         assert [r["triage_verdict"] for r in await cur.fetchall()] == ["flag"]

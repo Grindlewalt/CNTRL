@@ -90,8 +90,11 @@ export function useNotices(enabled) {
           title: `${crit} critical security alert${crit === 1 ? '' : 's'} not yet acknowledged`,
           body: 'open Security to see what happened',
         })
+        // shown when something pings at the operator's level, but the number is
+        // the list's (the badge's): "3 waiting" beside a badge of 10 read as a bug
+        const all = Math.max(rest, d.count || 0)
         if (rest > 0) push({
-          title: `${rest} item${rest === 1 ? '' : 's'} waiting in Security`,
+          title: `${all} item${all === 1 ? '' : 's'} waiting in Security`,
           body: 'approvals and requests', life: 10,
         })
         return

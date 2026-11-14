@@ -33,15 +33,22 @@ def test_front_matter_parses(md):
 # with a message specific to the tool, which reads better than argcheck's
 # generic "needs X". Anything else that differs is drift and fails below.
 SCHEMA_REQUIRES_MORE = {
+    # every request tool's `summary`: '' -> reqsummary.check says what to write
+    "environment_request": {"summary"},
+    "git_commit_request": {"summary"},
+    "git_push_request": {"summary"},
+    "git_remote_request": {"summary"},
     "music_control": {"action"},        # '' -> the list of actions
     "open_website": {"url"},            # '' -> "only http(s) URLs can be opened"
-    "package_request": {"manager", "package", "install_command", "reason"},  # the backend explains each
+    "package_request": {"manager", "package", "install_command", "reason",
+                        "summary"},     # the backend explains each
     "play_movie": {"source"},           # gui.media_src names the allowed sources
     "play_music": {"source"},
     "projector_show": {"surface"},      # '' -> "which surface?"
+    "publish": {"summary"},
     "service_logs": {"name"},           # '' -> "no approved service named ''"
-    "service_request": {"command", "files", "name", "reason"},               # the backend explains each
-    "skill_request": {"source", "reason"},                                   # the backend explains each
+    "service_request": {"command", "files", "name", "reason", "summary"},    # the backend explains each
+    "skill_request": {"source", "reason", "summary"},                        # the backend explains each
     "workspace_panel": {"action"},      # '' -> the actions
 }
 

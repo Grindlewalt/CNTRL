@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { api } from './api.js'
 import { ts } from './format.js'
 import {
-  AUTO_REVIEW_LEDE, AUTO_REVIEW_OFF_TIP, AUTO_REVIEW_ON_TIP, tallyLine,
+  AUTO_REVIEW_LEDE, AUTO_REVIEW_LINE, AUTO_REVIEW_OFF_TIP, AUTO_REVIEW_ON_TIP, tallyLine,
 } from './securityCopy.js'
 import { notifyError } from './notify.js'
-import { Button, Toggle } from './components/index.js'
+import { Button, HelpTip, Toggle } from './components/index.js'
 import { State } from './securityParts.jsx'
 
 // Control strip for Auto review — the isolated triage reviewer
@@ -74,12 +74,14 @@ export default function TriagePanel() {
     <section className="sq-rail-sec" aria-label="Auto review">
       <h3 className="sq-rail-h">
         Auto review
+        <HelpTip label="About Auto review" width={300}>
+          {AUTO_REVIEW_LEDE.map((t) => <p key={t}>{t}</p>)}</HelpTip>
         {/* the switch sits against the heading it names */}
         <Toggle checked={!!s.enabled} onChange={toggle} label="Auto review"
                 onText="On" offText="Off"
                 title={s.enabled ? AUTO_REVIEW_ON_TIP : AUTO_REVIEW_OFF_TIP} />
       </h3>
-      {AUTO_REVIEW_LEDE.map((t) => <p key={t}>{t}</p>)}
+      <p>{AUTO_REVIEW_LINE}</p>
 
       {/* what waits on it, and what it handed to you: an item it flagged is
           reviewed but not clear, it waits on the operator in the queue */}
