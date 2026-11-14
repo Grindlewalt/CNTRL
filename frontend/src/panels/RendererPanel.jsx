@@ -21,7 +21,7 @@ function renderCsp() {
     "base-uri 'none'; form-action 'none'"
 }
 
-function withCsp(html) {
+export function withCsp(html) {
   if (!html) return ''
   const meta = `<meta http-equiv="Content-Security-Policy" content="${renderCsp()}">`
   if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, (m) => m + meta)

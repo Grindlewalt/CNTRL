@@ -7,7 +7,9 @@ import { notify, notifyError } from '../notify.js'
 import { onProjectsChanged } from '../projectsChanged.js'
 import { useChatStream } from '../useChatStream.js'
 import { listTitle } from '../ChatGroups.jsx'
-import { AskPanel, useOperatorAsks } from '../AskUser.jsx'
+import { AskPanel, MODE_SHORT, useOperatorAsks, usePermissionMode } from '../AskUser.jsx'
+import { wireMode } from '../askUser.js'
+import ProjectPanel from '../panels/project/ProjectPanel.jsx'
 import ShellSidebar from './ShellSidebar.jsx'
 import Transcript from './Transcript.jsx'
 import Composer from './Composer.jsx'
@@ -73,6 +75,8 @@ export default function Shell() {
     return isPhone() ? { ...d, open: false } : d
   })
   const [chatJobs, setChatJobs] = useState([])   // jobs this chat launched (/messages)
+  const [panel, setPanel] = useState(null)       // the project panel: null or its tab
+  const [permMode, setPermMode] = usePermissionMode(cid)
 
   const chat = useChatStream()
   const { messages, busy, openThread, stopTurn, runTurn,
@@ -244,6 +248,7 @@ export default function Shell() {
       // project (files land in the chat's own store) — never "whatever is
       // loaded globally", which is how chats silently inherited the wrong one.
       ...(fresh ? { project: slug || null, project_mode: slug ? 'pin' : 'none',
+                    permission_mode: wireMode(permMode),
                     ...(newAs ? { agent: newAs } : {}) } : {}),
     }
     await runTurn({
@@ -295,7 +300,14 @@ export default function Shell() {
                 @{agentSlug}</span>
             )}
             <ScopeChip projects={projects} value={scopeSlug} gone={scopeGone}
-                       onPick={setScope} />
+                       open={panel === 'files'}
+                       onOpen={() => setPanel(panel === 'files' ? null : 'files')} />
+            <button type="button" className={`pp-bar-btn mode-${permMode}`}
+                    aria-haspopup="dialog" aria-expanded={panel === 'security'}
+                    onClick={() => setPanel(panel === 'security' ? null : 'security')}>
+              <span className="pp-k">Mode</span>
+              <span className="pp-v">{MODE_SHORT[permMode] || permMode}</span>
+            </button>
             <button type="button" className="sh-toggle sh-panels" aria-pressed={dock.open}
                     title={dock.open ? 'close the panels' : 'files, git, plan, terminal, network, runs'}
                     onClick={() => setDock((d) => ({ ...d, open: !d.open }))}>Panels</button>
@@ -329,6 +341,17 @@ export default function Shell() {
               onClose={() => setDock((d) => ({ ...d, open: false }))}
               width={dock.w} onWidth={(w) => setDock((d) => ({ ...d, w }))} />
       )}
+      {/* the shell has two scopes, pinned or none, so the panel's scope
+          control offers no "follow the loaded project" */}
+      <ProjectPanel open={panel !== null} tab={panel || 'files'} onTab={setPanel}
+                    onClose={() => setPanel(null)}
+                    cid={cid} temporary={fresh && temporary}
+                    slug={dockSlug} isProject={!!liveSlug}
+                    projects={projects} loaded={null}
+                    scope={{ mode: liveSlug ? 'pin' : 'none', value: liveSlug || '', noFollow: true,
+                             onPick: (mode, s) => setScope(mode === 'pin' ? s : null) }}
+                    permMode={permMode} onPermMode={setPermMode}
+                    runs={cid != null || !!liveSlug} chatJobs={chatJobs} />
     </div>
   )
 }

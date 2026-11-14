@@ -88,3 +88,51 @@ async def test_memory_api(client):
     assert r.json()["content"] == "remember this"
     r = await client.get("/api/memory/file", params={"path": "../../etc/passwd"})
     assert r.status_code == 400
+
+
+async def test_gui_save_goes_through_the_write_chokepoint(client):
+    """The operator's PUT /file lands through writes.apply_write: a file holding
+    a real secret value is refused (and nothing is written), a protected path is
+    refused, and a clean save lands with no exec bit."""
+    from backend import secrets
+
+    secrets.save({"DEMO_KEY": "sk-live-abcdef123456"})
+    r = await client.put("/api/projects/demo/file",
+                         json={"path": "notes/leak.md", "content": "key: sk-live-abcdef123456"})
+    assert r.status_code == 400
+    assert "secret" in r.json()["detail"]
+    assert not (settings.projects_dir / "demo" / "notes" / "leak.md").exists()
+
+    r = await client.put("/api/projects/demo/file",
+                         json={"path": ".context.json", "content": "{}"})
+    assert r.status_code == 400
+
+    r = await client.put("/api/projects/demo/file",
+                         json={"path": "code/tool.py", "content": "print(1)\n"})
+    assert r.status_code == 200
+    assert "flags" in r.json()
+    mode = (settings.projects_dir / "demo" / "code" / "tool.py").stat().st_mode & 0o777
+    assert mode == 0o644
+
+
+async def test_zip_has_the_listed_files_and_needs_login(client):
+    import io
+    import zipfile
+
+    await client.put("/api/projects/demo/file", json={"path": "notes/a.md", "content": "# a"})
+    await client.put("/api/projects/demo/file", json={"path": "code/b.py", "content": "print()"})
+    (settings.projects_dir / "demo" / ".hidden").write_text("no")
+    r = await client.get("/api/projects/demo/zip")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/zip"
+    assert 'filename="demo.zip"' in r.headers["content-disposition"]
+    names = set(zipfile.ZipFile(io.BytesIO(r.content)).namelist())
+    listed = {f["path"] for f in (await client.get("/api/projects/demo/files")).json()["files"]}
+    assert names == listed
+    assert {"notes/a.md", "code/b.py", "project.md"} <= names
+    assert ".hidden" not in names
+
+    assert (await client.get("/api/projects/nope/zip")).status_code == 404
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as anon:
+        assert (await anon.get("/api/projects/demo/zip")).status_code == 401
