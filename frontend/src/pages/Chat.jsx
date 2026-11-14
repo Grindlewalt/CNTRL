@@ -80,7 +80,7 @@ function ChatHome({ temporary, projectName, mode, onStart, children }) {
 const NEEDS_POLL_MS = 15000
 
 export default function Chat({
-  toolbarExtra = null, beside = null, onProjectChange, controlRef,
+  toolbarExtra = null, beside = null, onProjectChange, controlRef, home = null, onLeaveHome,
 } = {}) {
   const [conversations, setConversations] = useState([])
   const [conversationId, setConversationId] = useState(null)
@@ -300,6 +300,11 @@ export default function Chat({
   const closeSideOnPhone = () => {
     if (isPhone()) setSideOpen(false)
   }
+  // picking a chat or a new chat in the sidebar while a project's home shows
+  // in the main area (Work, /project/:slug) goes back to the chat
+  const leaveHome = () => { if (home) onLeaveHome?.() }
+  // ...and a project row opening its home on a phone reveals it
+  useEffect(() => { if (home) closeSideOnPhone() }, [home])  // eslint-disable-line
 
   async function openConversation(id, { resume = false, attempt = 0, messageId = null,
                                         query = '' } = {}) {
@@ -656,11 +661,12 @@ export default function Chat({
             <UiGlyph name={sideOpen ? 'left' : 'right'} /></button>
           <span className="side-title">Chats</span>
           <button type="button" className="icon-btn" title="new chat" aria-label="new chat"
-                  onClick={newConversation}><UiGlyph name="plus" /></button>
+                  onClick={() => { leaveHome(); newConversation() }}><UiGlyph name="plus" /></button>
         </div>
         {!sideOpen && !phone && <div className="side-nav" ref={slotRef} />}
-        <ChatGroups conversations={conversations} activeId={conversationId}
-                    projects={projects} onOpen={openConversation}
+        <ChatGroups conversations={conversations} activeId={home ? null : conversationId}
+                    projects={projects}
+                    onOpen={(id, opts) => { leaveHome(); openConversation(id, opts) }}
                     onRename={(c) => renameConversation(c.id, c.summary)}
                     onDelete={(c) => deleteConversation(c.id)}
                     onChanged={refreshConvos} />
@@ -668,7 +674,11 @@ export default function Chat({
       {sideOpen && (
         <div className="chat-scrim" onClick={() => setSideOpen(false)} />
       )}
-      <main>
+      {/* a project's home (Work, /project/:slug) takes the main area; the chat
+          stays mounted under it, hidden, so a running turn and its scroll
+          position are there when the operator goes back */}
+      {home && <main className="chat-home-main">{home}</main>}
+      <main hidden={!!home}>
         {/* the one home for the project state — except a fresh chat on a
             phone, where the controls sit in the empty state and the bar
             itself would just be an empty strip */}

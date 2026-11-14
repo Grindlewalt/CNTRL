@@ -28,8 +28,8 @@ import './work.css'
 // and uploads through the write chokepoint onto the always-loaded list,
 // schedules through /api/schedules, chats through /api/chat.
 //
-// ProjectHomeBody is the page without the route, so Work can host it in its
-// main area later and keep the chat sidebar beside it.
+// ProjectHomeBody is the page without the route: Work hosts it in its main
+// area for /project/:slug and keeps the chat sidebar beside it.
 
 const enc = encodeURIComponent
 

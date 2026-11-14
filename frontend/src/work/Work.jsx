@@ -24,6 +24,10 @@ import { UiGlyph } from '../shell/glyphs.jsx'
 // so the chat does not wait for them
 const WindowBody = lazy(() => import('./windows.jsx'))
 const Projects = lazy(() => import('../pages/Projects.jsx'))
+// a project's home (/project/:slug), shown in the chat's main area with the
+// chat sidebar kept beside it, as Claude.ai's project pages keep theirs
+const ProjectHomeBody = lazy(() => import('../pages/ProjectHome.jsx')
+  .then((m) => ({ default: m.ProjectHomeBody })))
 
 // Work: the chat (pages/Chat.jsx, unchanged in look and behaviour) with the
 // chat's project's windows beside it — the old project board's cards as a
@@ -65,8 +69,10 @@ function readSplit() {
   return 0.5
 }
 
-export default function Work({ openProjects = false }) {
-  const { slug: routeSlug } = useParams()      // /projects/:slug lands here
+export default function Work({ openProjects = false, projectHome = false }) {
+  const { slug: routeSlug } = useParams()      // /projects/:slug or /project/:slug
+  // /project/:slug: the project's home takes the chat's main area
+  const homeSlug = projectHome ? routeSlug || null : null
   const navigate = useNavigate()
   const phone = useIsPhone()
   const chatCtl = useRef(null)
@@ -91,11 +97,11 @@ export default function Work({ openProjects = false }) {
 
   // ---- a /projects/:slug link: into Work, with that project on the chat ----
   useEffect(() => {
-    if (!routeSlug) return
+    if (!routeSlug || projectHome) return
     // Chat's control ref is filled on its first render, which precedes this
     chatCtl.current?.openProject(routeSlug)
     navigate('/', { replace: true })
-  }, [routeSlug, navigate])
+  }, [routeSlug, projectHome, navigate])
   // /projects (the old Projects page): the Projects sheet, over Work
   useEffect(() => {
     if (!openProjects) return
@@ -425,7 +431,7 @@ export default function Work({ openProjects = false }) {
     <WorkContext.Provider value={workCtx}>
       <div className={`work${phone ? ' work-phone' : ''}${phoneWin ? ' work-show-window' : ''}`
                       + (maxId ? ' work-max' : '')}>
-        {phone && (
+        {phone && !homeSlug && (
           <div className="work-tabs" role="tablist" aria-label="Chat and windows">
             <div className={`work-tab${!phoneWin ? ' on' : ''}`}>
               <button type="button" role="tab" aria-selected={!phoneWin}
@@ -447,7 +453,13 @@ export default function Work({ openProjects = false }) {
         )}
         <Chat controlRef={chatCtl} onProjectChange={onProjectChange}
               toolbarExtra={<><StopMenu project={project} />{phone ? null : plus}</>}
-              beside={beside} />
+              beside={homeSlug ? null : beside}
+              home={homeSlug && (
+                <Suspense fallback={<div className="route-pending" aria-busy="true" />}>
+                  <ProjectHomeBody key={homeSlug} slug={homeSlug} />
+                </Suspense>
+              )}
+              onLeaveHome={() => navigate('/')} />
         {picker && (
           <WindowPicker anchor={picker.anchor} project={project} projects={projects}
                         label={picker.mode === 'switch' ? 'Switch this window' : 'Open a window'}

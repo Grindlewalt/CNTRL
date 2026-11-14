@@ -1276,6 +1276,10 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--track-head); }
    with it. Same reason on .messages. */
 .chat-layout main { flex: 1; display: flex; flex-direction: column; min-width: 0;
   min-height: 0; position: relative; }
+/* a project's home in the main area (Work, /project/:slug): the chat's own
+   main stays mounted, hidden, under it */
+.chat-layout main[hidden] { display: none; }
+.chat-layout main.chat-home-main { overflow: hidden; }
 .messages { flex: 1; min-height: 0; overflow-y: auto; padding: 0 24px;
   overscroll-behavior: contain; }
 /* the trailing padding is the composer's clearance: the last message scrolls to
